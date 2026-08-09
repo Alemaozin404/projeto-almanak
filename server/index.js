@@ -23,6 +23,7 @@
  *   UPSTASH_REDIS_REST_TOKEN=...               (opcional)
  *   PORT=8787
  */
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import crypto from 'node:crypto';
@@ -31,6 +32,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Decimal } from 'decimal.js';
 import { kvGetJson, kvSet } from './store.js';
+
+// Carrega server/.env (independente do cwd). No Vercel as variáveis vêm do
+// painel — o dotenv simplesmente não encontra o arquivo e segue em frente.
+const __serverDir = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.join(__serverDir, '.env') });
 
 const MP_API = 'https://api.mercadopago.com';
 

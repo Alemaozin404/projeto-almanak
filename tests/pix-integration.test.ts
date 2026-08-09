@@ -106,6 +106,9 @@ describe('Integração Pix — cobrança → pagamento → webhook → fichas', 
   const store: Record<string, string> = {};
 
   beforeAll(async () => {
+    // os testes NUNCA tocam o Upstash real (server/.env é carregado pelo dotenv)
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', '');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '');
     // localStorage: aponta o app para o backend local (mesma chave do Settings)
     vi.stubGlobal('localStorage', {
       getItem: (k: string) => store[k] ?? null,

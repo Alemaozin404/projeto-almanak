@@ -3,7 +3,7 @@
  * O servidor REAL (server/index.js) sobe em porta efêmera; sem UPSTASH_*
  * configurado, o store cai para o Map em memória (isolado por processo).
  */
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index.js';
 import { GameConfig } from '../src/config/GameConfig';
@@ -13,6 +13,9 @@ describe('API online — conteúdo, save na nuvem e ranking', () => {
   let baseUrl = '';
 
   beforeAll(async () => {
+    // os testes NUNCA tocam o Upstash real (server/.env é carregado pelo dotenv)
+    vi.stubEnv('UPSTASH_REDIS_REST_URL', '');
+    vi.stubEnv('UPSTASH_REDIS_REST_TOKEN', '');
     const app = createApp({
       MERCADO_PAGO_ACCESS_TOKEN: 'TEST-1234567890',
       MERCADO_PAGO_WEBHOOK_SECRET: 'test-webhook-secret',
@@ -27,6 +30,7 @@ describe('API online — conteúdo, save na nuvem e ranking', () => {
   });
 
   afterAll(async () => {
+    vi.unstubAllGlobals();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
