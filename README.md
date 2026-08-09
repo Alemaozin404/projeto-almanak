@@ -50,11 +50,11 @@ git init
 git add .
 git commit -m "feat: núcleo clicker online (vercel + mercadopago + nuvem)"
 git branch -M main
-git remote add origin https://github.com/SEU_USUARIO/nucleo-clicker.git
+git remote add origin https://github.com/Alemaozin404/projeto-almanak.git
 git push -u origin main
 ```
 
-> Edite `package.json` → `build.publish` e troque `SEU_USUARIO_GITHUB` pelo seu usuário.
+
 
 ### 2. Servidor no Vercel
 

@@ -99,8 +99,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "SEU_USUARIO_GITHUB",
-        "repo": "nucleo-clicker"
+        "owner": "Alemaozin404",
+        "repo": "projeto-almanak"
       }
     ]
   }
