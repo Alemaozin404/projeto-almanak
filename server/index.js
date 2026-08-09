@@ -159,6 +159,11 @@ export function createApp(env = process.env) {
   /** Cria a cobrança Pix (retorna id, qr_code e qr_code_base64). */
   async function createPixCharge(pack, playerId, payerEmail) {
     const idempotencyKey = crypto.randomUUID();
+    // O MP rejeita notification_url com localhost (400). Só enviamos quando o
+    // BASE_URL é público (https://). Sem ela, o MP usa a URL configurada no
+    // painel (Suas integrações → Webhooks) e o POLLING do jogo continua entregando
+    // as fichas independente do webhook.
+    const notificationUrl = /^https:\/\/(?!localhost)/i.test(BASE_URL) ? `${BASE_URL}/api/pix/webhook` : undefined;
     const { status, json } = await mpFetch('/v1/payments', {
       method: 'POST',
       headers: { 'X-Idempotency-Key': idempotencyKey },
@@ -166,9 +171,10 @@ export function createApp(env = process.env) {
         transaction_amount: pack.priceBRL,
         description: `Núcleo Clicker — ${pack.name}`,
         payment_method_id: 'pix',
-        notification_url: `${BASE_URL}/api/pix/webhook`,
+        ...(notificationUrl ? { notification_url: notificationUrl } : {}),
         payer: {
-          email: payerEmail || `jogador-${playerId}@nucleoclicker.local`,
+          // TLD válido obrigatório (o MP rejeita .local/.invalid com 400)
+          email: payerEmail || `jogador-${playerId}@nucleoclicker.com`,
         },
       }),
     });
