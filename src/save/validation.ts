@@ -284,6 +284,11 @@ export function validateState(raw: unknown): { state: GameState; result: Validat
       } else {
         if (typeof o.pixCode !== 'string') o.pixCode = undefined;
         if (typeof o.amountBRL !== 'number' || !Number.isFinite(o.amountBRL)) o.amountBRL = undefined;
+        // campos de conteúdo (concedidos quando aprovado) — preserva pacotes customizados
+        if (typeof o.label !== 'string') o.label = undefined;
+        if (typeof o.gold !== 'string' || !isFiniteDecimal(o.gold as never) || D(o.gold as never).isNegative()) o.gold = undefined;
+        if (typeof o.diamonds !== 'number' || !Number.isFinite(o.diamonds) || o.diamonds < 0) o.diamonds = undefined;
+        if (typeof o.fichas !== 'number' || !Number.isFinite(o.fichas) || o.fichas < 0) o.fichas = undefined;
       }
     }
     const pixKeys = Object.keys(state.pixOrders);

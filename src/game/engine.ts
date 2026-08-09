@@ -30,6 +30,16 @@ import { GameConfig } from '../config/GameConfig';
 import { GAME_PASS_LEVELS, passLevelFromXp, passNextLevel, LocalPaymentGateway } from '../pass/GamePass';
 import { packById } from '../shop/packs';
 import { fichaPackById, fichasToCredits, creditsToDiamonds, type PixOrderStatus } from '../wallet/pix';
+
+/** Pacote comprável via Pix — o gateway online só valida o preço (packId) no servidor. */
+export interface PixPackLike {
+  id: string;
+  name: string;
+  priceBRL: number;
+  fichas?: number;
+  gold?: string;
+  diamonds?: number;
+}
 import { resolvePixGateway } from '../wallet/mp';
 import { STATUS_PRESETS, type StatusPreset } from '../profile/status';
 import { AVATAR_CATALOG, avatarItemUnlocked, type AvatarItem } from '../profile/avatars';
@@ -1509,6 +1519,24 @@ export class GameEngine {
   }
 
   // ── carteira Ficha/Créditos ─────────────────────────────
+  /** Concede o conteúdo de um pacote Pix (uma vez). */
+  private grantPixContents(pack: PixPackLike, orderId: string): void {
+    const s = this.state;
+    if (pack.fichas) {
+      this.addRes('fichas', D(pack.fichas));
+      incStat(s, 'fichasBought', D(pack.fichas));
+    }
+    if (pack.gold && D(pack.gold).gt(ZERO)) {
+      this.addRes('gold', D(pack.gold));
+      incStat(s, 'goldEarned', D(pack.gold));
+    }
+    if (pack.diamonds && pack.diamonds > 0) {
+      this.addRes('crystals', D(pack.diamonds));
+      incStat(s, 'crystalsEarned', D(pack.diamonds));
+    }
+    appendLog(s, 'wallet', `Pix aprovado (pedido ${orderId}) — ${pack.id}: +${pack.fichas ?? 0} fichas, +${pack.gold ?? 0} moedas, +${pack.diamonds ?? 0} diamantes`);
+  }
+
   /** Compra de fichas via Pix. Local: concede na hora. Online: cria a cobrança e aguarda pagamento. */
   async buyFichaPack(packId: string, payerEmail?: string): Promise<{
     ok: boolean;
@@ -1519,32 +1547,67 @@ export class GameEngine {
     qrCodeBase64?: string;
     pending?: boolean;
   }> {
-    const s = this.state;
     const pack = fichaPackById(packId);
     if (!pack) return { ok: false, reason: 'Pacote inexistente' };
+    const r = await this.buyPixPack(
+      { id: pack.id, name: pack.name, priceBRL: pack.priceBRL, fichas: pack.fichas },
+      payerEmail,
+    );
+    return { ok: r.ok, reason: r.reason, fichas: r.fichas, orderId: r.orderId, pixCode: r.pixCode, qrCodeBase64: r.qrCodeBase64, pending: r.pending };
+  }
+
+  /** Compra de um pacote Pix customizado (fichas, moedas e/ou diamantes) via Pix. */
+  async buyPixPack(pack: PixPackLike, payerEmail?: string): Promise<{
+    ok: boolean;
+    reason?: string;
+    fichas?: number;
+    gold?: string;
+    diamonds?: number;
+    orderId?: string;
+    pixCode?: string;
+    qrCodeBase64?: string;
+    pending?: boolean;
+  }> {
+    const s = this.state;
+    if (!pack || typeof pack.priceBRL !== 'number' || pack.priceBRL <= 0 || !pack.id) {
+      return { ok: false, reason: 'Pacote inválido' };
+    }
     const gw = resolvePixGateway();
     const res = await gw.purchase(pack.id, { playerId: s.createdAt, amountBRL: pack.priceBRL, payerEmail });
     if (!res.ok || !res.orderId) return { ok: false, reason: 'Pagamento Pix recusado' };
     if (res.pending) {
       // cobrança real criada — aguarda o jogador pagar e o Pix compensar
-      s.pixOrders[res.orderId] = { packId: pack.id, status: 'pending', at: Date.now(), pixCode: res.pixCode, amountBRL: pack.priceBRL };
+      s.pixOrders[res.orderId] = {
+        packId: pack.id,
+        label: pack.name,
+        gold: pack.gold,
+        diamonds: pack.diamonds,
+        fichas: pack.fichas,
+        status: 'pending',
+        at: Date.now(),
+        pixCode: res.pixCode,
+        amountBRL: pack.priceBRL,
+      };
       appendLog(s, 'wallet', `Cobrança Pix criada (pedido ${res.orderId}) — ${pack.id}, aguardando pagamento`);
       this.invalidate();
       this.notify('wallet');
       return { ok: true, orderId: res.orderId, pixCode: res.pixCode, qrCodeBase64: res.qrCodeBase64, pending: true };
     }
     // gateway local: concede na hora
-    this.addRes('fichas', D(pack.fichas));
-    incStat(s, 'fichasBought', D(pack.fichas));
-    appendLog(s, 'wallet', `Pacote de fichas ${pack.id} comprado via Pix (pedido ${res.orderId}) — +${pack.fichas} fichas`);
+    this.grantPixContents(pack, res.orderId);
     this.invalidate();
     this.notify('buy');
-    bus.emit('notify', { kind: 'level', title: `🎰 ${pack.name} entregues!`, desc: `+${pack.fichas} fichas adicionadas à sua carteira` });
-    return { ok: true, fichas: pack.fichas, orderId: res.orderId, pixCode: res.pixCode };
+    const parts = [
+      pack.fichas ? `🎰 ${pack.fichas} fichas` : '',
+      pack.gold && D(pack.gold).gt(ZERO) ? `🪙 ${D(pack.gold).toFixed(0)} moedas` : '',
+      pack.diamonds && pack.diamonds > 0 ? `💎 ${pack.diamonds} diamantes` : '',
+    ].filter(Boolean);
+    bus.emit('notify', { kind: 'level', title: `✅ ${pack.name} entregue!`, desc: `+${parts.join(' · ')}` });
+    return { ok: true, fichas: pack.fichas, gold: pack.gold, diamonds: pack.diamonds, orderId: res.orderId, pixCode: res.pixCode };
   }
 
-  /** Consulta o status de um pedido Pix e concede as fichas quando aprovado (uma única vez). */
-  async checkPixOrder(orderId: string): Promise<{ status: PixOrderStatus; fichas?: number; done?: boolean }> {
+  /** Consulta o status de um pedido Pix e concede o conteúdo quando aprovado (uma única vez). */
+  async checkPixOrder(orderId: string): Promise<{ status: PixOrderStatus; fichas?: number; gold?: string; diamonds?: number; done?: boolean }> {
     const s = this.state;
     const order = s.pixOrders[orderId];
     if (!order) return { status: 'unknown' };
@@ -1566,26 +1629,36 @@ export class GameEngine {
       // (reler do state porque o TS estreita o tipo antes do await)
       const now = s.pixOrders[orderId];
       if (now?.status === 'done') return { status: 'approved', done: true };
-      const pack = fichaPackById(order.packId);
+      // pacote resolvido: conteúdo gravado no pedido (custom) ou catálogo de fichas
+      let pack: PixPackLike | null;
+      if (order.gold !== undefined || order.diamonds !== undefined || order.fichas !== undefined) {
+        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: order.fichas, gold: order.gold, diamonds: order.diamonds };
+      } else {
+        const f = fichaPackById(order.packId);
+        pack = f ? { id: f.id, name: f.name, priceBRL: f.priceBRL, fichas: f.fichas } : null;
+      }
       if (pack) {
-        this.addRes('fichas', D(pack.fichas));
-        incStat(s, 'fichasBought', D(pack.fichas));
-        appendLog(s, 'wallet', `Pix aprovado (pedido ${orderId}) — +${pack.fichas} fichas`);
-        bus.emit('notify', { kind: 'level', title: `🎰 ${pack.name} aprovado!`, desc: `Pagamento Pix confirmado — +${pack.fichas} fichas adicionadas à sua carteira` });
+        this.grantPixContents(pack, orderId);
+        const parts = [
+          pack.fichas ? `🎰 ${pack.fichas} fichas` : '',
+          pack.gold && D(pack.gold).gt(ZERO) ? `🪙 ${D(pack.gold).toFixed(0)} moedas` : '',
+          pack.diamonds && pack.diamonds > 0 ? `💎 ${pack.diamonds} diamantes` : '',
+        ].filter(Boolean);
+        bus.emit('notify', { kind: 'level', title: `✅ ${pack.name} aprovado!`, desc: `Pagamento Pix confirmado — +${parts.join(' · ')}` });
       }
       order.status = 'done';
       this.invalidate();
       this.notify('wallet');
-      return { status: 'approved', fichas: pack?.fichas, done: true };
+      return { status: 'approved', fichas: pack?.fichas, gold: pack?.gold, diamonds: pack?.diamonds, done: true };
     }
     return { status: r.status };
   }
 
   /** Pedidos Pix pendentes (para retomar o polling após reiniciar o jogo). */
-  pendingPixOrders(): { orderId: string; packId: string; at: number; pixCode?: string; amountBRL?: number }[] {
+  pendingPixOrders(): { orderId: string; packId: string; at: number; pixCode?: string; amountBRL?: number; label?: string }[] {
     return Object.entries(this.state.pixOrders)
       .filter(([, o]) => o.status === 'pending')
-      .map(([orderId, o]) => ({ orderId, packId: o.packId, at: o.at, pixCode: o.pixCode, amountBRL: o.amountBRL }));
+      .map(([orderId, o]) => ({ orderId, packId: o.packId, at: o.at, pixCode: o.pixCode, amountBRL: o.amountBRL, label: o.label }));
   }
 
   /** Converte fichas em créditos (1 ficha = 1 crédito). Gasta apenas o conversível. */

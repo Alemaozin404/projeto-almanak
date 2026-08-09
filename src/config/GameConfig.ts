@@ -59,6 +59,10 @@ export const GameConfig = {
     pixPollingMs: 5000,
     /** Tempo máximo de um pedido Pix pendente antes de expirar (ms). */
     pixOrderExpiryMs: 30 * 60 * 1000,
+    /** Pacote de teste do admin: 1 diamante por R$ 0,01 (valida o fluxo Pix real). */
+    pixTestPackId: 'pix_test_1d',
+    pixTestPriceBRL: 0.01,
+    pixTestDiamonds: 1,
   },
 
   // ── Admin ──
@@ -67,6 +71,7 @@ export const GameConfig = {
     pinStorageKey: 'nc_admin_pin_v1',
     sessionStorageKey: 'nc_admin_session_v1',
     contentStorageKey: 'nc_admin_content_v1',
+    salesStorageKey: 'nc_admin_sales_v1',
     auditStorageKey: 'nc_admin_audit_v1',
     securityStorageKey: 'nc_admin_security_v1',
     maxAuditEntries: 500,

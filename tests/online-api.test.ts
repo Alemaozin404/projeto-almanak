@@ -127,4 +127,117 @@ describe('API online — conteúdo, save na nuvem e ranking', () => {
     const bad = await fetch(`${baseUrl}/api/rank?kind=zzz`);
     expect(bad.status).toBe(400);
   });
+
+  it('packs do admin: CRUD exige segredo, valida preço e persiste', async () => {
+    const headers = { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret };
+
+    // sem segredo → 401
+    const denied = await fetch(`${baseUrl}/api/packs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: 'diamond_10', name: '10💎', priceBRL: 0.5, gold: '0', diamonds: 10 }),
+    });
+    expect(denied.status).toBe(401);
+
+    // preço inválido (abaixo de 1 centavo) → 400
+    const badPrice = await fetch(`${baseUrl}/api/packs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'diamond_10', name: '10💎', priceBRL: 0.001, gold: '0', diamonds: 10 }),
+    });
+    expect(badPrice.status).toBe(400);
+
+    // sem conteúdo (nem moedas nem diamantes) → 400
+    const empty = await fetch(`${baseUrl}/api/packs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'empty_pack', name: 'Vazio', priceBRL: 1, gold: '0', diamonds: 0 }),
+    });
+    expect(empty.status).toBe(400);
+
+    // cria pacote válido → 200
+    const create = await fetch(`${baseUrl}/api/packs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'diamond_10', name: '10 Diamantes', icon: '💎', priceBRL: 0.5, gold: '0', diamonds: 10, tag: 'Entrada' }),
+    });
+    expect(create.status).toBe(200);
+    expect(((await create.json()) as { ok?: boolean }).ok).toBe(true);
+
+    // lista → contém o pacote criado
+    const list = await fetch(`${baseUrl}/api/packs`, { headers });
+    const data = (await list.json()) as { packs?: { id: string; priceBRL: number }[] };
+    expect(data.packs?.some((p) => p.id === 'diamond_10' && p.priceBRL === 0.5)).toBe(true);
+
+    // atualiza o mesmo pacote (upsert) → preço muda
+    await fetch(`${baseUrl}/api/packs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'diamond_10', name: '10 Diamantes (novo)', priceBRL: 0.75, gold: '1000', diamonds: 10 }),
+    });
+    const list2 = await fetch(`${baseUrl}/api/packs`, { headers });
+    const data2 = (await list2.json()) as { packs?: { id: string; priceBRL: number; gold: string }[] };
+    const updated = data2.packs?.find((p) => p.id === 'diamond_10');
+    expect(updated?.priceBRL).toBe(0.75);
+    expect(updated?.gold).toBe('1000');
+
+    // remove → 200 e some da lista
+    const del = await fetch(`${baseUrl}/api/packs/diamond_10`, { method: 'DELETE', headers });
+    expect(del.status).toBe(200);
+    const list3 = await fetch(`${baseUrl}/api/packs`, { headers });
+    const data3 = (await list3.json()) as { packs?: { id: string }[] };
+    expect(data3.packs?.some((p) => p.id === 'diamond_10')).toBe(false);
+
+    // remover inexistente → 404
+    const delMissing = await fetch(`${baseUrl}/api/packs/nao_existe`, { method: 'DELETE', headers });
+    expect(delMissing.status).toBe(404);
+  });
+
+  it('packs do admin: o pacote de teste pix_test_1d é resolvido na cobrança (R$ 0,01)', async () => {
+    const headers = { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret };
+    const realFetch = globalThis.fetch;
+    // stuba o Mercado Pago para a cobrança ser criada de verdade (evita rede real)
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith('https://api.mercadopago.com')) {
+        const body = JSON.parse(String(init?.body));
+        if (url.endsWith('/v1/payments')) {
+          return new Response(JSON.stringify({
+            id: 9001,
+            status: 'pending',
+            transaction_amount: body.transaction_amount,
+            point_of_interaction: { transaction_data: { qr_code: '000201...', qr_code_base64: 'iVBORw0KGgo=' } },
+          }), { status: 201, headers: { 'content-type': 'application/json' } });
+        }
+        return new Response(JSON.stringify({}), { status: 404 });
+      }
+      // servidor local real
+      const real = await realFetch(input, init);
+      return new Response(real.body, { status: real.status, headers: real.headers });
+    }));
+
+    const charge = await fetch(`${baseUrl}/api/pix/charge`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ packId: 'pix_test_1d', playerId: 1 }),
+    });
+    expect(charge.status).toBe(200);
+    const body = (await charge.json()) as { ok?: boolean; orderId?: string; amountBRL?: number };
+    expect(body.ok).toBe(true);
+    expect(body.orderId).toBe('9001');
+    expect(body.amountBRL).toBe(GameConfig.wallet.pixTestPriceBRL); // R$ 0,01 vindo do SERVIDOR
+    vi.unstubAllGlobals();
+  });
+
+  it('packs do admin: cobrança com pacote inexistente → 400', async () => {
+    const headers = { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret };
+    const charge = await fetch(`${baseUrl}/api/pix/charge`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ packId: 'pacote_nao_existe_xyz', playerId: 1 }),
+    });
+    expect(charge.status).toBe(400);
+    const body = (await charge.json()) as { reason?: string };
+    expect(body.reason).toBe('Pacote inexistente');
+  });
 });

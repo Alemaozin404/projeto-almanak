@@ -99,6 +99,54 @@ const FICHA_PACKS = {
   fichas_2000: { name: '2.000 Fichas', fichas: 2000, priceBRL: 105.0 },
 };
 
+/** Pacote embutido de TESTE — R$ 0,01 por 1 diamante (função do Admin). */
+const TEST_PACKS = {
+  pix_test_1d: { name: 'Teste Pix · 1💎', priceBRL: 0.01, diamonds: 1 },
+};
+
+/** Pacotes customizados do Admin (diamantes/moedas) — persistidos no KV. */
+const PACKS_KV_KEY = 'packs:custom';
+let packsCache = null;
+
+async function getCustomPacks() {
+  if (packsCache) return packsCache;
+  const arr = (await kvGetJson(PACKS_KV_KEY)) ?? [];
+  packsCache = Array.isArray(arr) ? arr : [];
+  return packsCache;
+}
+
+async function saveCustomPacks(list) {
+  packsCache = list;
+  await kvSet(PACKS_KV_KEY, list);
+}
+
+/** Resolve um pacote: fichas embutidos → teste → custom do admin. O cliente nunca envia preço. */
+async function resolvePack(packId) {
+  if (FICHA_PACKS[packId]) return FICHA_PACKS[packId];
+  if (TEST_PACKS[packId]) return TEST_PACKS[packId];
+  const custom = await getCustomPacks();
+  return custom.find((p) => p.id === packId) ?? null;
+}
+
+/** Valida um pacote do admin (mesmas regras do cliente + limites rígidos). */
+function sanitizePack(raw) {
+  const id = typeof raw?.id === 'string' ? raw.id.trim().slice(0, 64) : '';
+  const name = typeof raw?.name === 'string' ? raw.name.trim().slice(0, 60) : '';
+  const icon = typeof raw?.icon === 'string' ? raw.icon.slice(0, 8) : '💎';
+  const priceBRL = Number(raw?.priceBRL);
+  const gold = typeof raw?.gold === 'string' && /^\d{1,16}(\.\d+)?$/.test(raw.gold) ? raw.gold : '0';
+  const diamonds = Number(raw?.diamonds);
+  const tag = typeof raw?.tag === 'string' ? raw.tag.slice(0, 30) : undefined;
+  const featured = raw?.featured === true;
+  const enabled = raw?.enabled !== false;
+  if (!/^[a-z0-9_]{3,64}$/.test(id)) return { ok: false, reason: 'ID inválido' };
+  if (!name) return { ok: false, reason: 'Nome obrigatório' };
+  if (!Number.isFinite(priceBRL) || priceBRL < 0.01 || priceBRL > 1000) return { ok: false, reason: 'Preço deve ser entre R$ 0,01 e R$ 1.000' };
+  if (!Number.isInteger(diamonds) || diamonds < 0 || diamonds > 1e7) return { ok: false, reason: 'Diamantes inválidos' };
+  if (Number(gold) <= 0 && diamonds <= 0) return { ok: false, reason: 'O pacote deve entregar moedas ou diamantes' };
+  return { ok: true, pack: { id, name, icon, priceBRL, gold, diamonds, tag, featured, enabled } };
+}
+
 /**
  * Cria o app Express. As configurações vêm de `env` (padrão: process.env) —
  * injetáveis em testes para subir o servidor real sem tocar o ambiente real.
@@ -304,7 +352,7 @@ export function createApp(env = process.env) {
   app.post('/api/pix/charge', async (req, res) => {
     if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
     const { packId, playerId, payerEmail } = req.body ?? {};
-    const pack = FICHA_PACKS[packId];
+    const pack = await resolvePack(String(packId ?? ''));
     if (!pack) return res.status(400).json({ ok: false, reason: 'Pacote inexistente' });
     if (!Number.isInteger(playerId) || playerId <= 0) return res.status(400).json({ ok: false, reason: 'Jogador inválido' });
     const r = await createPixCharge(pack, playerId, typeof payerEmail === 'string' ? payerEmail.slice(0, 100) : undefined);
@@ -318,6 +366,40 @@ export function createApp(env = process.env) {
       qrCodeBase64: r.qrCodeBase64,
       amountBRL: pack.priceBRL,
     });
+  });
+
+  /** Admin → lista pacotes customizados publicados (para a loja). */
+  app.get('/api/packs', async (req, res) => {
+    if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
+    const packs = await getCustomPacks();
+    return res.json({ ok: true, packs });
+  });
+
+  /** Admin → cria/atualiza um pacote customizado (preço sempre validado aqui). */
+  app.post('/api/packs', async (req, res) => {
+    if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
+    if (rateLimited('packs:write', 30)) return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    const s = sanitizePack(req.body ?? {});
+    if (!s.ok) return res.status(400).json({ ok: false, reason: s.reason });
+    const list = await getCustomPacks();
+    const idx = list.findIndex((p) => p.id === s.pack.id);
+    if (idx >= 0) list[idx] = s.pack;
+    else list.push(s.pack);
+    await saveCustomPacks(list);
+    console.log(`[packs] ${idx >= 0 ? 'atualizado' : 'criado'} ${s.pack.id} — ${s.pack.name} · R$ ${s.pack.priceBRL}`);
+    return res.json({ ok: true, pack: s.pack });
+  });
+
+  /** Admin → remove um pacote customizado. */
+  app.delete('/api/packs/:id', async (req, res) => {
+    if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
+    const id = req.params.id;
+    const list = await getCustomPacks();
+    const next = list.filter((p) => p.id !== id);
+    if (next.length === list.length) return res.status(404).json({ ok: false, reason: 'Pacote inexistente' });
+    await saveCustomPacks(next);
+    console.log(`[packs] removido ${id}`);
+    return res.json({ ok: true });
   });
 
   /** App → polling do status de um pedido. */

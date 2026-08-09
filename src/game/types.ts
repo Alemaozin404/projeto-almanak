@@ -252,7 +252,24 @@ export interface GameState {
   /** Créditos 💳 — convertidos de fichas (1 ficha = 1 crédito) e gastos em Diamantes 💎. */
   credits: string;
   /** Pedidos Pix pendentes/confirmados — permitem retomar o polling após reiniciar o jogo. */
-  pixOrders: Record<string, { packId: string; status: 'pending' | 'done'; at: number; pixCode?: string; amountBRL?: number }>;
+  pixOrders: Record<
+    string,
+    {
+      packId: string;
+      /** Nome legível do pacote (para exibir na retomada sem olhar catálogo). */
+      label?: string;
+      /** Conteúdo a conceder quando aprovado: moedas (string Decimal). */
+      gold?: string;
+      /** Conteúdo a conceder quando aprovado: diamantes. */
+      diamonds?: number;
+      /** Conteúdo a conceder quando aprovado: fichas. */
+      fichas?: number;
+      status: 'pending' | 'done';
+      at: number;
+      pixCode?: string;
+      amountBRL?: number;
+    }
+  >;
 
   // nível
   level: number;

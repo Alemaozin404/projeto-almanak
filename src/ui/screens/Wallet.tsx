@@ -4,14 +4,19 @@ import { Panel, TabBar, Modal, Tooltip } from '../kit';
 import { FICHA_PACKS, fmtBRL, fichasToCredits, creditsToBRL, creditsToDiamonds, type FichaPackDef } from '../../wallet/pix';
 import { pixOnlineEnabled } from '../../wallet/mp';
 import { GameConfig } from '../../config/GameConfig';
+import { shopPacks, type AdminPack } from '../../admin/sales';
 import { D } from '../../core/bignum';
 import { audio } from '../../audio/audio';
 
 type WalletTab = 'buy' | 'convert' | 'diamonds';
 
+/** Item comprável via Pix na carteira — ficha padrão ou pacote custom do admin. */
+type Buyable = FichaPackDef | AdminPack;
+
 interface ActiveOrder {
   orderId: string;
   packId: string;
+  label?: string;
   pixCode: string;
   qrCodeBase64?: string;
   amountBRL: number;
@@ -28,7 +33,8 @@ const ORDER_STATUS_LABEL: Record<string, string> = {
 export function Wallet() {
   const { engine, fmt } = useGame();
   const [tab, setTab] = useState<WalletTab>('buy');
-  const [confirmPack, setConfirmPack] = useState<FichaPackDef | null>(null);
+  const [confirmPack, setConfirmPack] = useState<Buyable | null>(null);
+  const [customPacks, setCustomPacks] = useState<AdminPack[]>([]);
   const [buying, setBuying] = useState(false);
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
   const [orderStatus, setOrderStatus] = useState<string>('pending');
@@ -37,6 +43,13 @@ export function Wallet() {
   const [notice, setNotice] = useState('');
   const online = pixOnlineEnabled();
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // carrega os pacotes customizados (admin) publicados — local + servidor
+  useEffect(() => {
+    let alive = true;
+    void shopPacks().then((list) => { if (alive) setCustomPacks(list); });
+    return () => { alive = false; };
+  }, [online, tab]);
 
   const s = engine.state;
   const fichas = D(s.fichas);
@@ -63,7 +76,12 @@ export function Wallet() {
         pollingRef.current = null;
       }
       setActiveOrder(null);
-      flash(`✅ ${fmt(r.fichas ?? 0, 0)} fichas adicionadas!`);
+      const parts = [
+        r.fichas ? `${fmt(r.fichas, 0)} fichas` : '',
+        r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
+        r.diamonds && r.diamonds > 0 ? `${fmt(r.diamonds, 0)} diamantes` : '',
+      ].filter(Boolean);
+      flash(`✅ ${parts.join(' · ') || 'pedido'} adicionados!`);
       audio.buy();
     } else if (r.status === 'rejected' || r.status === 'cancelled') {
       if (pollingRef.current) {
@@ -97,24 +115,39 @@ export function Wallet() {
     setActiveOrder({
       orderId: p.orderId,
       packId: p.packId,
+      label: p.label,
       pixCode: p.pixCode ?? '',
       amountBRL: p.amountBRL ?? 0,
     });
     setOrderStatus('pending');
   }, [engine, online]);
 
+  /** Converte o item em um pacote compatível com o engine (ficha ou custom). */
+  function toPixPack(p: Buyable): { id: string; name: string; priceBRL: number; fichas?: number; gold?: string; diamonds?: number } {
+    if ('fichas' in p) {
+      return { id: p.id, name: p.name, priceBRL: p.priceBRL, fichas: (p as FichaPackDef).fichas };
+    }
+    const admin = p as AdminPack;
+    return { id: admin.id, name: admin.name, priceBRL: admin.priceBRL, gold: admin.gold, diamonds: admin.diamonds };
+  }
+
   async function doBuy() {
     if (!confirmPack) return;
     setBuying(true);
-    const r = await engine.buyFichaPack(confirmPack.id);
+    const r = await engine.buyPixPack(toPixPack(confirmPack));
     setBuying(false);
     if (r.ok) {
       if (r.pending) {
         // cobrança real criada — exibe o QR e inicia o polling
-        setActiveOrder({ orderId: r.orderId ?? '', packId: confirmPack.id, pixCode: r.pixCode ?? '', qrCodeBase64: r.qrCodeBase64, amountBRL: confirmPack.priceBRL });
+        setActiveOrder({ orderId: r.orderId ?? '', packId: confirmPack.id, label: confirmPack.name, pixCode: r.pixCode ?? '', qrCodeBase64: r.qrCodeBase64, amountBRL: confirmPack.priceBRL });
         setOrderStatus('pending');
       } else {
-        flash(`✅ ${confirmPack.name} compradas!`);
+        const parts = [
+          r.fichas ? `${fmt(r.fichas, 0)} fichas` : '',
+          r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
+          r.diamonds ? `${fmt(r.diamonds, 0)} diamantes` : '',
+        ].filter(Boolean);
+        flash(`✅ ${confirmPack.name} comprado! (+${parts.join(' · ')})`);
         audio.buy();
       }
     } else {
@@ -210,6 +243,38 @@ export function Wallet() {
               );
             })}
           </div>
+          {customPacks.length > 0 && (
+            <>
+              <h4 style={{ marginTop: 16 }}>💎 Diamantes & Moedas <span className="muted small">(admin)</span></h4>
+              <div className="item-grid">
+                {customPacks.map((p) => (
+                  <div key={p.id} className={`item-card pack-card ${p.featured ? 'featured' : ''}`}>
+                    {p.featured && <span className="pack-ribbon">🔥 DESTAQUE</span>}
+                    <div className="item-head">
+                      <span className="pack-icon">{p.icon}</span>
+                      <div className="item-title">
+                        <strong>{p.name}</strong>
+                        {p.tag && <span className="item-count">{p.tag}</span>}
+                      </div>
+                    </div>
+                    <div className="pack-contents">
+                      {p.gold && Number(p.gold) > 0 && (
+                        <div className="pack-row"><span>🪙</span><strong>{fmt(D(p.gold), 0)}</strong><small>moedas</small></div>
+                      )}
+                      {p.diamonds > 0 && (
+                        <div className="pack-row"><span>💎</span><strong>{fmt(p.diamonds, 0)}</strong><small>diamantes</small></div>
+                      )}
+                    </div>
+                    <div className="item-actions">
+                      <button className={`btn btn-sm ${p.featured ? 'btn-primary' : ''}`} onClick={() => setConfirmPack(p)}>
+                        Comprar via Pix · {fmtBRL(p.priceBRL)}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
           <p className="muted small center">
             {online
               ? '💳 Pagamento processado pelo Mercado Pago — o QR Code real aparece ao confirmar.'
@@ -290,7 +355,12 @@ export function Wallet() {
               <span className="pack-icon">{confirmPack.icon}</span>
               <div>
                 <h4>{confirmPack.name}</h4>
-                <p className="muted small">{fmtBRL(confirmPack.priceBRL)} · {fmt(confirmPack.fichas, 0)} fichas = {fmt(fichasToCredits(confirmPack.fichas), 0)} créditos = {fmt(creditsToDiamonds(fichasToCredits(confirmPack.fichas)), 0)} diamantes</p>
+                <p className="muted small">
+                  {fmtBRL(confirmPack.priceBRL)}
+                  {'fichas' in confirmPack
+                    ? ` · ${fmt(confirmPack.fichas, 0)} fichas = ${fmt(fichasToCredits(confirmPack.fichas), 0)} créditos = ${fmt(creditsToDiamonds(fichasToCredits(confirmPack.fichas)), 0)} diamantes`
+                    : ` · ${confirmPack.gold && Number(confirmPack.gold) > 0 ? `+${fmt(D(confirmPack.gold), 0)} moedas` : ''}${confirmPack.gold && Number(confirmPack.gold) > 0 && confirmPack.diamonds > 0 ? ' e ' : ''}${confirmPack.diamonds > 0 ? `+${fmt(confirmPack.diamonds, 0)} diamantes` : ''}`}
+                </p>
               </div>
             </div>
             <p className="muted small center">
@@ -323,7 +393,7 @@ export function Wallet() {
             )}
 
             <div className="wallet-summary">
-              <div><span>Pacote</span><strong>{FICHA_PACKS.find((p) => p.id === activeOrder.packId)?.name ?? activeOrder.packId}</strong></div>
+              <div><span>Pacote</span><strong>{activeOrder.label ?? FICHA_PACKS.find((p) => p.id === activeOrder.packId)?.name ?? activeOrder.packId}</strong></div>
               <div><span>Valor</span><strong>{fmtBRL(activeOrder.amountBRL)}</strong></div>
               <div><span>Status</span><strong>{ORDER_STATUS_LABEL[orderStatus] ?? orderStatus}</strong></div>
             </div>
@@ -339,7 +409,7 @@ export function Wallet() {
             )}
 
             {orderStatus === 'pending' && (
-              <p className="muted small center">⏳ Pague no app do seu banco — o jogo confere automaticamente a cada {Math.round(GameConfig.wallet.pixPollingMs / 1000)}s e entrega as fichas quando aprovar.</p>
+              <p className="muted small center">⏳ Pague no app do seu banco — o jogo confere automaticamente a cada {Math.round(GameConfig.wallet.pixPollingMs / 1000)}s e entrega o conteúdo quando aprovar.</p>
             )}
 
             <div className="modal-actions">

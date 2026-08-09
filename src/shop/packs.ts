@@ -19,7 +19,7 @@ export interface CoinPackDef {
   featured?: boolean;
 }
 
-function fmtBRL(n: number): string {
+export function fmtBRL(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 

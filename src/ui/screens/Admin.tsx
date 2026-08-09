@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../context';
-import { Panel, TabBar } from '../kit';
+import { Panel, TabBar, Modal } from '../kit';
 import { setupAdminPin, loginAdmin, logoutAdmin, isAdminLoggedIn, hasAdminPin } from '../../admin/auth';
 import { audit, securityLog, auditLog, securityLogEntries, clearAuditLogs, formatAudit, type AuditEntry } from '../../admin/audit';
 import { roleHas, ROLE_LABELS, type Permission } from '../../admin/permissions';
 import { loadContent, saveDraft, publishContent, deleteContent, autoBackup, backupList, restoreBackup, lastBackupTime, validateContent, type AdminContent, type ContentKind, type ContentStatus } from '../../admin/content';
+import { loadPacks, savePack, deletePack, togglePack, fetchServerPacks, publishPackToServer, deletePackFromServer, validatePack, packIdFromName, testPack, pixTestEnabled, type AdminPack } from '../../admin/sales';
 import { GAME_VERSION } from '../../content/updates';
 import { activeSeason } from '../../content/seasons';
 import { GAME_PASS_LEVELS } from '../../pass/GamePass';
@@ -12,6 +13,8 @@ import { EventManager } from '../../liveops/EventManager';
 import { SKINS } from '../../content/skins';
 import { audio } from '../../audio/audio';
 import { D } from '../../core/bignum';
+import { fmtBRL } from '../../shop/packs';
+import { GameConfig } from '../../config/GameConfig';
 
 const STATUS_FLOW: ContentStatus[] = ['DRAFT', 'REVIEW', 'SCHEDULED', 'PUBLISHED', 'DISABLED', 'ARCHIVED'];
 
@@ -94,6 +97,7 @@ export function Admin() {
           tabs={[
             { id: 'dashboard', name: 'Dashboard', icon: '📊' },
             { id: 'content', name: 'Conteúdo', icon: '🗂️' },
+            { id: 'sales', name: 'Vendas', icon: '💰' },
             { id: 'rewards', name: 'Recompensas', icon: '🎁' },
             { id: 'simulate', name: 'Simular', icon: '🧪' },
             { id: 'logs', name: 'Logs', icon: '📜' },
@@ -145,6 +149,8 @@ export function Admin() {
             />
           </div>
         )}
+
+        {tab === 'sales' && <SalesTab onDone={flashSave} refresh={refresh} />}
 
         {tab === 'rewards' && has('GRANT_REWARDS') && <RewardsTab onDone={flashSave} />}
         {tab === 'rewards' && !has('GRANT_REWARDS') && <p className="locked-text">⛔ Permissão negada: GRANT_REWARDS</p>}
@@ -319,6 +325,234 @@ function LogsTab({ entries }: { entries: AuditEntry[] }) {
       {entries.slice(0, 60).map((e, i) => (
         <div key={i} className="history-item"><span className={`content-status content-${e.result}`}>{e.action}</span><span className="muted small">{formatAudit(e)}</span></div>
       ))}
+    </div>
+  );
+}
+
+// ── aba Vendas (sistema de venda de diamantes/moedas + teste Pix) ──
+
+const PACK_ICONS = ['💎', '🪙', '👑', '🌟', '🔥', '🎁', '⚡', '💰'];
+
+function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh: () => void }) {
+  const { engine } = useGame();
+  const [packs, setPacks] = useState<AdminPack[]>(() => loadPacks());
+  const [serverPacks, setServerPacks] = useState<AdminPack[]>([]);
+  const [editing, setEditing] = useState<AdminPack | null>(null);
+  const [form, setForm] = useState({ name: '', icon: '💎', priceBRL: '', gold: '', diamonds: '', tag: '', featured: false });
+  const [errors, setErrors] = useState<string[]>([]);
+  const [syncing, setSyncing] = useState(false);
+  const online = pixTestEnabled();
+
+  // ── teste Pix (R$ 0,01 → 1💎) ──
+  const [testOrder, setTestOrder] = useState<{ orderId: string; pixCode: string; qrCodeBase64?: string; amountBRL: number; status: string } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const pollTest = useCallback(async (orderId: string) => {
+    const r = await engine.checkPixOrder(orderId);
+    setTestOrder((prev) => (prev ? { ...prev, status: r.status } : prev));
+    if (r.status === 'approved' || r.status === 'rejected' || r.status === 'cancelled') {
+      if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+      setTestOrder(null);
+      if (r.status === 'approved') {
+        onDone(`✅ Pix aprovado! +${r.diamonds ?? 0}💎 e +${D(r.gold ?? 0).toFixed(0)}🪙 entregues.`);
+        audio.buy();
+      } else {
+        onDone(`❌ Pix ${r.status}.`);
+      }
+      refresh();
+    }
+  }, [engine, onDone, refresh]);
+
+  useEffect(() => {
+    return () => { if (pollRef.current) clearInterval(pollRef.current); pollRef.current = null; };
+  }, []);
+
+  // carrega a lista publicada no servidor ao abrir
+  useEffect(() => {
+    if (!online) return;
+    void fetchServerPacks().then((list) => setServerPacks(list));
+  }, [online]);
+
+  function resetForm() {
+    setEditing(null);
+    setForm({ name: '', icon: '💎', priceBRL: '', gold: '', diamonds: '', tag: '', featured: false });
+    setErrors([]);
+  }
+
+  function startEdit(p: AdminPack) {
+    setEditing(p);
+    setForm({ name: p.name, icon: p.icon, priceBRL: String(p.priceBRL), gold: p.gold, diamonds: String(p.diamonds), tag: p.tag ?? '', featured: p.featured ?? false });
+    setErrors([]);
+  }
+
+  function submit() {
+    const draft: AdminPack = {
+      id: editing?.id ?? packIdFromName(form.name || 'pacote'),
+      name: form.name.trim(),
+      icon: form.icon || '💎',
+      priceBRL: Number(form.priceBRL),
+      gold: String(Math.max(0, Math.floor(Number(form.gold) || 0))),
+      diamonds: Math.max(0, Math.floor(Number(form.diamonds) || 0)),
+      tag: form.tag.trim() || undefined,
+      featured: form.featured,
+      enabled: editing?.enabled ?? true,
+      updatedAt: Date.now(),
+    };
+    const v = validatePack(draft);
+    if (!v.ok) { setErrors(v.errors); return; }
+    savePack(draft);
+    setPacks(loadPacks());
+    onDone(`💾 Pacote salvo: ${draft.name}`);
+    resetForm();
+  }
+
+  async function publish(p: AdminPack) {
+    setSyncing(true);
+    const r = await publishPackToServer(p);
+    setSyncing(false);
+    onDone(r.ok ? `☁️ Publicado: ${p.name}` : `❌ ${r.reason ?? 'Falha'}`);
+    if (r.ok) setServerPacks(await fetchServerPacks());
+  }
+
+  async function removeRemote(p: AdminPack) {
+    setSyncing(true);
+    const r = await deletePackFromServer(p.id);
+    setSyncing(false);
+    onDone(r.ok ? `🗑️ Removido do servidor: ${p.name}` : `❌ ${r.reason ?? 'Falha'}`);
+    if (r.ok) setServerPacks(await fetchServerPacks());
+  }
+
+  async function runTestPix() {
+    if (testing) return;
+    setTesting(true);
+    const pack = testPack();
+    const r = await engine.buyPixPack({ id: pack.id, name: pack.name, priceBRL: pack.priceBRL, gold: pack.gold, diamonds: pack.diamonds });
+    setTesting(false);
+    if (!r.ok) {
+      onDone(`❌ ${r.reason ?? 'Falha no teste'}`);
+      return;
+    }
+    if (r.pending && r.orderId) {
+      setTestOrder({ orderId: r.orderId, pixCode: r.pixCode ?? '', qrCodeBase64: r.qrCodeBase64, amountBRL: pack.priceBRL, status: 'pending' });
+      pollRef.current = setInterval(() => void pollTest(r.orderId!), GameConfig.wallet.pixPollingMs);
+    } else {
+      onDone(`✅ Teste Pix (simulado) aprovado — +${r.diamonds ?? 0}💎 entregues!`);
+      refresh();
+    }
+  }
+
+  const remoteIds = new Set(serverPacks.map((p) => p.id));
+
+  return (
+    <div>
+      <div className="admin-actions">
+        <button className="btn btn-sm btn-primary" onClick={() => void runTestPix()} disabled={testing}>
+          🧪 Testar Pix R$ 0,01 → 1💎 {online ? '(cobrança real)' : '(simulado)'}
+        </button>
+        <button className="btn btn-sm" onClick={() => void fetchServerPacks().then((l) => { setServerPacks(l); onDone(`📥 ${l.length} pacote(s) do servidor`); })} disabled={!online}>
+          📥 Buscar do servidor
+        </button>
+      </div>
+
+      <h4>💎 Pacotes de diamantes/moedas ({packs.length})</h4>
+      <p className="muted small">
+        Crie pacotes combinando 💎 diamantes e 🪙 moedas, ou <strong>venda separada</strong> (só diamante ou só coin).
+        Pacotes com <span className="content-status content-published">PUBLISHED</span> no servidor ficam disponíveis para os jogadores via Pix.
+      </p>
+
+      <div className="history-list" style={{ marginTop: 8 }}>
+        {packs.length === 0 && <p className="muted small">Nenhum pacote criado ainda.</p>}
+        {packs.map((p) => {
+          const onServer = remoteIds.has(p.id);
+          return (
+            <div key={p.id} className="admin-content-row">
+              <span className="pack-icon" style={{ fontSize: 18 }}>{p.icon}</span>
+              <div>
+                <strong>{p.name}</strong>
+                <span className="muted small"> {fmtBRL(p.priceBRL)} · +{p.gold} 🪙 · +{p.diamonds} 💎{p.tag ? ` · ${p.tag}` : ''}</span>
+                <div className="muted small">
+                  <button className="btn btn-xs" onClick={() => { togglePack(p.id); setPacks(loadPacks()); }}>{p.enabled ? '🟢 ativo' : '⏸ pausado'}</button>
+                  <span className={`content-status ${onServer ? 'content-published' : 'content-draft'}`} style={{ marginLeft: 6 }}>{onServer ? 'PUBLISHED' : 'LOCAL'}</span>
+                </div>
+              </div>
+              <div>
+                {!onServer && <button className="btn btn-xs" disabled={syncing} onClick={() => void publish(p)}>☁️ Publicar</button>}
+                {onServer && <button className="btn btn-xs ghost" disabled={syncing} onClick={() => void removeRemote(p)}>🗑️ Remoto</button>}
+                <button className="btn btn-xs ghost" onClick={() => startEdit(p)}>Editar</button>
+                <button className="btn btn-xs ghost" onClick={() => { deletePack(p.id); setPacks(loadPacks()); onDone(`🗑️ ${p.name} excluído`); }}>Excluir</button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <h4 style={{ marginTop: 14 }}>{editing ? `✏️ Editar pacote: ${editing.name}` : '➕ Novo pacote'}</h4>
+      <div className="draft-form">
+        <div className="admin-form-row">
+          <label><span>Nome</span><input className="wardrobe-search" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Ex.: 100 Diamantes" /></label>
+          <label><span>Ícone</span>
+            <div className="chip-filter" style={{ gap: 4 }}>
+              {PACK_ICONS.map((ic) => (
+                <button key={ic} className={`chip-btn ${form.icon === ic ? 'active' : ''}`} onClick={() => setForm({ ...form, icon: ic })} style={{ padding: '2px 8px' }}>{ic}</button>
+              ))}
+            </div>
+          </label>
+        </div>
+        <div className="admin-form-row">
+          <label><span>Preço (R$)</span><input className="wardrobe-search" type="number" min={0.01} step="0.01" value={form.priceBRL} onChange={(e) => setForm({ ...form, priceBRL: e.target.value })} placeholder="0.01" /></label>
+          <label><span>Moedas 🪙</span><input className="wardrobe-search" type="number" min={0} value={form.gold} onChange={(e) => setForm({ ...form, gold: e.target.value })} placeholder="0 = só diamante" /></label>
+          <label><span>Diamantes 💎</span><input className="wardrobe-search" type="number" min={0} value={form.diamonds} onChange={(e) => setForm({ ...form, diamonds: e.target.value })} placeholder="0 = só coin" /></label>
+          <label><span>Tag</span><input className="wardrobe-search" value={form.tag} onChange={(e) => setForm({ ...form, tag: e.target.value })} placeholder="Opcional" /></label>
+        </div>
+        <div className="admin-form-row">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <input type="checkbox" checked={form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} /> Destaque 🔥
+          </label>
+          <button className="btn btn-sm" onClick={() => setForm({ ...form, gold: '0' })}>Só diamante</button>
+          <button className="btn btn-sm" onClick={() => setForm({ ...form, diamonds: '0' })}>Só coin</button>
+        </div>
+        {errors.length > 0 && <p className="muted small" style={{ color: 'var(--danger)' }}>{errors.join(' · ')}</p>}
+        <div className="modal-actions">
+          <button className="btn btn-sm btn-primary" onClick={submit}>{editing ? '💾 Salvar alterações' : '➕ Criar pacote'}</button>
+          {editing && <button className="btn btn-sm ghost" onClick={resetForm}>Cancelar</button>}
+        </div>
+      </div>
+
+      {/* modal do teste Pix */}
+      <Modal open={testOrder !== null} onClose={() => { if (pollRef.current) clearInterval(pollRef.current); pollRef.current = null; setTestOrder(null); }} title="🧪 Teste Pix — R$ 0,01" width={440}>
+        {testOrder && (
+          <div className="pix-receipt">
+            <p className="muted small center">
+              {testOrder.status === 'pending' ? 'Aguardando pagamento…' : testOrder.status}
+            </p>
+            {testOrder.qrCodeBase64 && (
+              <div className="pix-qr-wrap">
+                <img className="pix-qr-img" src={`data:image/png;base64,${testOrder.qrCodeBase64}`} alt="QR Code Pix" />
+              </div>
+            )}
+            <div className="wallet-summary">
+              <div><span>Item</span><strong>Teste 1💎 (R$ {testOrder.amountBRL.toFixed(2)})</strong></div>
+              <div><span>Conteúdo</span><strong>+1 diamante ao aprovar</strong></div>
+            </div>
+            {testOrder.pixCode && (
+              <div className="pix-code-box">
+                <small className="muted">Código Pix copia-e-cola</small>
+                <code className="pix-code">{testOrder.pixCode}</code>
+                <button className="btn btn-sm" onClick={() => { void navigator.clipboard?.writeText(testOrder.pixCode).catch(() => {}); onDone('📋 Código copiado!'); }}>📋 Copiar</button>
+              </div>
+            )}
+            <p className="muted small center">
+              {online
+                ? '⏳ Pague 1 centavo no app do seu banco — quando o Pix compensar, o servidor aprova e +1💎 entra na sua conta. Vale para validar o fluxo real.'
+                : '⚠️ Modo simulado (sem backend): o pedido é aprovado na hora e +1💎 é entregue.'}
+            </p>
+            <div className="modal-actions">
+              <button className="btn" onClick={() => { if (pollRef.current) clearInterval(pollRef.current); pollRef.current = null; setTestOrder(null); }}>Fechar</button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

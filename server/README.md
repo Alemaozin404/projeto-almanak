@@ -79,17 +79,25 @@ Depois commite o `server/content.json` e faça push — o Vercel redeploya e o j
 | POST | `/api/pix/charge` | Cria cobrança Pix → `{ orderId, pixCode, qrCodeBase64, amountBRL }` |
 | GET | `/api/pix/status/:id` | Status do pagamento (`pending` / `approved` / …) |
 | POST | `/api/pix/webhook` | Notificação do Mercado Pago (assinatura HMAC) |
+| GET | `/api/packs` | Lista pacotes custom do Admin (exige `x-app-secret`) |
+| POST | `/api/packs` | Cria/atualiza pacote custom — preço validado AQUI (exige `x-app-secret`) |
+| DELETE | `/api/packs/:id` | Remove pacote custom (exige `x-app-secret`) |
 | PUT | `/api/save/:playerId` | Envia o save para a nuvem (exige `x-app-secret`) |
 | GET | `/api/save/:playerId` | Baixa o save da nuvem (exige `x-app-secret`) |
 | POST | `/api/rank` | Publica um ciclo no ranking (exige `x-app-secret`) |
 | GET | `/api/rank?kind=prestige` | Top 100 do ranking (público) |
+
+> **Pacotes de diamantes/moedas** (Admin → Vendas): o jogo publica pacotes em `/api/packs`
+> e cobra por `packId` em `/api/pix/charge` — o preço em R$ é sempre revalidado aqui
+> (entre R$ 0,01 e R$ 1.000) e o cliente nunca envia valor. O pacote embutido
+> `pix_test_1d` (R$ 0,01 → 1💎) permite o teste de ponta a ponta do Admin.
 
 ## Segurança
 
 - **Access token** nunca sai do servidor.
 - **Webhook** validado por assinatura HMAC-SHA256 (`x-signature` + `x-request-id`).
 - **Escrita de dados** exige o header `x-app-secret` (quando `APP_SHARED_SECRET` configurado).
-- **Preços** definidos no servidor (`FICHA_PACKS`) — o cliente nunca escolhe o valor.
+- **Preços** definidos no servidor (`FICHA_PACKS` + pacotes custom em `/api/packs`) — o cliente nunca escolhe o valor.
 - **Idempotency key** (UUID) em cada criação de pagamento.
 - **Ranking** guarda apenas o recorde; **save nuvem** só é devolvido a quem sabe o `playerId`.
   ⚠️ O `playerId` é o `createdAt` do save (timestamp) e o `x-app-secret` fica embutido no app —
