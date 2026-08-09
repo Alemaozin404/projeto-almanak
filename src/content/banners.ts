@@ -25,12 +25,13 @@ export interface BannerDef {
   tags: string[];
 }
 
-/** Converte 'YYYY-MM-DD HH:mm' em timestamp local. */
+/** Converte 'YYYY-MM-DD HH:mm' em timestamp UTC (determinístico em qualquer máquina/fuso —
+ *  o server/content.json exportado precisa ser byte-idêntico no CI, no dev e no Vercel). */
 function at(dateStr: string): number {
   const [date, time = '00:00'] = dateStr.split(' ');
   const [y, m, d] = date.split('-').map(Number);
   const [hh, mi] = time.split(':').map(Number);
-  return new Date(y, m - 1, d, hh || 0, mi || 0).getTime();
+  return Date.UTC(y, m - 1, d, hh || 0, mi || 0);
 }
 
 export const BANNER_PRIORITY_ORDER: BannerPriority[] = ['emergency', 'update', 'event', 'season', 'offer', 'news'];

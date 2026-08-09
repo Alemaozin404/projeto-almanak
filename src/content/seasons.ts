@@ -27,10 +27,11 @@ export interface SeasonDef {
 }
 
 function at(dateStr: string): number {
+  // UTC: mantém o content.json exportado idêntico em qualquer fuso (CI vs dev)
   const [date, time = '00:00'] = dateStr.split(' ');
   const [y, m, d] = date.split('-').map(Number);
   const [hh, mi] = time.split(':').map(Number);
-  return new Date(y, m - 1, d, hh || 0, mi || 0).getTime();
+  return Date.UTC(y, m - 1, d, hh || 0, mi || 0);
 }
 
 export let SEASONS: SeasonDef[] = [

@@ -581,8 +581,8 @@
       "gradient": "linear-gradient(120deg, rgba(55,245,255,0.28), rgba(77,166,255,0.12))",
       "glow": "rgba(55,245,255,0.5)",
       "priority": "update",
-      "startAt": 1786071600000,
-      "endAt": 1787367540000,
+      "startAt": 1786060800000,
+      "endAt": 1787356740000,
       "destination": "updates",
       "cta": "VER UPDATE",
       "tags": [
@@ -598,8 +598,8 @@
       "gradient": "linear-gradient(120deg, rgba(61,220,132,0.3), rgba(4,18,12,0.6))",
       "glow": "rgba(61,220,132,0.6)",
       "priority": "event",
-      "startAt": 1785942000000,
-      "endAt": 1786589940000,
+      "startAt": 1785931200000,
+      "endAt": 1786579140000,
       "destination": "events",
       "payload": "cyber",
       "cta": "PARTICIPAR",
@@ -616,8 +616,8 @@
       "gradient": "linear-gradient(120deg, rgba(176,108,255,0.3), rgba(55,245,255,0.1))",
       "glow": "rgba(176,108,255,0.5)",
       "priority": "season",
-      "startAt": 1785553200000,
-      "endAt": 1789527540000,
+      "startAt": 1785542400000,
+      "endAt": 1789516740000,
       "destination": "season",
       "cta": "VER TEMPORADA",
       "tags": [
@@ -633,8 +633,8 @@
       "gradient": "linear-gradient(120deg, rgba(232,232,255,0.22), rgba(107,107,255,0.12))",
       "glow": "rgba(232,232,255,0.5)",
       "priority": "news",
-      "startAt": 1786676400000,
-      "endAt": 1787238000000,
+      "startAt": 1786665600000,
+      "endAt": 1787227200000,
       "destination": "events",
       "payload": "lunar",
       "cta": "VER EVENTO",
@@ -651,8 +651,8 @@
       "gradient": "linear-gradient(120deg, rgba(255,107,255,0.25), rgba(176,108,255,0.1))",
       "glow": "rgba(255,107,255,0.5)",
       "priority": "news",
-      "startAt": 1786071600000,
-      "endAt": 1788317940000,
+      "startAt": 1786060800000,
+      "endAt": 1788307140000,
       "destination": "skins",
       "cta": "ABRIR ARMÁRIO",
       "tags": [
@@ -668,8 +668,8 @@
       "gradient": "linear-gradient(120deg, rgba(255,217,77,0.25), rgba(255,138,61,0.1))",
       "glow": "rgba(255,217,77,0.5)",
       "priority": "offer",
-      "startAt": 1786071600000,
-      "endAt": 1790823540000,
+      "startAt": 1786060800000,
+      "endAt": 1790812740000,
       "destination": "codes",
       "cta": "RESGATAR",
       "tags": [
@@ -685,8 +685,8 @@
       "gradient": "linear-gradient(120deg, rgba(61,220,132,0.2), rgba(55,245,255,0.08))",
       "glow": "rgba(61,220,132,0.5)",
       "priority": "offer",
-      "startAt": 1786071600000,
-      "endAt": 1786762740000,
+      "startAt": 1786060800000,
+      "endAt": 1786751940000,
       "destination": "updates",
       "payload": "compensation",
       "cta": "RESGATAR",
@@ -702,8 +702,8 @@
       "icon": "🤖",
       "desc": "A rede despertou. Produza 2x energia, colete Fragmentos Cyber e desbloqueie skins exclusivas da temporada.",
       "theme": "cyberpunk",
-      "startAt": 1785942000000,
-      "endAt": 1786589940000,
+      "startAt": 1785931200000,
+      "endAt": 1786579140000,
       "startLabel": "05 ago",
       "endLabel": "12 ago",
       "currency": {
@@ -1067,8 +1067,8 @@
       "icon": "🌙",
       "desc": "A lua cheia traz sorte rara. Colete Fragmentos Lunares e desbloqueie o Núcleo Lunar.",
       "theme": "lunar",
-      "startAt": 1787238000000,
-      "endAt": 1787885940000,
+      "startAt": 1787227200000,
+      "endAt": 1787875140000,
       "startLabel": "20 ago",
       "endLabel": "27 ago",
       "currency": {
@@ -1311,8 +1311,8 @@
       "icon": "🏖️",
       "desc": "Sol, praia e muito ouro. Evento encerrado — arquivado no calendário.",
       "theme": "verao",
-      "startAt": 1768446000000,
-      "endAt": 1772333940000,
+      "startAt": 1768435200000,
+      "endAt": 1772323140000,
       "startLabel": "15 jan",
       "endLabel": "28 fev",
       "currency": {
@@ -1379,8 +1379,8 @@
       "icon": "🎃",
       "desc": "Criaturas invadem o Núcleo. Doces, caixas assombradas e skins de terror.",
       "theme": "halloween",
-      "startAt": 1792465200000,
-      "endAt": 1793501940000,
+      "startAt": 1792454400000,
+      "endAt": 1793491140000,
       "startLabel": "20 out",
       "endLabel": "31 out",
       "currency": {
@@ -1574,8 +1574,8 @@
       "icon": "🎄",
       "desc": "O espírito natalino traz presentes raros, flocos de neve e o Núcleo Gélido.",
       "theme": "natal",
-      "startAt": 1796094000000,
-      "endAt": 1798772340000,
+      "startAt": 1796083200000,
+      "endAt": 1798761540000,
       "startLabel": "01 dez",
       "endLabel": "31 dez",
       "currency": {
@@ -1781,8 +1781,8 @@
       "icon": "⚡",
       "desc": "EVENTO RELÂMPAGO — todos os cliques valem 5x por 1 hora. Corra!",
       "theme": "tecnologico",
-      "startAt": 1786230000000,
-      "endAt": 1786233600000,
+      "startAt": 1786219200000,
+      "endAt": 1786222800000,
       "lightning": true,
       "startLabel": "08 ago 20:00",
       "endLabel": "08 ago 21:00",
@@ -2063,8 +2063,8 @@
       "icon": "🌐",
       "theme": "Cyberpunk",
       "desc": "O mundo despertou para a rede. Nova temporada, novo passe, novas skins.",
-      "startAt": 1785553200000,
-      "endAt": 1789527540000,
+      "startAt": 1785542400000,
+      "endAt": 1789516740000,
       "gradient": "linear-gradient(120deg, rgba(176,108,255,0.35), rgba(55,245,255,0.15))",
       "titleReward": "cyber_genesis",
       "skinIds": [
@@ -2203,7 +2203,7 @@
           "num_gold"
         ]
       },
-      "expiresAt": 1798772400000
+      "expiresAt": 1798761600000
     },
     {
       "id": "CYBER2026",
@@ -2223,7 +2223,7 @@
           "cursor_cyber"
         ]
       },
-      "expiresAt": 1786589940000
+      "expiresAt": 1786579140000
     },
     {
       "id": "UPDATE210",
@@ -2238,7 +2238,7 @@
           }
         ]
       },
-      "expiresAt": 1798772340000
+      "expiresAt": 1798761540000
     },
     {
       "id": "FOUNDER",
@@ -2251,7 +2251,7 @@
           "founder": 1
         }
       },
-      "expiresAt": 1798772400000
+      "expiresAt": 1798761600000
     }
   ],
   "maintenance": []
