@@ -1,0 +1,139 @@
+# ⚛️ Núcleo Clicker
+
+Jogo clicker/idle para Windows (Electron + React + Vite) com **servidor online**:
+
+- 🌐 **Conteúdo ao vivo** — notícias, eventos, banners, códigos, changelog e janelas de manutenção vêm do servidor (Vercel). Publique conteúdo sem redistribuir o jogo.
+- 💳 **Pagamentos Pix reais** — integração com o **Mercado Pago** (cobrança com QR Code, webhook validado por HMAC, fichas entregues após aprovação).
+- ☁️ **Save na nuvem** — sincronize seu progresso entre computadores (Upstash Redis).
+- 🏆 **Ranking global** — publique seus melhores ciclos de Prestígio/Ascensão/Transcendência.
+- 🔄 **Auto-update** — quando você publica uma tag `v*`, o app se atualiza sozinho via GitHub Releases.
+
+---
+
+## 🏗️ Arquitetura
+
+```
+┌──────────────┐   HTTPS   ┌─────────────────────────┐   HTTPS   ┌──────────────────┐
+│  App Windows │ ────────► │  Servidor (Vercel)      │ ────────► │  Mercado Pago    │
+│  Electron    │           │  server/api/index.js    │  POST     │  /v1/payments    │
+│              │ ◄──────── │  Express serverless     │ ◄──────── │  webhook (HMAC)  │
+│              │  QR/status│                         │           └──────────────────┘
+│              │           │  /api/content (JSON)    │
+│              │           │  /api/save/:id          │ ────┐   ┌──────────────────┐
+│              │           │  /api/rank              │ ────┼──►│  Upstash Redis   │
+│              │           │  /api/pix/*             │     └──►│  (KV serverless) │
+└──────────────┘           └─────────────────────────┘           └──────────────────┘
+```
+
+- **O access token do Mercado Pago vive SÓ no servidor** — nunca no app (Electron é descompilável).
+- O app fala apenas com o nosso servidor; sem servidor configurado, o jogo roda 100% offline (conteúdo local + pagamentos simulados).
+
+## 📁 Estrutura relevante
+
+| Caminho | Papel |
+|---|---|
+| `src/content/*` | Conteúdo data-driven (fonte da verdade no cliente) |
+| `src/liveops/RemoteContent.ts` | Sincroniza conteúdo com o servidor (cache offline) |
+| `src/online/api.ts` / `cloudSave.ts` | Cliente da API online (ranking + save nuvem) |
+| `src/wallet/mp.ts` | Gateway Pix online (backend Mercado Pago) |
+| `server/` | Backend Express (pagos + conteúdo + save + ranking) |
+| `scripts/export-content.mjs` | Gera `server/content.json` a partir de `src/content/*` |
+
+---
+
+## 🚀 Deploy em 5 passos
+
+### 1. Repositório no GitHub
+
+```bash
+git init
+git add .
+git commit -m "feat: núcleo clicker online (vercel + mercadopago + nuvem)"
+git branch -M main
+git remote add origin https://github.com/SEU_USUARIO/nucleo-clicker.git
+git push -u origin main
+```
+
+> Edite `package.json` → `build.publish` e troque `SEU_USUARIO_GITHUB` pelo seu usuário.
+
+### 2. Servidor no Vercel
+
+1. Acesse [vercel.com/new](https://vercel.com/new) e **Importe o repositório** do GitHub.
+2. Em **Root Directory**, selecione `server` (o backend fica na subpasta).
+3. Framework: **Other**. O `server/vercel.json` roteia tudo para a função serverless.
+4. Vercel detecta e instala as dependências de `server/package.json` (express, cors, decimal.js).
+5. Copie a URL gerada (ex.: `https://nucleo-clicker-server.vercel.app`).
+
+### 3. Variáveis de ambiente no Vercel (Project → Settings → Environment Variables)
+
+| Variável | Valor | Obrigatória? |
+|---|---|---|
+| `MERCADO_PAGO_ACCESS_TOKEN` | `APP_USR-...` (seu token de produção MP) | ✅ (pagamentos) |
+| `MERCADO_PAGO_WEBHOOK_SECRET` | painel MP → Suas integrações → Webhooks | ✅ (webhook) |
+| `APP_SHARED_SECRET` | `nucleoclicker-pix-v1` (bate com o jogo) | recomendado |
+| `BASE_URL` | `https://seu-projeto.vercel.app` | ✅ |
+| `UPSTASH_REDIS_REST_URL` | do Upstash (abaixo) | ✅ (nuvem/ranking) |
+| `UPSTASH_REDIS_REST_TOKEN` | do Upstash (abaixo) | ✅ (nuvem/ranking) |
+
+### 4. Upstash Redis (save na nuvem + ranking)
+
+1. Crie uma conta grátis em [console.upstash.com](https://console.upstash.com) → **Create Database** (região próxima do Vercel, ex.: `sa-east-1`).
+2. Abra o database → **REST API** → copie **URL** e **Token**.
+3. Cole nas variáveis `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` do Vercel (Passo 3).
+4. O servidor usa `POST /pipeline` (corpo JSON) — ideal para saves grandes (~100 KB).
+
+### 5. Aponte o jogo para o servidor
+
+Em `src/config/GameConfig.ts`:
+
+```ts
+wallet: {
+  backendUrl: 'https://seu-projeto.vercel.app',
+}
+```
+
+> Sem recompilar: `F12` no jogo → `localStorage.setItem('nc_pix_backend_url', 'https://seu-projeto.vercel.app')`.
+> A aba **Configurações → Pagamentos** (modo desenvolvedor) também permite configurar e testar a conexão.
+
+Pronto! A Carteira cobra de verdade, o conteúdo sincroniza e o save pode ir para a nuvem.
+
+---
+
+## 📦 Publicando conteúdo novo (sem reinstalar o app)
+
+1. Edite o que quiser em `src/content/*` (notícias, eventos, banners, códigos, changelog) ou as janelas de manutenção em `src/content/maintenance.ts`.
+2. `npm run content:export` → regenera `server/content.json`.
+3. `git commit -am "conteúdo: novo evento" && git push` → o Vercel redeploya e o jogo baixa o conteúdo (a cada 30 min e no boot).
+
+**Manutenção online**: adicione uma janela em `maintenance.ts`, exporte e commite — o jogo exibe a tela de manutenção para todos. Para reabrir, remova a janela e repita.
+
+## 🔄 Publicando uma versão nova do app (auto-update)
+
+```bash
+npm version patch   # ou minor / major — cria a tag vX.Y.Z
+git push && git push --tags
+```
+
+O workflow `.github/workflows/release.yml` builda o instalador Windows e publica no **GitHub Releases**. O jogo detecta, baixa e instala sozinho (Configurações → Sistema → Atualizações).
+
+> Requisitos: repositório **público** (ou GH_TOKEN no app) e `build.publish.owner/repo` corretos.
+
+## 🧪 Desenvolvimento
+
+```bash
+npm install && npm run server:dev   # terminal 1: backend local
+npm run dev                         # terminal 2: jogo (Vite + Electron)
+npm test                            # testes (inclui integração Pix + API online)
+npm run typecheck
+```
+
+O backend local usa um Map em memória para nuvem/ranking (sem Upstash). Configure `server/.env` a partir de `server/.env.example` para testar Mercado Pago de verdade.
+
+## 🔒 Segurança
+
+- Access token do Mercado Pago **nunca** vai ao cliente.
+- Webhook validado por assinatura HMAC-SHA256 (`x-signature` + `x-request-id`).
+- Rotas que escrevem dados exigem `x-app-secret` (`APP_SHARED_SECRET`).
+- Preços de fichas definidos **no servidor** — o cliente nunca escolhe o valor.
+- Save baixado da nuvem passa pela mesma validação/checksum de um save local.
+- Ranking global publica apenas o recorde (nunca o save inteiro).

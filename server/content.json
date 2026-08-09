@@ -1,0 +1,2258 @@
+{
+  "gameVersion": "1.2.4",
+  "updates": [
+    {
+      "version": "1.2.4",
+      "title": "PIX ONLINE COM MERCADO PAGO",
+      "date": "2026-08-09",
+      "description": "A Carteira agora funciona com pagamentos Pix reais via Mercado Pago: cobrança com QR Code, confirmação automática por polling e entrega de fichas só após o pagamento ser aprovado.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "💳",
+          "items": [
+            "Pix real integrado ao Mercado Pago — QR Code e copia-e-cola verdadeiros na Carteira",
+            "Backend próprio (server/) que guarda o access token com segurança e cria as cobranças",
+            "Fichas entregues automaticamente quando o pagamento é aprovado (polling a cada 5s)"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "Backend Pix (Express + API Mercado Pago): criar cobrança, consultar status e webhook com validação de assinatura HMAC",
+            "Pedidos Pix pendentes sobrevivem ao reinício do jogo (save v8) e expiram após 30 min sem pagamento",
+            "Modo online automático: configurando a URL do backend, a Carteira passa a cobrar de verdade",
+            "Documentação: docs/arquitetura-pix.md com o mapa completo do fluxo"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Carteira: compra cria cobrança real e exibe QR; fichas só chegam após aprovação (modo simulado continua sem backend)",
+            "Save v8 com migração automática v7→v8 (pedidos Pix)"
+          ]
+        },
+        {
+          "tag": "CORRIGIDO",
+          "icon": "🐛",
+          "items": [
+            "Concessão idempotente — chamadas concorrentes nunca dobram fichas",
+            "Webhook rejeita assinaturas malformadas sem travar o servidor"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.2.3",
+      "title": "CARTEIRA FICHA/CRÉDITOS COM PIX",
+      "date": "2026-08-09",
+      "description": "Nova Carteira com Fichas 🎰 compradas via Pix, conversão em Créditos 💳 (1 ficha = 1 crédito) e troca por Diamantes 💎 (1 crédito = 1 diamante) para gastar no jogo.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🎰",
+          "items": [
+            "Nova tela Carteira: comprar Fichas 🎰 via Pix (100 fichas = R$ 6,25)",
+            "Conversão 1 ficha = 1 crédito 💳 e troca por Diamantes 💎 (1 crédito = 1 diamante)",
+            "Diamantes gastos no sistema premium: caixas, consumíveis e upgrades da Loja"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "4 pacotes de fichas com bônus progressivo (100 a 2.000 fichas)",
+            "Recibo Pix com código copia-e-cola (EMV + CRC16) após a compra",
+            "Fichas e créditos protegidos no save: não são resetados por prestígio/ascensão",
+            "Gateway Pix (LocalPixGateway) pronto para integrar um backend real de pagamentos"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Save v7 com migração automática v6→v7 (carteira)",
+            "Saldo de fichas, créditos e diamantes visíveis na topbar",
+            "Estatísticas novas: fichas compradas, créditos convertidos e diamantes comprados com créditos"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.2.2",
+      "title": "PROGRESSÃO MAIS DIFÍCIL",
+      "date": "2026-08-09",
+      "description": "Upar de nível ficou ~5× mais difícil com a nova curva de XP, e as conquistas pararam de dar ouro — apenas as mais difíceis (prestígio pra cima) ainda recompensam moedas.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "📈",
+          "items": [
+            "Curva de XP do jogador endurecida em ~5× (160·n²·⁰⁵ + 200n + 100)",
+            "Conquistas sem recompensa em ouro — só as 7 de prestígio pra cima mantêm moedas",
+            "Títulos exclusivos das conquistas extremas preservados"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "XP por nível: 100·n¹·⁸+120n+80 → 160·n²·⁰⁵+200n+100 (nível 100: ~410 mil → ~2 milhões de XP)",
+            "~50 conquistas deixaram de conceder ouro (mantêm títulos, fragmentos, caixas e outras recompensas)",
+            "Conquistas que mantêm ouro: Primeiro Prestígio, Fênix, Imortal, Primeira Ascensão, Ascendente, Transcendente e Número da Sorte"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.2.1",
+      "title": "CONQUISTAS RECALIBRADAS",
+      "date": "2026-08-09",
+      "description": "Alvos de ouro das conquistas recalibrados para a economia endurecida (÷4), fechando o ciclo da rebalança de moedas da 1.1.2.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🪙",
+          "items": [
+            "Conquistas de ouro com alvos ÷4: Primeiras Moedas 100→25, Milionário 1M→250 mil, Bilionário 1 bi→250 milhões, Magnata 1 tri→250 bilhões"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Descrições das conquistas atualizadas para os novos valores",
+            "Recompensas mantidas (reduzidas automaticamente na concessão pela escala global de moedas)"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.2",
+      "title": "ECONOMIA DE MOEDAS ENDURECIDA",
+      "date": "2026-08-09",
+      "description": "Ganhar moedas 🪙 agora é muito mais difícil: todas as fontes grátis pagam 1/4 do valor, e os alvos das missões de ouro foram recalibrados para a nova economia.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🪙",
+          "items": [
+            "Moedas 🪙 4× mais difíceis de obter: missões, conquistas, códigos, login, caixas, drops de clique, offline e venda de itens pagam 1/4",
+            "Alvos das missões de \"ganhe X ouro\" recalibrados proporcionalmente",
+            "Ouro dos pacotes pagos mantido (compra com dinheiro real)"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Drop de ouro no clique: 5% → 1,25% do ganho",
+            "Caixas: drops de moedas 4× menores (250×25^raridade)",
+            "Gerador de Ouro: 0,5 → 0,125 🪙/s (afeta offline e ganho passivo)",
+            "Venda de pets e equipamentos devolve 1/4 do valor anterior",
+            "Missões de ouro com alvos ÷4: Ouro do Dia 50.000→12.500, Magnata 100M→25M, Rico 1T→250 bi, Semana de Ouro 1 bi→250M"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.1",
+      "title": "DIAMANTES VALORIZADOS",
+      "date": "2026-08-09",
+      "description": "Diamantes 💎 agora valem ainda mais: comprar e gastar a moeda premium ficou 2× mais caro, enquanto o ouro 🪙 mantém os preços normais.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "💎",
+          "items": [
+            "Diamantes 💎 2× mais caros para comprar: pacotes agora de R$ 3,99 a R$ 199,99 (mesmos 💎 por pacote)",
+            "Gastar 💎 ficou 2× mais caro: caixas, consumíveis premium e upgrades premium com preços dobrados",
+            "Ouro 🪙 intocado: compras com moedas continuam com os mesmos preços de sempre"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Pacotes: Mini R$ 3,99 · Iniciante R$ 9,99 · Popular R$ 19,99 · Premium R$ 39,99 · Lendário R$ 99,99 · Supremo R$ 199,99",
+            "Caixas: Básica 50💎 · Rara 160💎 · Épica 400💎 · Lendária 1.400💎 · Mítica 3.600💎 · Celestial 9.000💎",
+            "Consumíveis premium: Elixir de Diamante 400💎 · Reator Portátil 600💎 · Manancial de Ouro 600💎",
+            "Upgrades premium: Aura de Diamante 600💎 · Núcleo de Diamante 1.000💎 · Reator de Diamante 1.500💎 · Ultra Crítico 6.000💎"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.1.0",
+      "title": "LOJA DE MOEDAS E DIAMANTES PAGOS",
+      "date": "2026-08-09",
+      "description": "Nova loja de compra com dinheiro real, moedas renomeadas (Moedas 🪙 e Diamantes 💎) e passe reformulado com trilha grátis a cada 5 níveis.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🛍️",
+          "items": [
+            "Loja de compra com dinheiro real: 4 pacotes de Moedas + Diamantes (R$ 4,99 a R$ 49,99)",
+            "Diamantes 💎 agora são moeda exclusivamente paga — todas as fontes grátis foram removidas",
+            "Passe Premium reformulado: trilha grátis libera recompensa a cada 5 níveis"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "Aba \"Moedas\" na Loja com pacotes (Iniciante, Popular, Premium, Lendário) e confirmação de compra"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Ouro 🪙 renomeado para Moedas e Cristais 💎 para Diamantes (saves mantidos)",
+            "Recompensas de conquistas, missões, caixas, eventos, códigos, login diário, passe e presentes de atualização sem diamantes — substituídas por ouro equivalente",
+            "Passe: trilha grátis com 20 recompensas (níveis 5, 10, 15…100); premium mantém os 100 níveis"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.0.4",
+      "title": "PASSE PREMIUM ASSINADO",
+      "date": "2026-08-09",
+      "description": "A posse do Passe Premium agora é protegida por recibo de compra assinado com chave local — editar o save para liberar o passe deixa de funcionar.",
+      "hotfix": true,
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🔐",
+          "items": [
+            "Passe Premium protegido por recibo assinado (chave local no app)",
+            "Posse verificada a cada load: save com owned=true sem recibo válido é revertido"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Compra do passe emite recibo assinado (pedido + horário + jogador)",
+            "Assinatura é ligada ao save: copiar recibo de outro save não libera o passe",
+            "Revogação remove também os itens exclusivos concedidos (avatares, título Premium)"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "2000000",
+        "boxes": [
+          {
+            "boxId": "basic",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "3.0.1",
+      "title": "REBALANCEAMENTO DE DIFICULDADE",
+      "date": "2026-08-08",
+      "description": "Progressão mais desafiadora: curvas de XP do jogador, pets e Passe Premium mais íngremes, fontes de XP reduzidas e teto diário do passe ajustado.",
+      "hotfix": true,
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🔥",
+          "items": [
+            "Curva de XP do jogador endurecida (até ~4,6× no nível 100)",
+            "Pets com 2× mais XP por nível em toda a curva",
+            "Passe Premium com ~2,1-3,3× mais XP por nível"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Nível do jogador: XP por nível 50·n¹·⁶+100n+60 → 100·n¹·⁸+120n+80",
+            "Pets: XP por nível 50·1.35ⁿ·(n+1) → 100·1.35ⁿ·(n+1) (2× uniforme)",
+            "Passe Premium: XP total 120·n¹·⁵⁵ → 250·n¹·⁶⁵",
+            "Fontes de XP do jogador reduzidas: clique 0,1→0,05 XP, por minuto 1→0,5 XP, recompensas de missões pela metade",
+            "Fontes de XP do passe reduzidas: clique 1→0,5, minuto 15→8, missões 100/250/500→50/125/250, capítulo 300→150",
+            "Teto diário do passe ajustado de 10.000 para 33.000 para acompanhar a nova curva"
+          ]
+        },
+        {
+          "tag": "CORRIGIDO",
+          "icon": "🐛",
+          "items": [
+            "Título Omega agora usa a fórmula oficial do passe (GameConfig.pass.xpForLevel) em vez de valor fixo"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "basic",
+            "qty": 1
+          }
+        ]
+      }
+    },
+    {
+      "version": "3.0.0",
+      "title": "CONFIGURAÇÃO, PERFIL, PASSE PREMIUM E ADMIN",
+      "date": "2026-08-07",
+      "description": "Reformulação de Configurações, Perfil com status/avatar/privacidade, Passe Premium de 100 níveis, skins ocultas e Admin Control Center.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🔥",
+          "items": [
+            "Passe Premium 🎟️ — 100 níveis, trilha grátis + premium, pet exclusivo Cronos",
+            "Skins não adquiridas agora são conteúdo oculto (??? + silhueta)",
+            "Admin Control Center com PIN local, permissões granulares e auditoria"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "Configurações em 10 categorias (Geral, Interface, Gráficos, Áudio, Gameplay, Notificações, Acessibilidade, Privacidade, Dados, Sistema)",
+            "Canais de áudio independentes (música, efeitos, interface, eventos, notificações, ambiente)",
+            "Perfil reformulado: avatar, moldura, efeito, badge, status e mensagem personalizada",
+            "Sistema de status (Online, AFK, Não perturbe, Em evento…) com indicador local",
+            "Privacidade com escopos (Público/Privado/Somente local)",
+            "5 skins exclusivas do passe + recompensas premium ocultas",
+            "Títulos premium (Premium, Omega) e da temporada",
+            "Admin: dashboard, gerenciador de conteúdo (rascunho→publicar), recompensas, simulação, logs de auditoria e segurança, backups"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Save v6 com migração v5→v6 (perfil, passe premium, avatarItems)",
+            "Skins ocultas no Armário: sem nome/imagem/efeitos para itens não adquiridos",
+            "XP do passe com teto diário anti-abuso"
+          ]
+        },
+        {
+          "tag": "CORRIGIDO",
+          "icon": "🐛",
+          "items": [
+            "Bug de reinício do teto diário do passe (dia NaN)",
+            "Deep-merge de configurações em saves antigos",
+            "Preview de skins premium respeitando revealPremiumRewards"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "10000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ],
+        "skins": [
+          "cursor_bolt"
+        ],
+        "avatarItems": [
+          "bd_clicker"
+        ]
+      }
+    },
+    {
+      "version": "2.0.0",
+      "title": "CLICKMASTER — LIVE OPS",
+      "date": "2026-08-07",
+      "description": "O jogo vira uma plataforma de conteúdo contínuo: skins, eventos, temporadas, banners e atualizações.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🔥",
+          "items": [
+            "Sistema completo de LiveOps (EventManager, BannerManager, UpdateManager)",
+            "28 skins em 9 categorias com raridades próprias",
+            "Temporada 4 — Cyber Genesis com passe de 10 níveis"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "Página Armário 🎨 com pesquisa, filtros, favoritos e preview",
+            "Evento Cyber Overdrive com moeda, loja, passe, história e recompensas diárias",
+            "Event Pass (trilha grátis e premium)",
+            "Calendário de eventos com countdown",
+            "Carrossel de banners na Home",
+            "Tela de Atualizações com patch notes e notícias",
+            "Season Hub com countdown e recompensas",
+            "Sistema de códigos resgatáveis",
+            "Recompensa de atualização e compensação",
+            "Login diário de 7 dias",
+            "Página de manutenção programada"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Eventos agora usam timestamps absolutos (mais precisos)",
+            "Skins separadas da progressão (cosméticos por padrão)",
+            "Moeda por evento (Fragmentos Cyber, Lunares, Doces, Flocos, Brasas)"
+          ]
+        },
+        {
+          "tag": "CORRIGIDO",
+          "icon": "🐛",
+          "items": [
+            "Estabilidade do save com migração v4→v5",
+            "Combo e críticos mais consistentes",
+            "Performance da Home com carrossel memoizado"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "basic",
+            "qty": 1
+          }
+        ],
+        "skins": [
+          "num_gold"
+        ]
+      }
+    },
+    {
+      "version": "1.0.0",
+      "title": "LANÇAMENTO",
+      "date": "2026-07-20",
+      "description": "Núcleo Clicker 1.0 — o clicker completo com prestígio, ascensão e transcendência.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🔥",
+          "items": [
+            "Prestígio → Ascensão → Transcendência",
+            "Pets, caixas, missões, conquistas e árvore de habilidades"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "86+ sistemas integrados",
+            "Offline progress com teto configurável",
+            "Save com 3 slots, exportação e backup"
+          ]
+        }
+      ]
+    }
+  ],
+  "news": [
+    {
+      "id": "n_update20",
+      "type": "update",
+      "title": "Update 2.0: CLICKMASTER LiveOps",
+      "summary": "Skins, eventos, temporadas, banners e patch notes chegaram.",
+      "content": "A 2.0 transforma o jogo em plataforma de conteúdo contínuo. Explore o novo Armário, participe do Cyber Overdrive e suba no passe da Temporada 4.",
+      "date": "2026-08-07",
+      "version": "2.0.0",
+      "icon": "🚀",
+      "gradient": "linear-gradient(120deg, rgba(55,245,255,0.25), rgba(77,166,255,0.1))"
+    },
+    {
+      "id": "n_skins",
+      "type": "announcement",
+      "title": "28 skins em 9 categorias",
+      "summary": "Núcleo, fundo, cursor, números, efeitos, pets, perfil, banner e interface.",
+      "content": "As skins agora são cosméticas por padrão, com raridades próprias. Skins de evento ficam indisponíveis após o término — corra para coletá-las.",
+      "date": "2026-08-07",
+      "version": "2.0.0",
+      "icon": "🎨",
+      "gradient": "linear-gradient(120deg, rgba(255,107,255,0.22), rgba(176,108,255,0.1))"
+    },
+    {
+      "id": "n_cyber",
+      "type": "event",
+      "title": "Cyber Overdrive está no ar",
+      "summary": "2x energia, Fragmentos Cyber e a skin Núcleo Cyber.",
+      "content": "Durante o evento, cada clique gera XP de evento e Fragmentos Cyber. Complete o passe (10 níveis) para garantir a skin exclusiva.",
+      "date": "2026-08-05",
+      "version": "2.0.0",
+      "icon": "🤖",
+      "gradient": "linear-gradient(120deg, rgba(61,220,132,0.25), rgba(4,18,12,0.6))"
+    },
+    {
+      "id": "n_season4",
+      "type": "announcement",
+      "title": "Temporada 4: Cyber Genesis",
+      "summary": "Novo passe de temporada com skins e título exclusivo.",
+      "content": "A Temporada 4 vai até 15 de setembro. Ganhe XP de temporada clicando e complete os 10 níveis do passe.",
+      "date": "2026-08-01",
+      "version": "2.0.0",
+      "icon": "🌟",
+      "gradient": "linear-gradient(120deg, rgba(176,108,255,0.25), rgba(55,245,255,0.08))"
+    },
+    {
+      "id": "n_codes",
+      "type": "community",
+      "title": "Códigos de lançamento",
+      "summary": "WELCOME2 · CYBER2026 · UPDATE210",
+      "content": "Resgate os códigos na tela de Atualizações → Códigos. Cada código pode ser usado uma vez.",
+      "date": "2026-08-07",
+      "version": "2.0.0",
+      "icon": "🎟️",
+      "gradient": "linear-gradient(120deg, rgba(255,217,77,0.22), rgba(255,138,61,0.08))"
+    }
+  ],
+  "banners": [
+    {
+      "id": "update_20",
+      "title": "UPDATE 2.0",
+      "subtitle": "Skins, eventos, temporadas e LiveOps — um novo jogo.",
+      "icon": "🚀",
+      "gradient": "linear-gradient(120deg, rgba(55,245,255,0.28), rgba(77,166,255,0.12))",
+      "glow": "rgba(55,245,255,0.5)",
+      "priority": "update",
+      "startAt": 1786071600000,
+      "endAt": 1787367540000,
+      "destination": "updates",
+      "cta": "VER UPDATE",
+      "tags": [
+        "update",
+        "novo"
+      ]
+    },
+    {
+      "id": "evt_cyber",
+      "title": "⚡ CYBER OVERDRIVE ⚡",
+      "subtitle": "2x produção de energia durante o evento. Skins exclusivas!",
+      "icon": "🤖",
+      "gradient": "linear-gradient(120deg, rgba(61,220,132,0.3), rgba(4,18,12,0.6))",
+      "glow": "rgba(61,220,132,0.6)",
+      "priority": "event",
+      "startAt": 1785942000000,
+      "endAt": 1786589940000,
+      "destination": "events",
+      "payload": "cyber",
+      "cta": "PARTICIPAR",
+      "tags": [
+        "evento",
+        "live"
+      ]
+    },
+    {
+      "id": "season4",
+      "title": "🌟 TEMPORADA 4 — CYBER GENESIS",
+      "subtitle": "Novo passe, novas skins, novo mundo. Faltam semanas!",
+      "icon": "🌐",
+      "gradient": "linear-gradient(120deg, rgba(176,108,255,0.3), rgba(55,245,255,0.1))",
+      "glow": "rgba(176,108,255,0.5)",
+      "priority": "season",
+      "startAt": 1785553200000,
+      "endAt": 1789527540000,
+      "destination": "season",
+      "cta": "VER TEMPORADA",
+      "tags": [
+        "temporada",
+        "live"
+      ]
+    },
+    {
+      "id": "evt_lunar",
+      "title": "🌙 FESTIVAL LUNAR",
+      "subtitle": "Em breve: sorte +30% e o Núcleo Lunar celestial.",
+      "icon": "🌙",
+      "gradient": "linear-gradient(120deg, rgba(232,232,255,0.22), rgba(107,107,255,0.12))",
+      "glow": "rgba(232,232,255,0.5)",
+      "priority": "news",
+      "startAt": 1786676400000,
+      "endAt": 1787238000000,
+      "destination": "events",
+      "payload": "lunar",
+      "cta": "VER EVENTO",
+      "tags": [
+        "evento",
+        "futuro"
+      ]
+    },
+    {
+      "id": "news_skins",
+      "title": "🎨 NOVAS SKINS",
+      "subtitle": "28 skins em 9 categorias — Núcleo, fundo, cursor, números e mais.",
+      "icon": "🎨",
+      "gradient": "linear-gradient(120deg, rgba(255,107,255,0.25), rgba(176,108,255,0.1))",
+      "glow": "rgba(255,107,255,0.5)",
+      "priority": "news",
+      "startAt": 1786071600000,
+      "endAt": 1788317940000,
+      "destination": "skins",
+      "cta": "ABRIR ARMÁRIO",
+      "tags": [
+        "novidade",
+        "skins"
+      ]
+    },
+    {
+      "id": "codes_welcome",
+      "title": "🎁 CÓDIGOS ATIVOS",
+      "subtitle": "WELCOME2 · CYBER2026 · UPDATE210 — resgate em Atualizações.",
+      "icon": "🎟️",
+      "gradient": "linear-gradient(120deg, rgba(255,217,77,0.25), rgba(255,138,61,0.1))",
+      "glow": "rgba(255,217,77,0.5)",
+      "priority": "offer",
+      "startAt": 1786071600000,
+      "endAt": 1790823540000,
+      "destination": "codes",
+      "cta": "RESGATAR",
+      "tags": [
+        "oferta",
+        "código"
+      ]
+    },
+    {
+      "id": "news_compensation",
+      "title": "🎁 COMPENSAÇÃO DISPONÍVEL",
+      "subtitle": "Uma recompensa aguarda você pelos ajustes da 2.0.",
+      "icon": "📦",
+      "gradient": "linear-gradient(120deg, rgba(61,220,132,0.2), rgba(55,245,255,0.08))",
+      "glow": "rgba(61,220,132,0.5)",
+      "priority": "offer",
+      "startAt": 1786071600000,
+      "endAt": 1786762740000,
+      "destination": "updates",
+      "payload": "compensation",
+      "cta": "RESGATAR",
+      "tags": [
+        "oferta"
+      ]
+    }
+  ],
+  "events": [
+    {
+      "id": "cyber",
+      "name": "Cyber Overdrive",
+      "icon": "🤖",
+      "desc": "A rede despertou. Produza 2x energia, colete Fragmentos Cyber e desbloqueie skins exclusivas da temporada.",
+      "theme": "cyberpunk",
+      "startAt": 1785942000000,
+      "endAt": 1786589940000,
+      "startLabel": "05 ago",
+      "endLabel": "12 ago",
+      "currency": {
+        "id": "frag_cyber",
+        "name": "Fragmentos Cyber",
+        "icon": "⚡"
+      },
+      "boxId": "event",
+      "bonus": {
+        "production": "2"
+      },
+      "bonusText": "2x produção de energia durante o evento",
+      "skins": [
+        "cyber_core",
+        "bg_cyber",
+        "cursor_cyber",
+        "num_neon",
+        "fx_cyber",
+        "ui_cyber",
+        "pf_cyber",
+        "banner_cyber",
+        "pet_cyber"
+      ],
+      "tags": [
+        "cyberpunk",
+        "tecnologico",
+        "live"
+      ],
+      "shop": [
+        {
+          "id": "skin_cyber_core",
+          "name": "Núcleo Cyber",
+          "icon": "🤖",
+          "desc": "Skin lendária do Núcleo.",
+          "cost": "5000",
+          "type": "skin",
+          "value": "cyber_core"
+        },
+        {
+          "id": "skin_bg_cyber",
+          "name": "Cidade Digital",
+          "icon": "🌆",
+          "desc": "Skin de fundo neon.",
+          "cost": "3000",
+          "type": "skin",
+          "value": "bg_cyber"
+        },
+        {
+          "id": "skin_cursor_cyber",
+          "name": "Cursor Neon",
+          "icon": "💠",
+          "desc": "Skin de cursor.",
+          "cost": "1500",
+          "type": "skin",
+          "value": "cursor_cyber"
+        },
+        {
+          "id": "skin_num_neon",
+          "name": "Números Neon",
+          "icon": "🟢",
+          "desc": "Estilo dos números flutuantes.",
+          "cost": "1200",
+          "type": "skin",
+          "value": "num_neon"
+        },
+        {
+          "id": "skin_fx_cyber",
+          "name": "Circuito",
+          "icon": "🔌",
+          "desc": "Efeito de partículas.",
+          "cost": "1200",
+          "type": "skin",
+          "value": "fx_cyber"
+        },
+        {
+          "id": "skin_ui_cyber",
+          "name": "Interface Neon",
+          "icon": "🧪",
+          "desc": "Tema de interface.",
+          "cost": "2500",
+          "type": "skin",
+          "value": "ui_cyber"
+        },
+        {
+          "id": "skin_pf_cyber",
+          "name": "Moldura Cyber",
+          "icon": "🖥️",
+          "desc": "Moldura de perfil.",
+          "cost": "1000",
+          "type": "skin",
+          "value": "pf_cyber"
+        },
+        {
+          "id": "skin_banner_cyber",
+          "name": "Banner Neon",
+          "icon": "🎴",
+          "desc": "Banner de perfil.",
+          "cost": "800",
+          "type": "skin",
+          "value": "banner_cyber"
+        },
+        {
+          "id": "skin_pet_cyber",
+          "name": "Chips de Pet",
+          "icon": "🔩",
+          "desc": "Aura visual dos pets.",
+          "cost": "2000",
+          "type": "skin",
+          "value": "pet_cyber"
+        },
+        {
+          "id": "cyber_title",
+          "name": "Título: Netrunner",
+          "icon": "👨‍💻",
+          "desc": "Título exclusivo do evento.",
+          "cost": "2500",
+          "type": "title",
+          "value": "cyber_netrunner"
+        },
+        {
+          "id": "click_x2",
+          "name": "Overclock",
+          "icon": "⚡",
+          "desc": "Dobra o clique por 5 minutos.",
+          "cost": "600",
+          "type": "buff",
+          "value": "click_x2",
+          "durationMs": 300000,
+          "buffMult": 2
+        },
+        {
+          "id": "prod_x2",
+          "name": "Neural Boost",
+          "icon": "🧠",
+          "desc": "Dobra a produção por 10 minutos.",
+          "cost": "900",
+          "type": "buff",
+          "value": "prod_x2",
+          "durationMs": 600000,
+          "buffMult": 2
+        },
+        {
+          "id": "cyber_chest",
+          "name": "Caixa Cyber",
+          "icon": "📦",
+          "desc": "1 Caixa do Evento.",
+          "cost": "2000",
+          "type": "box",
+          "value": "event"
+        },
+        {
+          "id": "cyber_perma",
+          "name": "Núcleo de Rede",
+          "icon": "🔗",
+          "desc": "+10% produção permanente.",
+          "cost": "8000",
+          "type": "permanent",
+          "value": "cyber_perma"
+        }
+      ],
+      "pass": {
+        "levels": [
+          {
+            "level": 1,
+            "xp": "0",
+            "free": {
+              "gold": "5000"
+            }
+          },
+          {
+            "level": 2,
+            "xp": "500",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 3,
+            "xp": "1200",
+            "free": {
+              "gold": "5000"
+            },
+            "premium": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 4,
+            "xp": "2000",
+            "free": {
+              "gold": "25000"
+            }
+          },
+          {
+            "level": 5,
+            "xp": "3000",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 1
+                }
+              ]
+            }
+          },
+          {
+            "level": 6,
+            "xp": "4200",
+            "free": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 7,
+            "xp": "5500",
+            "free": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 6
+                }
+              ]
+            }
+          },
+          {
+            "level": 8,
+            "xp": "7000",
+            "free": {
+              "gold": "150000"
+            }
+          },
+          {
+            "level": 9,
+            "xp": "8600",
+            "free": {
+              "gold": "15000"
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 10,
+            "xp": "10000",
+            "free": {
+              "skins": [
+                "num_neon"
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 3
+                }
+              ],
+              "gold": "25000"
+            }
+          }
+        ]
+      },
+      "story": [
+        {
+          "id": "c1",
+          "title": "Capítulo 1 — O Sinal",
+          "unlockLevel": 1,
+          "banner": "A rede enviou um sinal…",
+          "text": "Um sinal digital atravessa a cidade. O Núcleo começa a pulsar em sincronia com servidores ocultos."
+        },
+        {
+          "id": "c2",
+          "title": "Capítulo 2 — O Núcleo de Rede",
+          "unlockLevel": 4,
+          "banner": "Conexão estabelecida",
+          "text": "Você conecta o Núcleo à rede. Fragmentos Cyber fluem como dados purificados.",
+          "reward": {
+            "gold": "5000"
+          }
+        },
+        {
+          "id": "c3",
+          "title": "Capítulo 3 — Sobrecarga",
+          "unlockLevel": 8,
+          "banner": "SOBRECARGA IMINENTE",
+          "text": "A sobrecarga final se aproxima. Supere a rede e reivindique a skin lendária.",
+          "reward": {
+            "gold": "100000"
+          }
+        }
+      ],
+      "dailyRewards": [
+        {
+          "gold": "10000"
+        },
+        {
+          "gold": "5000"
+        },
+        {
+          "boxes": [
+            {
+              "boxId": "basic",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "eventTokens": 200
+        },
+        {
+          "consumables": [
+            {
+              "id": "pet_food",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "boxes": [
+            {
+              "boxId": "event",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "skins": [
+            "num_neon"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lunar",
+      "name": "Festival Lunar",
+      "icon": "🌙",
+      "desc": "A lua cheia traz sorte rara. Colete Fragmentos Lunares e desbloqueie o Núcleo Lunar.",
+      "theme": "lunar",
+      "startAt": 1787238000000,
+      "endAt": 1787885940000,
+      "startLabel": "20 ago",
+      "endLabel": "27 ago",
+      "currency": {
+        "id": "frag_lunar",
+        "name": "Fragmentos Lunares",
+        "icon": "🌙"
+      },
+      "boxId": "event",
+      "bonus": {
+        "luck": "1.3"
+      },
+      "bonusText": "+30% sorte durante o evento",
+      "skins": [
+        "lunar_core"
+      ],
+      "tags": [
+        "lunar",
+        "futuro"
+      ],
+      "shop": [
+        {
+          "id": "skin_lunar_core",
+          "name": "Núcleo Lunar",
+          "icon": "🌙",
+          "desc": "Skin celestial limitada.",
+          "cost": "5000",
+          "type": "skin",
+          "value": "lunar_core"
+        },
+        {
+          "id": "lunar_title",
+          "name": "Título: Filho da Lua",
+          "icon": "🌕",
+          "desc": "Título exclusivo.",
+          "cost": "2500",
+          "type": "title",
+          "value": "lunar_filho"
+        },
+        {
+          "id": "prod_x2",
+          "name": "Chá de Lua",
+          "icon": "🍵",
+          "desc": "Dobra a produção por 10 minutos.",
+          "cost": "800",
+          "type": "buff",
+          "value": "prod_x2",
+          "durationMs": 600000,
+          "buffMult": 2
+        },
+        {
+          "id": "lunar_chest",
+          "name": "Caixa Lunar",
+          "icon": "🌝",
+          "desc": "1 Caixa do Evento.",
+          "cost": "1800",
+          "type": "box",
+          "value": "event"
+        },
+        {
+          "id": "lunar_perma",
+          "name": "Pó Lunar",
+          "icon": "🪩",
+          "desc": "+10% sorte permanente.",
+          "cost": "6000",
+          "type": "permanent",
+          "value": "lunar_perma"
+        }
+      ],
+      "pass": {
+        "levels": [
+          {
+            "level": 1,
+            "xp": "0",
+            "free": {
+              "gold": "5000"
+            }
+          },
+          {
+            "level": 2,
+            "xp": "500",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 3,
+            "xp": "1200",
+            "free": {
+              "gold": "5000"
+            },
+            "premium": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 4,
+            "xp": "2000",
+            "free": {
+              "gold": "25000"
+            }
+          },
+          {
+            "level": 5,
+            "xp": "3000",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 1
+                }
+              ]
+            }
+          },
+          {
+            "level": 6,
+            "xp": "4200",
+            "free": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 7,
+            "xp": "5500",
+            "free": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 6
+                }
+              ]
+            }
+          },
+          {
+            "level": 8,
+            "xp": "7000",
+            "free": {
+              "gold": "150000"
+            }
+          },
+          {
+            "level": 9,
+            "xp": "8600",
+            "free": {
+              "gold": "15000"
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 10,
+            "xp": "10000",
+            "free": {
+              "skins": [
+                "lunar_core"
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 3
+                }
+              ],
+              "gold": "25000"
+            }
+          }
+        ]
+      },
+      "dailyRewards": [
+        {
+          "gold": "15000"
+        },
+        {
+          "gold": "5000"
+        },
+        {
+          "boxes": [
+            {
+              "boxId": "basic",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "eventTokens": 250
+        },
+        {
+          "consumables": [
+            {
+              "id": "pet_food",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "boxes": [
+            {
+              "boxId": "event",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "skins": [
+            "lunar_core"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "verao",
+      "name": "Verão Eterno",
+      "icon": "🏖️",
+      "desc": "Sol, praia e muito ouro. Evento encerrado — arquivado no calendário.",
+      "theme": "verao",
+      "startAt": 1768446000000,
+      "endAt": 1772333940000,
+      "startLabel": "15 jan",
+      "endLabel": "28 fev",
+      "currency": {
+        "id": "conchas",
+        "name": "Conchas",
+        "icon": "🐚"
+      },
+      "boxId": "event",
+      "bonus": {
+        "dropChance": "0.15"
+      },
+      "bonusText": "+15% chance de drops",
+      "skins": [
+        "bg_beach"
+      ],
+      "tags": [
+        "verao",
+        "arquivado"
+      ],
+      "shop": [
+        {
+          "id": "verao_title",
+          "name": "Título: Rei da Praia",
+          "icon": "🕶️",
+          "desc": "Desbloqueia o título.",
+          "cost": "300",
+          "type": "title",
+          "value": "verao_rei"
+        },
+        {
+          "id": "click_x2",
+          "name": "Smoothie de Energia",
+          "icon": "🥤",
+          "desc": "Dobra o clique por 5 minutos.",
+          "cost": "150",
+          "type": "buff",
+          "value": "click_x2",
+          "durationMs": 300000,
+          "buffMult": 2
+        },
+        {
+          "id": "verao_chest",
+          "name": "Concha Rara",
+          "icon": "🐚",
+          "desc": "1 Caixa do Evento.",
+          "cost": "100",
+          "type": "box",
+          "value": "event"
+        },
+        {
+          "id": "verao_perma",
+          "name": "Sol Permanente",
+          "icon": "🌞",
+          "desc": "+10% ouro permanente.",
+          "cost": "1000",
+          "type": "permanent",
+          "value": "verao_perma"
+        }
+      ]
+    },
+    {
+      "id": "halloween",
+      "name": "Noite Sombria",
+      "icon": "🎃",
+      "desc": "Criaturas invadem o Núcleo. Doces, caixas assombradas e skins de terror.",
+      "theme": "halloween",
+      "startAt": 1792465200000,
+      "endAt": 1793501940000,
+      "startLabel": "20 out",
+      "endLabel": "31 out",
+      "currency": {
+        "id": "doces",
+        "name": "Doces",
+        "icon": "🍬"
+      },
+      "boxId": "event",
+      "bonus": {
+        "clickPower": "1.25"
+      },
+      "bonusText": "+25% poder de clique",
+      "skins": [
+        "fx_snow"
+      ],
+      "tags": [
+        "halloween",
+        "futuro"
+      ],
+      "shop": [
+        {
+          "id": "hall_title",
+          "name": "Título: Mestre das Sombras",
+          "icon": "🌑",
+          "desc": "Desbloqueia o título.",
+          "cost": "300",
+          "type": "title",
+          "value": "halloween_shadow"
+        },
+        {
+          "id": "prod_x2",
+          "name": "Poção Sombria",
+          "icon": "🧙",
+          "desc": "Dobra a produção por 10 minutos.",
+          "cost": "250",
+          "type": "buff",
+          "value": "prod_x2",
+          "durationMs": 600000,
+          "buffMult": 2
+        },
+        {
+          "id": "hall_chest",
+          "name": "Caixa Assombrada",
+          "icon": "🧟",
+          "desc": "2 Caixas do Evento.",
+          "cost": "180",
+          "type": "box",
+          "value": "event"
+        },
+        {
+          "id": "hall_perma",
+          "name": "Abóbora Encantada",
+          "icon": "🎃",
+          "desc": "+10% clique permanente.",
+          "cost": "1000",
+          "type": "permanent",
+          "value": "hall_perma"
+        }
+      ],
+      "pass": {
+        "levels": [
+          {
+            "level": 1,
+            "xp": "0",
+            "free": {
+              "gold": "5000"
+            }
+          },
+          {
+            "level": 2,
+            "xp": "500",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 3,
+            "xp": "1200",
+            "free": {
+              "gold": "5000"
+            },
+            "premium": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 4,
+            "xp": "2000",
+            "free": {
+              "gold": "25000"
+            }
+          },
+          {
+            "level": 5,
+            "xp": "3000",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 1
+                }
+              ]
+            }
+          },
+          {
+            "level": 6,
+            "xp": "4200",
+            "free": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 7,
+            "xp": "5500",
+            "free": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 6
+                }
+              ]
+            }
+          },
+          {
+            "level": 8,
+            "xp": "7000",
+            "free": {
+              "gold": "150000"
+            }
+          },
+          {
+            "level": 9,
+            "xp": "8600",
+            "free": {
+              "gold": "15000"
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 10,
+            "xp": "10000",
+            "free": {
+              "skins": [
+                "fx_snow"
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 3
+                }
+              ],
+              "gold": "25000"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "natal",
+      "name": "Natal Estelar",
+      "icon": "🎄",
+      "desc": "O espírito natalino traz presentes raros, flocos de neve e o Núcleo Gélido.",
+      "theme": "natal",
+      "startAt": 1796094000000,
+      "endAt": 1798772340000,
+      "startLabel": "01 dez",
+      "endLabel": "31 dez",
+      "currency": {
+        "id": "flocos",
+        "name": "Flocos",
+        "icon": "❄️"
+      },
+      "boxId": "event",
+      "bonus": {
+        "goldGain": "1.25"
+      },
+      "bonusText": "+25% ouro durante o evento",
+      "skins": [
+        "fx_snow"
+      ],
+      "tags": [
+        "natal",
+        "inverno",
+        "futuro"
+      ],
+      "shop": [
+        {
+          "id": "natal_title",
+          "name": "Título: Papai Noel",
+          "icon": "🎅",
+          "desc": "Desbloqueia o título.",
+          "cost": "300",
+          "type": "title",
+          "value": "natal_noel"
+        },
+        {
+          "id": "click_x2",
+          "name": "Biscoito de Gengibre",
+          "icon": "🍪",
+          "desc": "Dobra o clique por 5 minutos.",
+          "cost": "150",
+          "type": "buff",
+          "value": "click_x2",
+          "durationMs": 300000,
+          "buffMult": 2
+        },
+        {
+          "id": "prod_x2",
+          "name": "Chocolate Quente",
+          "icon": "☕",
+          "desc": "Dobra a produção por 10 minutos.",
+          "cost": "250",
+          "type": "buff",
+          "value": "prod_x2",
+          "durationMs": 600000,
+          "buffMult": 2
+        },
+        {
+          "id": "natal_chest",
+          "name": "Presente Misterioso",
+          "icon": "🎁",
+          "desc": "1 Caixa do Evento.",
+          "cost": "100",
+          "type": "box",
+          "value": "event"
+        },
+        {
+          "id": "natal_perma",
+          "name": "Estrela de Natal",
+          "icon": "⭐",
+          "desc": "+10% produção permanente.",
+          "cost": "1000",
+          "type": "permanent",
+          "value": "natal_perma"
+        }
+      ],
+      "pass": {
+        "levels": [
+          {
+            "level": 1,
+            "xp": "0",
+            "free": {
+              "gold": "5000"
+            }
+          },
+          {
+            "level": 2,
+            "xp": "500",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 3,
+            "xp": "1200",
+            "free": {
+              "gold": "5000"
+            },
+            "premium": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 4,
+            "xp": "2000",
+            "free": {
+              "gold": "25000"
+            }
+          },
+          {
+            "level": 5,
+            "xp": "3000",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 1
+                }
+              ]
+            }
+          },
+          {
+            "level": 6,
+            "xp": "4200",
+            "free": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 7,
+            "xp": "5500",
+            "free": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 6
+                }
+              ]
+            }
+          },
+          {
+            "level": 8,
+            "xp": "7000",
+            "free": {
+              "gold": "150000"
+            }
+          },
+          {
+            "level": 9,
+            "xp": "8600",
+            "free": {
+              "gold": "15000"
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 10,
+            "xp": "10000",
+            "free": {
+              "skins": [
+                "fx_snow"
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 3
+                }
+              ],
+              "gold": "25000"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "lightning",
+      "name": "Relâmpago x5",
+      "icon": "⚡",
+      "desc": "EVENTO RELÂMPAGO — todos os cliques valem 5x por 1 hora. Corra!",
+      "theme": "tecnologico",
+      "startAt": 1786230000000,
+      "endAt": 1786233600000,
+      "lightning": true,
+      "startLabel": "08 ago 20:00",
+      "endLabel": "08 ago 21:00",
+      "currency": {
+        "id": "brasas",
+        "name": "Brasas",
+        "icon": "🔥"
+      },
+      "boxId": "event",
+      "bonus": {
+        "clickPower": "5"
+      },
+      "bonusText": "5x poder de clique — apenas 1 hora!",
+      "skins": [],
+      "tags": [
+        "relampago",
+        "futuro"
+      ],
+      "shop": [
+        {
+          "id": "click_x2",
+          "name": "Energia Relâmpago",
+          "icon": "🌩️",
+          "desc": "Dobra o clique por 5 minutos.",
+          "cost": "500",
+          "type": "buff",
+          "value": "click_x2",
+          "durationMs": 300000,
+          "buffMult": 2
+        },
+        {
+          "id": "lt_chest",
+          "name": "Caixa Relâmpago",
+          "icon": "📦",
+          "desc": "1 Caixa do Evento.",
+          "cost": "1500",
+          "type": "box",
+          "value": "event"
+        }
+      ]
+    },
+    {
+      "id": "demo",
+      "name": "Festival Estelar",
+      "icon": "🌟",
+      "desc": "Evento permanente de demonstração para testar o sistema completo (passe, história, recompensas).",
+      "theme": "espacial",
+      "always": true,
+      "currency": {
+        "id": "frag_demo",
+        "name": "Fragmentos Estelares",
+        "icon": "🌟"
+      },
+      "boxId": "event",
+      "bonus": {
+        "luck": "1.2"
+      },
+      "bonusText": "+20% sorte durante o evento",
+      "skins": [],
+      "tags": [
+        "demo"
+      ],
+      "shop": [
+        {
+          "id": "demo_title",
+          "name": "Título: Estelar",
+          "icon": "🌠",
+          "desc": "Desbloqueia o título.",
+          "cost": "200",
+          "type": "title",
+          "value": "demo_estelar"
+        },
+        {
+          "id": "prod_x2",
+          "name": "Bebida Estelar",
+          "icon": "🍹",
+          "desc": "Dobra a produção por 10 minutos.",
+          "cost": "200",
+          "type": "buff",
+          "value": "prod_x2",
+          "durationMs": 600000,
+          "buffMult": 2
+        },
+        {
+          "id": "demo_chest",
+          "name": "Caixa Estelar",
+          "icon": "🎇",
+          "desc": "1 Caixa do Evento.",
+          "cost": "90",
+          "type": "box",
+          "value": "event"
+        }
+      ],
+      "pass": {
+        "levels": [
+          {
+            "level": 1,
+            "xp": "0",
+            "free": {
+              "gold": "5000"
+            }
+          },
+          {
+            "level": 2,
+            "xp": "500",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 3,
+            "xp": "1200",
+            "free": {
+              "gold": "5000"
+            },
+            "premium": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 4,
+            "xp": "2000",
+            "free": {
+              "gold": "25000"
+            }
+          },
+          {
+            "level": 5,
+            "xp": "3000",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 1
+                }
+              ]
+            }
+          },
+          {
+            "level": 6,
+            "xp": "4200",
+            "free": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 7,
+            "xp": "5500",
+            "free": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 6
+                }
+              ]
+            }
+          },
+          {
+            "level": 8,
+            "xp": "7000",
+            "free": {
+              "gold": "150000"
+            }
+          },
+          {
+            "level": 9,
+            "xp": "8600",
+            "free": {
+              "gold": "15000"
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 10,
+            "xp": "10000",
+            "free": {
+              "skins": [
+                "num_gold"
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 3
+                }
+              ],
+              "gold": "25000"
+            }
+          }
+        ]
+      },
+      "story": [
+        {
+          "id": "dc1",
+          "title": "Capítulo 1 — Primeiro Contato",
+          "unlockLevel": 1,
+          "text": "Uma nave surge no horizonte. O Festival Estelar começa."
+        },
+        {
+          "id": "dc2",
+          "title": "Capítulo 2 — A Dança das Estrelas",
+          "unlockLevel": 3,
+          "text": "As estrelas dançam em sincronia com seus cliques.",
+          "reward": {
+            "gold": "50000"
+          }
+        }
+      ],
+      "dailyRewards": [
+        {
+          "gold": "20000"
+        },
+        {
+          "gold": "3000"
+        },
+        {
+          "boxes": [
+            {
+              "boxId": "basic",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "eventTokens": 100
+        },
+        {
+          "consumables": [
+            {
+              "id": "pet_food",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "gold": "50000"
+        },
+        {
+          "gold": "10000"
+        }
+      ]
+    }
+  ],
+  "seasons": [
+    {
+      "id": "season4",
+      "number": 4,
+      "name": "Cyber Genesis",
+      "icon": "🌐",
+      "theme": "Cyberpunk",
+      "desc": "O mundo despertou para a rede. Nova temporada, novo passe, novas skins.",
+      "startAt": 1785553200000,
+      "endAt": 1789527540000,
+      "gradient": "linear-gradient(120deg, rgba(176,108,255,0.35), rgba(55,245,255,0.15))",
+      "titleReward": "cyber_genesis",
+      "skinIds": [
+        "cyber_core",
+        "bg_cyber",
+        "num_neon"
+      ],
+      "pass": [
+        {
+          "level": 1,
+          "xp": "0",
+          "free": {
+            "gold": "10000"
+          }
+        },
+        {
+          "level": 2,
+          "xp": "800",
+          "free": {
+            "gold": "5000"
+          },
+          "premium": {
+            "gold": "10000"
+          }
+        },
+        {
+          "level": 3,
+          "xp": "1800",
+          "free": {
+            "boxes": [
+              {
+                "boxId": "basic",
+                "qty": 2
+              }
+            ]
+          }
+        },
+        {
+          "level": 4,
+          "xp": "3000",
+          "free": {
+            "gold": "50000"
+          }
+        },
+        {
+          "level": 5,
+          "xp": "4500",
+          "free": {
+            "skins": [
+              "num_neon"
+            ]
+          },
+          "premium": {
+            "skins": [
+              "num_neon"
+            ],
+            "gold": "20000"
+          }
+        },
+        {
+          "level": 6,
+          "xp": "6200",
+          "free": {
+            "consumables": [
+              {
+                "id": "pet_food",
+                "qty": 3
+              }
+            ]
+          }
+        },
+        {
+          "level": 7,
+          "xp": "8100",
+          "free": {
+            "boxes": [
+              {
+                "boxId": "event",
+                "qty": 1
+              }
+            ]
+          },
+          "premium": {
+            "boxes": [
+              {
+                "boxId": "event",
+                "qty": 2
+              }
+            ]
+          }
+        },
+        {
+          "level": 8,
+          "xp": "10200",
+          "free": {
+            "gold": "15000"
+          }
+        },
+        {
+          "level": 9,
+          "xp": "12500",
+          "free": {
+            "gold": "300000"
+          }
+        },
+        {
+          "level": 10,
+          "xp": "15000",
+          "free": {
+            "skins": [
+              "bg_cyber"
+            ]
+          },
+          "premium": {
+            "skins": [
+              "cyber_core"
+            ],
+            "boxes": [
+              {
+                "boxId": "event",
+                "qty": 3
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "codes": [
+    {
+      "id": "WELCOME2",
+      "desc": "Boas-vindas à 2.0: moedas e uma skin dourada.",
+      "rewards": {
+        "gold": "1000000",
+        "skins": [
+          "num_gold"
+        ]
+      },
+      "expiresAt": 1798772400000
+    },
+    {
+      "id": "CYBER2026",
+      "desc": "Pacote Cyber: moedas, caixa do evento e passe premium do Cyber.",
+      "rewards": {
+        "gold": "2500000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 2
+          }
+        ],
+        "premiumPasses": [
+          "cyber"
+        ],
+        "skins": [
+          "cursor_cyber"
+        ]
+      },
+      "expiresAt": 1786589940000
+    },
+    {
+      "id": "UPDATE210",
+      "desc": "Presente de atualização: moedas e fragmentos.",
+      "rewards": {
+        "gold": "1500000",
+        "fragments": 50,
+        "consumables": [
+          {
+            "id": "pet_food",
+            "qty": 5
+          }
+        ]
+      },
+      "expiresAt": 1798772340000
+    },
+    {
+      "id": "FOUNDER",
+      "desc": "Skin Fundador exclusiva.",
+      "rewards": {
+        "skins": [
+          "founder_core"
+        ],
+        "flags": {
+          "founder": 1
+        }
+      },
+      "expiresAt": 1798772400000
+    }
+  ],
+  "maintenance": []
+}

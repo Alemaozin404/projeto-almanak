@@ -1,0 +1,98 @@
+# 🧾 Servidor Online — Núcleo Clicker (Vercel)
+
+Backend do jogo: **Mercado Pago (Pix)** + **conteúdo online** + **save na nuvem** + **ranking global**.
+**O access token do Mercado Pago vive SOMENTE aqui** — nunca no app do jogador.
+
+## Como funciona
+
+```
+App (jogador)          Servidor (Vercel)         Mercado Pago / Upstash
+     │ POST /api/pix/charge   │ POST /v1/payments    │
+     │ (packId, playerId) ───►│ (access token aqui) ─►│
+     │◄─ qr_code + base64 ────│◄─ id + qr_code ──────│
+     │ (jogador paga no banco)│                       │
+     │                        │ POST webhook ◄───────│ (assinatura HMAC)
+     │ GET /api/pix/status ──►│ GET /v1/payments/:id │
+     │◄─ approved ────────────│◄─ approved ──────────│
+     │ concede fichas 🎰      │                       │
+     │                        │                       │
+     │ GET /api/content ─────►│ content.json ────────►│ (conteúdo do jogo)
+     │ PUT /api/save/:id ────►│ KV: save:<id> ───────►│ (Upstash Redis)
+     │ POST /api/rank ───────►│ KV: rank:<kind> ─────►│ (Upstash Redis)
+```
+
+## Deploy no Vercel (resumo)
+
+1. Importe o repositório em [vercel.com/new](https://vercel.com/new).
+2. **Root Directory** = `server` · Framework = **Other**.
+3. Variáveis de ambiente (Settings → Environment Variables):
+
+| Variável | Descrição |
+|---|---|
+| `MERCADO_PAGO_ACCESS_TOKEN` | Token de produção MP (`APP_USR-...`) — obrigatório p/ pagamentos |
+| `MERCADO_PAGO_WEBHOOK_SECRET` | Painel MP → Suas integrações → Webhooks |
+| `APP_SHARED_SECRET` | Deve bater com `GameConfig.wallet.appSharedSecret` do jogo |
+| `BASE_URL` | URL pública (ex.: `https://nucleo-clicker-server.vercel.app`) |
+| `UPSTASH_REDIS_REST_URL` | console.upstash.com → Database → REST API (opcional: nuvem/ranking) |
+| `UPSTASH_REDIS_REST_TOKEN` | idem |
+
+> Sem Upstash, saves/ranking usam um Map em memória (somem ao reiniciar o processo — ok p/ dev).
+
+4. Teste: `curl https://seu-projeto.vercel.app/api/health` → `{ "ok": true, "mp": "configured", "kv": "configured" }`.
+
+## Rodando localmente
+
+```bash
+cd server
+npm install
+cp .env.example .env   # preencha (ou deixe vazio p/ modo memória)
+npm start              # ou: npm run dev
+```
+
+Teste rápido:
+```bash
+curl http://localhost:8787/api/health
+curl -X POST http://localhost:8787/api/pix/charge \
+  -H 'Content-Type: application/json' \
+  -H 'x-app-secret: nucleoclicker-pix-v1' \
+  -d '{"packId":"fichas_100","playerId":42}'
+```
+
+## Conteúdo online (`/api/content`)
+
+O servidor serve `server/content.json`, gerado a partir do jogo:
+
+```bash
+# na raiz do repositório (não em server/):
+npm run content:export
+```
+
+Depois commite o `server/content.json` e faça push — o Vercel redeploya e o jogo exibe o conteúdo novo. O JSON contém: `updates`, `news`, `banners`, `events`, `seasons`, `codes` e `maintenance` (janelas de manutenção online).
+
+## Endpoints
+
+| Método | Rota | Descrição |
+|---|---|---|
+| GET | `/api/health` | Status do servidor (MP + KV + versão) |
+| GET | `/api/content` | Conteúdo do jogo (público, cache 5 min) |
+| GET | `/api/meta` | Versão + janelas de manutenção (público) |
+| POST | `/api/pix/charge` | Cria cobrança Pix → `{ orderId, pixCode, qrCodeBase64, amountBRL }` |
+| GET | `/api/pix/status/:id` | Status do pagamento (`pending` / `approved` / …) |
+| POST | `/api/pix/webhook` | Notificação do Mercado Pago (assinatura HMAC) |
+| PUT | `/api/save/:playerId` | Envia o save para a nuvem (exige `x-app-secret`) |
+| GET | `/api/save/:playerId` | Baixa o save da nuvem (exige `x-app-secret`) |
+| POST | `/api/rank` | Publica um ciclo no ranking (exige `x-app-secret`) |
+| GET | `/api/rank?kind=prestige` | Top 100 do ranking (público) |
+
+## Segurança
+
+- **Access token** nunca sai do servidor.
+- **Webhook** validado por assinatura HMAC-SHA256 (`x-signature` + `x-request-id`).
+- **Escrita de dados** exige o header `x-app-secret` (quando `APP_SHARED_SECRET` configurado).
+- **Preços** definidos no servidor (`FICHA_PACKS`) — o cliente nunca escolhe o valor.
+- **Idempotency key** (UUID) em cada criação de pagamento.
+- **Ranking** guarda apenas o recorde; **save nuvem** só é devolvido a quem sabe o `playerId`.
+  ⚠️ O `playerId` é o `createdAt` do save (timestamp) e o `x-app-secret` fica embutido no app —
+  proteção leve, adequada a um jogo de nicho. Para um sistema com contas reais, troque por
+  UUID/credencial e adicione autenticação de verdade.
+- **Rate limiting** em memória (30 salvamentos/min · 60 publicações/min por jogador) contra rajadas.

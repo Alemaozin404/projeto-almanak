@@ -1,0 +1,20 @@
+{
+  "name": "nucleo-clicker-pix-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Backend de pagamentos Pix do Núcleo Clicker — integra o Mercado Pago. Guarda o access token com segurança (nunca vai no app).",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "decimal.js": "^10.4.3",
+    "express": "^4.21.2"
+  }
+}

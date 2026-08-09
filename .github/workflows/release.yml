@@ -1,0 +1,36 @@
+name: Release
+
+# Publica uma nova versão do app automaticamente:
+#   1. Rode `npm version patch|minor|major` (atualiza package.json e cria tag v*)
+#   2. `git push --tags`
+#   3. Este workflow builda o instalador Windows e cria um GitHub Release.
+#   4. O auto-update do jogo (electron-updater) encontra e instala a nova versão.
+#
+# Importante: o repositório precisa ser PÚBLICO (ou o app precisa de GH_TOKEN
+# nas variáveis do app para acessar releases privados).
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run content:export
+
+      - run: npm run build
+
+      - name: Empacotar e publicar (GitHub Releases)
+        run: npx electron-builder --win nsis --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

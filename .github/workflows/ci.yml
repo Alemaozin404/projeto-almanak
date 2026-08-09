@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run content:export
+        name: Gerar server/content.json (paridade com o jogo)
+
+      - run: npm run typecheck
+        name: Typecheck
+
+      - run: npm run lint
+        name: Lint
+
+      - run: npm test
+        name: Testes
+
+      - run: git diff --exit-code server/content.json
+        name: Conteúdo exportado em dia (sem diffs pendentes)
