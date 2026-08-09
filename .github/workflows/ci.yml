@@ -18,6 +18,9 @@ jobs:
 
       - run: npm ci
 
+      - run: npm ci --prefix server
+        name: Dependências do servidor (os testes importam o Express real)
+
       - run: npm run content:export
         name: Gerar server/content.json (paridade com o jogo)
 
