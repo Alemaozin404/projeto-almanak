@@ -116,6 +116,7 @@ describe('Vendas do Admin — sync com o servidor', () => {
   });
 
   it('publishPackToServer sem backend configurado falha com mensagem clara', async () => {
+    store[GameConfig.wallet.backendUrlKey] = ''; // backend desativado explicitamente
     const r = await publishPackToServer(samplePack());
     expect(r.ok).toBe(false);
     expect(r.reason).toContain('Backend');
@@ -145,6 +146,7 @@ describe('Vendas do Admin — sync com o servidor', () => {
   });
 
   it('shopPacks offline usa apenas os pacotes locais habilitados', async () => {
+    store[GameConfig.wallet.backendUrlKey] = ''; // backend desativado → só local
     savePack(samplePack({ enabled: true }));
     savePack(samplePack({ id: 'disabled', enabled: false }));
     const list = await shopPacks();
@@ -163,6 +165,9 @@ describe('Vendas do Admin — função de teste Pix', () => {
   });
 
   it('pixTestEnabled depende do backend configurado', () => {
+    // URL padrão de produção (sem override) → teste online
+    expect(pixTestEnabled()).toBe(true);
+    store[GameConfig.wallet.backendUrlKey] = ''; // desativado explicitamente → simulado
     expect(pixTestEnabled()).toBe(false);
     store[GameConfig.wallet.backendUrlKey] = 'https://pix.example.com';
     expect(pixTestEnabled()).toBe(true);
@@ -171,6 +176,7 @@ describe('Vendas do Admin — função de teste Pix', () => {
 
 describe('Engine — compra de pacote de diamantes via Pix', () => {
   it('gateway local: buyPixPack concede diamantes e moedas na hora', async () => {
+    store[GameConfig.wallet.backendUrlKey] = ''; // gateway local simulado
     const e = new GameEngine();
     const r = await e.buyPixPack({ id: 'diamond_50', name: '50 Diamantes', priceBRL: 0.5, gold: '2500', diamonds: 50 });
     expect(r.ok).toBe(true);
@@ -181,6 +187,7 @@ describe('Engine — compra de pacote de diamantes via Pix', () => {
   });
 
   it('gateway local: pacote só de moedas (coin) não concede diamantes', async () => {
+    store[GameConfig.wallet.backendUrlKey] = ''; // gateway local simulado
     const e = new GameEngine();
     const r = await e.buyPixPack({ id: 'coin_10k', name: '10K Moedas', priceBRL: 0.1, gold: '10000' });
     expect(r.ok).toBe(true);

@@ -84,16 +84,17 @@ git push -u origin main
 
 ### 5. Aponte o jogo para o servidor
 
-Em `src/config/GameConfig.ts`:
+O jogo já vem com o backend de produção configurado por padrão em `src/config/GameConfig.ts`:
 
 ```ts
 wallet: {
-  backendUrl: 'https://seu-projeto.vercel.app',
+  backendUrl: 'https://projeto-almanak-alemaozin404s-projects.vercel.app',
 }
 ```
 
+> Instalações novas usam essa URL automaticamente (pagamentos reais).
 > Sem recompilar: `F12` no jogo → `localStorage.setItem('nc_pix_backend_url', 'https://seu-projeto.vercel.app')`.
-> A aba **Configurações → Pagamentos** (modo desenvolvedor) também permite configurar e testar a conexão.
+> Para voltar ao modo simulado (nada é cobrado), deixe o campo vazio em **Configurações → Pagamentos** (modo desenvolvedor) e salve — o campo também permite testar a conexão com **Testar conexão**.
 
 Pronto! A Carteira cobra de verdade, o conteúdo sincroniza e o save pode ir para a nuvem.
 

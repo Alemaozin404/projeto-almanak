@@ -49,8 +49,8 @@ export const GameConfig = {
     creditBRL: 0.05,
     /** Créditos por diamante — 1 crédito = 1 diamante. */
     creditsPerDiamond: 1,
-    /** URL do backend de pagamentos Pix (vazio = gateway local simulado). */
-    backendUrl: '',
+    /** URL do backend de pagamentos Pix (produção — Vercel). Vazio = gateway local simulado (dev). */
+    backendUrl: 'https://projeto-almanak-alemaozin404s-projects.vercel.app',
     /** Chave do localStorage que sobrescreve backendUrl (útil em testes/runtime). */
     backendUrlKey: 'nc_pix_backend_url',
     /** Segredo compartilhado app→backend (proteção leve contra chamadas externas). */

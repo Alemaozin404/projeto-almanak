@@ -18,6 +18,15 @@ function withOnlineBackend(handler: (req: Request) => Promise<Response>) {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => handler(new Request(input, init))));
 }
 
+/** Força o modo simulado local (backend desativado explicitamente no override). */
+function withLocalMode() {
+  vi.stubGlobal('localStorage', {
+    getItem: (k: string) => (k === GameConfig.wallet.backendUrlKey ? '' : null),
+    setItem: () => {},
+    removeItem: () => {},
+  });
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -41,6 +50,7 @@ describe('Carteira Ficha/Créditos', () => {
   });
 
   it('buyFichaPack concede fichas via gateway Pix e registra no log', async () => {
+    withLocalMode();
     const e = new GameEngine();
     const r = await e.buyFichaPack('fichas_100');
     expect(r.ok).toBe(true);
@@ -134,8 +144,10 @@ describe('Carteira Ficha/Créditos', () => {
     expect(creditsToBRL(100)).toBeCloseTo(5, 2);
   });
 
-  it('sem backend configurado, o gateway é o local simulado', () => {
-    expect(resolvePixGateway().provider).toBe('local');
+  it('por padrão (sem override), o jogo usa o backend de produção configurado', () => {
+    expect(pixBackendUrl()).toBe(GameConfig.wallet.backendUrl);
+    expect(GameConfig.wallet.backendUrl.length).toBeGreaterThan(0);
+    expect(resolvePixGateway().provider).toBe('online');
   });
 
   it('configuração de URL do backend via localStorage (sem recompilar)', () => {
@@ -146,14 +158,15 @@ describe('Carteira Ficha/Créditos', () => {
       removeItem: (k: string) => { delete store[k]; },
     });
     try {
-      expect(pixBackendUrl()).toBe('');
+      // sem override: padrão de produção
+      expect(pixBackendUrl()).toBe(GameConfig.wallet.backendUrl);
       setPixBackendUrl('https://api.seudominio.com/');
       expect(pixBackendUrl()).toBe('https://api.seudominio.com'); // barra final removida
       expect(resolvePixGateway().provider).toBe('online');
       expect(isPixBackendUrlValid('https://x.com')).toBe(true);
       expect(isPixBackendUrlValid('nao-e-url')).toBe(false);
       clearPixBackendUrl();
-      expect(pixBackendUrl()).toBe('');
+      expect(pixBackendUrl()).toBe(''); // desativado explicitamente → simulado
       expect(resolvePixGateway().provider).toBe('local');
     } finally {
       vi.unstubAllGlobals();
@@ -220,13 +233,28 @@ describe('Carteira Ficha/Créditos', () => {
     expect(e.state.fichas).toBe('100');
   });
 
-  it('fluxo online: backend recusando não concede fichas', async () => {
+  it('fluxo online: backend recusando não concede fichas e propaga o motivo', async () => {
     withOnlineBackend(async () => new Response(JSON.stringify({ ok: false, reason: 'Pacote inexistente' }), { status: 400 }));
     const e = new GameEngine();
     const r = await e.buyFichaPack('fichas_100');
     expect(r.ok).toBe(false);
+    expect(r.reason).toContain('400'); // motivo real do servidor chega ao jogador
     expect(e.state.fichas).toBe('0');
     expect(e.pendingPixOrders().length).toBe(0);
+  });
+
+  it('fluxo online: servidor inacessível (sem rede) falha com mensagem clara', async () => {
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => (k === GameConfig.wallet.backendUrlKey ? 'https://pix.example.com' : null),
+      setItem: () => {},
+      removeItem: () => {},
+    });
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
+    const e = new GameEngine();
+    const r = await e.buyFichaPack('fichas_100');
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('Sem conexão com o servidor');
+    expect(e.state.fichas).toBe('0');
   });
 
   it('pedidos Pix expiram após o prazo sem conceder fichas', async () => {

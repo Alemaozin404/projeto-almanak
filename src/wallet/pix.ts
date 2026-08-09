@@ -95,6 +95,8 @@ export interface PixPaymentResult {
   qrCodeBase64?: string;
   /** True quando o pagamento ainda aguarda compensação (online) — fichas só após aprovação. */
   pending?: boolean;
+  /** Motivo do erro quando ok=false (gateway online — ex.: sem conexão, servidor recusou). */
+  reason?: string;
 }
 
 export type PixOrderStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'unknown';

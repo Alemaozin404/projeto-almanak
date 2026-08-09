@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useGame } from '../context';
 import { Panel, TabBar, Modal, Tooltip } from '../kit';
 import { FICHA_PACKS, fmtBRL, fichasToCredits, creditsToBRL, creditsToDiamonds, type FichaPackDef } from '../../wallet/pix';
-import { pixOnlineEnabled } from '../../wallet/mp';
+import { pixOnlineEnabled, testPixBackend } from '../../wallet/mp';
 import { GameConfig } from '../../config/GameConfig';
 import { shopPacks, type AdminPack } from '../../admin/sales';
 import { D } from '../../core/bignum';
@@ -41,8 +41,23 @@ export function Wallet() {
   const [convertQty, setConvertQty] = useState('');
   const [diamondQty, setDiamondQty] = useState('');
   const [notice, setNotice] = useState('');
+  const [conn, setConn] = useState<{ ok: boolean; label: string } | null>(null);
   const online = pixOnlineEnabled();
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // status da conexão com o backend de pagamentos (aviso claro quando offline)
+  const applyConn = useCallback((r: { ok: boolean; mp?: string; reason?: string }) => {
+    setConn(r.ok
+      ? { ok: true, label: r.mp === 'configured' ? 'Mercado Pago configurado' : 'Servidor ok, mas Mercado Pago não configurado no servidor' }
+      : { ok: false, label: r.reason ?? 'Sem conexão' });
+  }, []);
+
+  useEffect(() => {
+    if (!online) { setConn(null); return; }
+    let alive = true;
+    void testPixBackend().then((r) => { if (alive) applyConn(r); });
+    return () => { alive = false; };
+  }, [online, applyConn]);
 
   // carrega os pacotes customizados (admin) publicados — local + servidor
   useEffect(() => {
@@ -212,6 +227,13 @@ export function Wallet() {
 
       {tab === 'buy' && (
         <>
+          {online && conn && (
+            <div className={`pix-conn-banner ${conn.ok ? 'ok' : 'err'}`}>
+              <strong>{conn.ok ? '🟢 Pagamentos reais ativos' : '🔴 Sem conexão com o servidor de pagamentos'}</strong>
+              <span className="muted small">{conn.label}</span>
+              <button className="btn btn-xs" onClick={() => void testPixBackend().then(applyConn)}>↻ Verificar</button>
+            </div>
+          )}
           <p className="muted small">
             🎰 <strong>Fichas</strong> são compradas com dinheiro real via <strong>Pix {online ? '💳 pagamento real (Mercado Pago)' : '(simulação local)'}</strong>{' '}
             e convertidas em <strong>Créditos 💳</strong> (1 ficha = 1 crédito). Os créditos são trocados por <strong>Diamantes 💎</strong> (1 crédito = 1 diamante) para gastar no jogo.

@@ -2846,6 +2846,21 @@ body.theme-neon .app-fx::before {
 .wallet-summary span { color: var(--muted); font-size: 12px; }
 .wallet-summary strong { color: var(--text); font-size: 15px; }
 
+.pix-conn-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  border: 1px solid;
+  animation: fadeIn 0.25s ease;
+}
+.pix-conn-banner .muted { flex: 1; min-width: 160px; }
+.pix-conn-banner.ok { background: rgba(61, 220, 132, 0.1); border-color: rgba(61, 220, 132, 0.35); color: #3ddc84; }
+.pix-conn-banner.err { background: rgba(255, 99, 99, 0.12); border-color: rgba(255, 99, 99, 0.4); color: #ff8a8a; }
+
 .pix-receipt { display: flex; flex-direction: column; gap: 12px; }
 
 .pix-qr-wrap {

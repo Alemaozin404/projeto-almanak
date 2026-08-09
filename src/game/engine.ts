@@ -1574,7 +1574,7 @@ export class GameEngine {
     }
     const gw = resolvePixGateway();
     const res = await gw.purchase(pack.id, { playerId: s.createdAt, amountBRL: pack.priceBRL, payerEmail });
-    if (!res.ok || !res.orderId) return { ok: false, reason: 'Pagamento Pix recusado' };
+    if (!res.ok || !res.orderId) return { ok: false, reason: res.reason ?? 'Pagamento Pix recusado' };
     if (res.pending) {
       // cobrança real criada — aguarda o jogador pagar e o Pix compensar
       s.pixOrders[res.orderId] = {

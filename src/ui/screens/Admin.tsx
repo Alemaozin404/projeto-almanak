@@ -15,6 +15,7 @@ import { audio } from '../../audio/audio';
 import { D } from '../../core/bignum';
 import { fmtBRL } from '../../shop/packs';
 import { GameConfig } from '../../config/GameConfig';
+import { testPixBackend } from '../../wallet/mp';
 
 const STATUS_FLOW: ContentStatus[] = ['DRAFT', 'REVIEW', 'SCHEDULED', 'PUBLISHED', 'DISABLED', 'ARCHIVED'];
 
@@ -341,7 +342,22 @@ function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh:
   const [form, setForm] = useState({ name: '', icon: '💎', priceBRL: '', gold: '', diamonds: '', tag: '', featured: false });
   const [errors, setErrors] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [conn, setConn] = useState<{ ok: boolean; label: string } | null>(null);
   const online = pixTestEnabled();
+
+  // status da conexão com o backend (aviso claro quando offline)
+  const applyConn = useCallback((r: { ok: boolean; mp?: string; reason?: string }) => {
+    setConn(r.ok
+      ? { ok: true, label: `Mercado Pago: ${r.mp ?? 'ok'}` }
+      : { ok: false, label: r.reason ?? 'Sem conexão' });
+  }, []);
+
+  useEffect(() => {
+    if (!online) { setConn(null); return; }
+    let alive = true;
+    void testPixBackend().then((r) => { if (alive) applyConn(r); });
+    return () => { alive = false; };
+  }, [online, applyConn]);
 
   // ── teste Pix (R$ 0,01 → 1💎) ──
   const [testOrder, setTestOrder] = useState<{ orderId: string; pixCode: string; qrCodeBase64?: string; amountBRL: number; status: string } | null>(null);
@@ -446,9 +462,16 @@ function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh:
 
   return (
     <div>
+      {online && conn && (
+        <div className={`pix-conn-banner ${conn.ok ? 'ok' : 'err'}`} style={{ marginBottom: 10 }}>
+          <strong>{conn.ok ? '🟢 Backend Pix conectado' : '🔴 Backend Pix offline'}</strong>
+          <span className="muted small">{conn.label}</span>
+          <button className="btn btn-xs" onClick={() => void testPixBackend().then(applyConn)}>↻ Verificar</button>
+        </div>
+      )}
       <div className="admin-actions">
         <button className="btn btn-sm btn-primary" onClick={() => void runTestPix()} disabled={testing}>
-          🧪 Testar Pix R$ 0,01 → 1💎 {online ? '(cobrança real)' : '(simulado)'}
+          🧪 Testar Pix R$ 0,01 → 1💎 {!online ? '(simulado)' : conn && !conn.ok ? '(sem conexão)' : '(cobrança real)'}
         </button>
         <button className="btn btn-sm" onClick={() => void fetchServerPacks().then((l) => { setServerPacks(l); onDone(`📥 ${l.length} pacote(s) do servidor`); })} disabled={!online}>
           📥 Buscar do servidor

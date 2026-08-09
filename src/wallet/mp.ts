@@ -8,10 +8,16 @@
 import { GameConfig } from '../config/GameConfig';
 import { LocalPixGateway, type PixGateway, type PixOrderStatus, type PixPaymentResult } from './pix';
 
-/** URL do backend: localStorage (runtime override) > GameConfig. */
+/**
+ * URL do backend: localStorage (runtime override) > GameConfig.
+ * - sem override (instalação nova) → URL padrão de produção (GameConfig);
+ * - override vazio ('') → modo simulado explícito (dev);
+ * - override com URL → backend customizado.
+ */
 export function pixBackendUrl(): string {
   try {
     const override = typeof localStorage !== 'undefined' ? localStorage.getItem(GameConfig.wallet.backendUrlKey) : null;
+    if (override === '') return ''; // desativado explicitamente → simulação local
     return (override ?? GameConfig.wallet.backendUrl).replace(/\/+$/, '');
   } catch {
     return GameConfig.wallet.backendUrl.replace(/\/+$/, '');
@@ -23,18 +29,18 @@ export function isPixBackendUrlValid(url: string): boolean {
   return /^https?:\/\//i.test(url.trim());
 }
 
-/** Salva a URL do backend em runtime (sem recompilar). Vazia = volta ao modo simulado. */
+/** Salva a URL do backend em runtime (sem recompilar). Vazia = desativa (modo simulado). */
 export function setPixBackendUrl(url: string): void {
   const clean = url.trim().replace(/\/+$/, '');
   try {
-    if (clean) localStorage.setItem(GameConfig.wallet.backendUrlKey, clean);
-    else localStorage.removeItem(GameConfig.wallet.backendUrlKey);
+    // guarda sempre ('' também): desativar não deve voltar ao padrão de produção
+    localStorage.setItem(GameConfig.wallet.backendUrlKey, clean);
   } catch {
     /* sem localStorage (testes) — ignora */
   }
 }
 
-/** Remove o override e volta ao GameConfig padrão. */
+/** Desativa o backend explicitamente (modo simulado local) — sem voltar ao padrão de produção. */
 export function clearPixBackendUrl(): void {
   setPixBackendUrl('');
 }
@@ -52,6 +58,7 @@ export async function testPixBackend(url?: string): Promise<{ ok: boolean; mp?: 
     const res = await fetch(`${base}/api/health`, {
       headers: { 'x-app-secret': GameConfig.wallet.appSharedSecret },
     });
+    if (res.redirected) return { ok: false, reason: 'Servidor protegido por login (ex.: Vercel Authentication) — desative a proteção do deploy' };
     if (!res.ok) return { ok: false, reason: `Servidor respondeu (${res.status})` };
     const data = (await res.json()) as { ok?: boolean; mp?: string };
     if (data.mp === 'missing-token') return { ok: false, reason: 'Servidor online, mas sem access token do Mercado Pago configurado' };
@@ -88,6 +95,7 @@ async function createCharge(packId: string, playerId: number, payerEmail?: strin
     },
     body: JSON.stringify({ packId, playerId, payerEmail }),
   });
+  if (res.redirected) return { ok: false, reason: 'Servidor protegido por login (ex.: Vercel Authentication) — desative a proteção do deploy' };
   if (!res.ok) return { ok: false, reason: `Servidor recusou (${res.status})` };
   return (await res.json()) as ChargeResponse;
 }
@@ -97,6 +105,7 @@ async function fetchStatus(orderId: string): Promise<StatusResponse> {
   const res = await fetch(`${pixBackendUrl()}/api/pix/status/${encodeURIComponent(orderId)}`, {
     headers: { 'x-app-secret': GameConfig.wallet.appSharedSecret },
   });
+  if (res.redirected) return { ok: false, reason: 'Servidor protegido por login (ex.: Vercel Authentication)' };
   if (!res.ok) return { ok: false, reason: `Servidor recusou (${res.status})` };
   return (await res.json()) as StatusResponse;
 }
@@ -107,7 +116,7 @@ export const OnlinePixGateway: PixGateway = {
     try {
       const r = await createCharge(product, meta?.playerId ?? 0, meta?.payerEmail);
       if (!r.ok || !r.orderId) {
-        return { ok: false, orderId: '', timestamp: Date.now(), pixCode: '', pending: false };
+        return { ok: false, orderId: '', timestamp: Date.now(), pixCode: '', pending: false, reason: r.reason ?? 'Servidor recusou a cobrança' };
       }
       // pagamento real criado — fica pendente até o jogador pagar e o MP compensar
       return {
@@ -119,7 +128,7 @@ export const OnlinePixGateway: PixGateway = {
         pending: r.status === 'pending',
       };
     } catch {
-      return { ok: false, orderId: '', timestamp: Date.now(), pixCode: '', pending: false };
+      return { ok: false, orderId: '', timestamp: Date.now(), pixCode: '', pending: false, reason: 'Sem conexão com o servidor' };
     }
   },
   async checkOrder(orderId) {
