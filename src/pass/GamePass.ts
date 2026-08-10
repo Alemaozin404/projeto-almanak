@@ -3,13 +3,12 @@
  * Trilha GRÁTIS (todos) + trilha PREMIUM (exclusiva para quem adquiriu o passe).
  * Itens exclusivos do passe NÃO aparecem na loja comum.
  *
- * A aquisição é uma arquitetura local de teste: a interface `PaymentGateway`
- * separa a camada de pagamento — nenhum dado sensível é armazenado no cliente.
- * Para uma futura versão online, basta implementar `PaymentGateway` com o backend.
+ * A aquisição usa o mesmo fluxo Pix da Carteira/Loja (engine.buyPremiumPass):
+ * online = Mercado Pago via servidor com recibo assinado no backend; local =
+ * simulação com recibo assinado localmente (modo de teste/dev).
  */
 import type { EventRewardSpec } from '../content/rewards';
 import { GameConfig } from '../config/GameConfig';
-import { PASS_PRODUCT_ID, signPassReceipt } from '../security/passReceipt';
 
 export interface PassLevelDef {
   level: number;
@@ -108,35 +107,3 @@ export function passNextLevel(xp: number): { level: number; needed: number; prog
   const prevXp = GAME_PASS_LEVELS[next.level - 2]?.xp ?? 0;
   return { level: next.level, needed: next.xp, progress: (xp - prevXp) / Math.max(1, next.xp - prevXp) };
 }
-
-// ── Camada de pagamento (separada; nada sensível no cliente) ──
-export interface PaymentResult {
-  ok: boolean;
-  orderId: string;
-  timestamp: number;
-  /** Recibo assinado (só para produtos com posse verificável, ex.: passe). */
-  signature?: string;
-}
-
-export interface PaymentGateway {
-  /** Inicia uma compra. Implementação local de teste. */
-  purchase(product: string, meta?: { playerId: number }): Promise<PaymentResult>;
-  /** Camada futura: frontend → API → processadora. Nunca armazena credenciais. */
-  readonly provider: 'local' | 'online';
-}
-
-export const LocalPaymentGateway: PaymentGateway = {
-  provider: 'local',
-  async purchase(product, meta) {
-    // Simulação local: gera um "pedido" e confirma. Para online, a processadora
-    // confirmaria o pagamento real e assinaria o recibo com a chave do backend.
-    const orderId = `local-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    const timestamp = Date.now();
-    const result: PaymentResult = { ok: true, orderId, timestamp };
-    // posse verificável (passe) recebe recibo assinado; pacotes de moedas não
-    if (product === PASS_PRODUCT_ID) {
-      result.signature = signPassReceipt({ orderId, timestamp, playerId: meta?.playerId ?? 0 });
-    }
-    return result;
-  },
-};

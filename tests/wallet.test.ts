@@ -257,6 +257,27 @@ describe('Carteira Ficha/Créditos', () => {
     expect(e.state.fichas).toBe('0');
   });
 
+  it('fluxo online: recibo inválido do servidor NÃO concede o passe (mantém pendente)', async () => {
+    withOnlineBackend(async (req) => {
+      if (req.url.includes('/api/pix/charge')) {
+        return new Response(JSON.stringify({ ok: true, orderId: '5555', status: 'pending', pixCode: '000201...', amountBRL: GameConfig.pass.priceBRL }), { status: 200 });
+      }
+      if (req.url.includes('/api/pix/status/')) {
+        // assinatura forjada — não confere com a chave pública embutida
+        return new Response(JSON.stringify({ ok: true, status: 'approved', receipt: `srv2:${'a'.repeat(128)}` }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ ok: false }), { status: 404 });
+    });
+    const e = new GameEngine();
+    const r = await e.buyPremiumPass();
+    expect(r.ok).toBe(true);
+    expect(r.pending).toBe(true);
+    const st = await e.checkPixOrder('5555');
+    expect(st.status).toBe('pending'); // recibo não verifica → NÃO concede
+    expect(e.state.premiumPass.owned).toBe(false);
+    expect(e.pendingPixOrders()).toHaveLength(1); // continua pendente p/ retry
+  });
+
   it('pedidos Pix expiram após o prazo sem conceder fichas', async () => {
     let status = 'pending';
     withOnlineBackend(async (req) => {

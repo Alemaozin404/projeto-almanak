@@ -6,7 +6,7 @@
  * Se nenhum backend estiver configurado, o jogo usa o gateway local simulado.
  */
 import { GameConfig } from '../config/GameConfig';
-import { LocalPixGateway, type PixGateway, type PixOrderStatus, type PixPaymentResult } from './pix';
+import { LocalPixGateway, type PixContent, type PixGateway, type PixOrderStatus, type PixPaymentResult } from './pix';
 
 /**
  * URL do backend: localStorage (runtime override) > GameConfig.
@@ -75,6 +75,8 @@ interface ChargeResponse {
   pixCode?: string;
   qrCodeBase64?: string;
   amountBRL?: number;
+  /** Conteúdo autoritativo do pacote (o servidor decide o que será entregue). */
+  content?: PixContent;
   reason?: string;
 }
 
@@ -83,6 +85,10 @@ interface StatusResponse {
   status?: string;
   detail?: string;
   reason?: string;
+  /** Recibo do Passe Premium assinado pelo servidor (só quando aprovado). */
+  receipt?: string;
+  /** Conteúdo autoritativo que o servidor entrega quando o pagamento aprova. */
+  content?: PixContent;
 }
 
 /** Chama o backend para criar a cobrança Pix. */
@@ -118,7 +124,8 @@ export const OnlinePixGateway: PixGateway = {
       if (!r.ok || !r.orderId) {
         return { ok: false, orderId: '', timestamp: Date.now(), pixCode: '', pending: false, reason: r.reason ?? 'Servidor recusou a cobrança' };
       }
-      // pagamento real criado — fica pendente até o jogador pagar e o MP compensar
+      // pagamento real criado — fica pendente até o jogador pagar e o MP compensar.
+      // O conteúdo a entregar é o que o SERVIDOR definiu (nunca o save do app).
       return {
         ok: true,
         orderId: r.orderId,
@@ -126,6 +133,7 @@ export const OnlinePixGateway: PixGateway = {
         pixCode: r.pixCode ?? '',
         qrCodeBase64: r.qrCodeBase64 ?? '',
         pending: r.status === 'pending',
+        ...(r.content && typeof r.content === 'object' ? { content: r.content } : {}),
       };
     } catch {
       return { ok: false, orderId: '', timestamp: Date.now(), pixCode: '', pending: false, reason: 'Sem conexão com o servidor' };
@@ -137,7 +145,12 @@ export const OnlinePixGateway: PixGateway = {
       const status: PixOrderStatus = ['pending', 'approved', 'rejected', 'cancelled'].includes(r.status ?? '')
         ? (r.status as PixOrderStatus)
         : 'unknown';
-      return { status };
+      return {
+        status,
+        receipt: typeof r.receipt === 'string' && r.receipt.length > 0 ? r.receipt : undefined,
+        // conteúdo autoritativo entregue pelo servidor (só quando o pagamento aprova)
+        content: r.content && typeof r.content === 'object' ? r.content : undefined,
+      };
     } catch {
       return { status: 'unknown' };
     }

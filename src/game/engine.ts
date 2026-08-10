@@ -27,7 +27,8 @@ import { CODES } from '../content/codes';
 import type { EventRewardSpec } from '../content/rewards';
 import { GAME_VERSION, updateByVersion } from '../content/updates';
 import { GameConfig } from '../config/GameConfig';
-import { GAME_PASS_LEVELS, passLevelFromXp, passNextLevel, LocalPaymentGateway } from '../pass/GamePass';
+import { GAME_PASS_LEVELS, passLevelFromXp, passNextLevel } from '../pass/GamePass';
+import { PASS_PRODUCT_ID, signPassReceipt, verifyPassReceipt } from '../security/passReceipt';
 import { packById } from '../shop/packs';
 import { fichaPackById, fichasToCredits, creditsToDiamonds, type PixOrderStatus } from '../wallet/pix';
 
@@ -1477,45 +1478,67 @@ export class GameEngine {
     return passNextLevel(this.state.premiumPass.xp);
   }
 
-  /** Compra do passe premium — camada de pagamento separada (local de teste). */
-  async buyPremiumPass(): Promise<{ ok: boolean; reason?: string }> {
+  /** Concede a posse do passe premium (usado pelo fluxo local e online). */
+  private grantPremiumPass({ orderId, timestamp, signature }: { orderId: string; timestamp: number; signature: string }): void {
     const s = this.state;
-    if (s.premiumPass.owned) return { ok: false, reason: 'Passe já adquirido' };
-    const res = await LocalPaymentGateway.purchase('premium_pass', { playerId: s.createdAt });
-    if (!res.ok) return { ok: false, reason: 'Pagamento recusado' };
     s.premiumPass.owned = true;
     s.premiumPass.season = SEASON_ID;
-    s.premiumPass.purchaseTimestamp = res.timestamp;
-    s.premiumPass.orderId = res.orderId;
-    s.premiumPass.signature = res.signature ?? ''; // passe sempre assinado pelo gateway
+    s.premiumPass.purchaseTimestamp = timestamp;
+    s.premiumPass.orderId = orderId;
+    s.premiumPass.signature = signature;
     s.premiumPass.xp = Math.max(s.premiumPass.xp, 0);
     // itens premium de avatar liberados com o passe (exclusivos do passe)
     for (const id of ['av_cyber', 'av_star', 'fr_premium', 'fx_premium', 'bd_premium']) {
       if (!s.avatarItems.includes(id)) s.avatarItems.push(id);
     }
     this.unlockTitle('pass_premium');
-    appendLog(s, 'pass', `Passe premium adquirido (pedido ${res.orderId})`);
+    appendLog(s, 'pass', `Passe premium adquirido (pedido ${orderId})`);
+  }
+
+  /**
+   * Compra do passe premium via Pix — mesmo fluxo da Carteira/Loja:
+   * online (Mercado Pago via servidor, recibo assinado no backend quando aprovado)
+   * ou local (simulado — recibo assinado com a chave local).
+   */
+  async buyPremiumPass(): Promise<{ ok: boolean; reason?: string; pending?: boolean; orderId?: string; pixCode?: string; qrCodeBase64?: string }> {
+    const s = this.state;
+    if (s.premiumPass.owned) return { ok: false, reason: 'Passe já adquirido' };
+    const gw = resolvePixGateway();
+    const res = await gw.purchase(PASS_PRODUCT_ID, { playerId: s.createdAt, amountBRL: GameConfig.pass.priceBRL });
+    if (!res.ok || !res.orderId) return { ok: false, reason: res.reason ?? 'Pagamento recusado' };
+    if (res.pending) {
+      // cobrança real criada — aguarda o pagamento e a aprovação do Mercado Pago
+      s.pixOrders[res.orderId] = {
+        packId: PASS_PRODUCT_ID,
+        label: 'Passe Premium',
+        status: 'pending',
+        at: Date.now(),
+        pixCode: res.pixCode,
+        amountBRL: GameConfig.pass.priceBRL,
+      };
+      appendLog(s, 'pass', `Cobrança Pix criada para o passe (pedido ${res.orderId}) — aguardando pagamento`);
+      this.invalidate();
+      this.notify('wallet');
+      return { ok: true, pending: true, orderId: res.orderId, pixCode: res.pixCode, qrCodeBase64: res.qrCodeBase64 };
+    }
+    // gateway local (simulado): concede na hora com recibo assinado localmente
+    this.grantPremiumPass({
+      orderId: res.orderId,
+      timestamp: res.timestamp,
+      signature: signPassReceipt({ orderId: res.orderId, timestamp: res.timestamp, playerId: s.createdAt }),
+    });
     this.invalidate();
     this.notify('pass');
     bus.emit('notify', { kind: 'level', title: '💎 Passe Premium ativo!', desc: 'Trilha premium desbloqueada — 100 níveis de recompensas exclusivas.' });
     return { ok: true };
   }
 
-  /** Compra um pacote de moedas/diamantes com dinheiro real (gateway local de teste). */
-  async buyCoinPack(packId: string): Promise<{ ok: boolean; reason?: string; gold?: string; diamonds?: number }> {
-    const s = this.state;
+  /** Compra um pacote de moedas/diamantes da Loja com dinheiro real via Pix. */
+  async buyCoinPack(packId: string): Promise<{ ok: boolean; reason?: string; gold?: string; diamonds?: number; orderId?: string; pixCode?: string; qrCodeBase64?: string; pending?: boolean }> {
     const pack = packById(packId);
     if (!pack) return { ok: false, reason: 'Pacote inexistente' };
-    const res = await LocalPaymentGateway.purchase(pack.id, { playerId: s.createdAt });
-    if (!res.ok) return { ok: false, reason: 'Pagamento recusado' };
-    this.addRes('gold', D(pack.gold));
-    this.addRes('crystals', D(pack.diamonds));
-    incStat(s, 'crystalsEarned', D(pack.diamonds));
-    appendLog(s, 'shop', `Pacote ${pack.id} comprado (pedido ${res.orderId}) — +${pack.gold} moedas, +${pack.diamonds} diamantes`);
-    this.invalidate();
-    this.notify('buy');
-    bus.emit('notify', { kind: 'level', title: `${pack.name} entregue!`, desc: `+${pack.diamonds} 💎 diamantes e +${pack.gold} 🪙 moedas` });
-    return { ok: true, gold: pack.gold, diamonds: pack.diamonds };
+    // mesmo fluxo Pix da Carteira: online (Mercado Pago via servidor) ou local (simulado)
+    return this.buyPixPack({ id: pack.id, name: pack.name, priceBRL: pack.priceBRL, gold: pack.gold, diamonds: pack.diamonds });
   }
 
   // ── carteira Ficha/Créditos ─────────────────────────────
@@ -1576,13 +1599,15 @@ export class GameEngine {
     const res = await gw.purchase(pack.id, { playerId: s.createdAt, amountBRL: pack.priceBRL, payerEmail });
     if (!res.ok || !res.orderId) return { ok: false, reason: res.reason ?? 'Pagamento Pix recusado' };
     if (res.pending) {
-      // cobrança real criada — aguarda o jogador pagar e o Pix compensar
+      // cobrança real criada — aguarda o jogador pagar e o Pix compensar.
+      // O conteúdo gravado no pedido é o que o SERVIDOR definiu na cobrança
+      // (res.content); o fallback local cobre gateways que ainda não o enviam.
       s.pixOrders[res.orderId] = {
         packId: pack.id,
         label: pack.name,
-        gold: pack.gold,
-        diamonds: pack.diamonds,
-        fichas: pack.fichas,
+        gold: res.content?.gold ?? pack.gold,
+        diamonds: res.content?.diamonds ?? pack.diamonds,
+        fichas: res.content?.fichas ?? pack.fichas,
         status: 'pending',
         at: Date.now(),
         pixCode: res.pixCode,
@@ -1629,9 +1654,32 @@ export class GameEngine {
       // (reler do state porque o TS estreita o tipo antes do await)
       const now = s.pixOrders[orderId];
       if (now?.status === 'done') return { status: 'approved', done: true };
-      // pacote resolvido: conteúdo gravado no pedido (custom) ou catálogo de fichas
+      // passe premium: posse exige o recibo assinado pelo SERVIDOR (vem no status)
+      if (order.packId === PASS_PRODUCT_ID) {
+        // VERIFICA a assinatura com a chave pública embutida ANTES de conceder —
+        // conceder um recibo inválido (ex.: chaves trocadas) seria conceder e
+        // revogar no próximo load (jogador paga e perde o passe).
+        if (!r.receipt || !verifyPassReceipt(r.receipt, { orderId, timestamp: Date.now(), playerId: s.createdAt })) {
+          // servidor ainda não emitiu/emitiu recibo inválido (chave divergente):
+          // mantém pendente e tenta de novo no próximo polling.
+          return { status: 'pending' };
+        }
+        this.grantPremiumPass({ orderId, timestamp: Date.now(), signature: r.receipt });
+        order.status = 'done';
+        this.invalidate();
+        this.notify('pass');
+        bus.emit('notify', { kind: 'level', title: '💎 Passe Premium ativo!', desc: 'Pagamento Pix confirmado — trilha premium desbloqueada.' });
+        return { status: 'approved', done: true };
+      }
+      // pacote resolvido: o conteúdo AUTORITATIVO vem do SERVIDOR (r.content) —
+      // o app concede exatamente o que o servidor entrega, mesmo que o save
+      // tenha sido adulterado. Fallback para o conteúdo gravado no pedido
+      // (vindo da cobrança: servidor no modo online, catálogo no modo local).
       let pack: PixPackLike | null;
-      if (order.gold !== undefined || order.diamonds !== undefined || order.fichas !== undefined) {
+      const sc = r.content;
+      if (sc && (sc.gold !== undefined || sc.diamonds !== undefined || sc.fichas !== undefined)) {
+        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: sc.fichas, gold: sc.gold, diamonds: sc.diamonds };
+      } else if (order.gold !== undefined || order.diamonds !== undefined || order.fichas !== undefined) {
         pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: order.fichas, gold: order.gold, diamonds: order.diamonds };
       } else {
         const f = fichaPackById(order.packId);

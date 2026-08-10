@@ -18,6 +18,7 @@
  *   MERCADO_PAGO_ACCESS_TOKEN=APP_USR-...      (obrigatório p/ pagamentos)
  *   MERCADO_PAGO_WEBHOOK_SECRET=...            (obrigatório — painel MP → Webhooks)
  *   APP_SHARED_SECRET=...                      (proteção leve app→backend)
+ *   RECEIPT_PRIVATE_KEY=...                    (obrigatório p/ passe — seed Ed25519, npm run gen:receipt-keys)
  *   BASE_URL=https://seu-projeto.vercel.app    (URL pública — notification_url)
  *   UPSTASH_REDIS_REST_URL=...                 (opcional — save nuvem + ranking)
  *   UPSTASH_REDIS_REST_TOKEN=...               (opcional)
@@ -99,6 +100,22 @@ const FICHA_PACKS = {
   fichas_2000: { name: '2.000 Fichas', fichas: 2000, priceBRL: 105.0 },
 };
 
+/**
+ * Pacotes da Loja (aba "Moedas") — mesmos preços/conteúdos de src/shop/packs.ts.
+ * O preço cobrado é SEMPRE o daqui: o cliente não arbitra valor na cobrança.
+ */
+const COIN_PACKS = {
+  pack_mini: { name: 'Mini Pacote', priceBRL: 3.99, gold: '5000', diamonds: 380 },
+  pack_starter: { name: 'Pacote Iniciante', priceBRL: 9.99, gold: '25000', diamonds: 1000 },
+  pack_popular: { name: 'Pacote Popular', priceBRL: 19.99, gold: '100000', diamonds: 2500 },
+  pack_premium: { name: 'Pacote Premium', priceBRL: 39.99, gold: '400000', diamonds: 6000 },
+  pack_legend: { name: 'Pacote Lendário', priceBRL: 99.99, gold: '2000000', diamonds: 18000 },
+  pack_ultra: { name: 'Pacote Supremo', priceBRL: 199.99, gold: '8000000', diamonds: 45000 },
+};
+
+/** Passe Premium — mesmo preço de GameConfig.pass.priceBRL (cobrança real via Pix). */
+const PASS_PACK = { name: 'Passe Premium', priceBRL: 9.9 };
+
 /** Pacote embutido de TESTE — R$ 0,01 por 1 diamante (função do Admin). */
 const TEST_PACKS = {
   pix_test_1d: { name: 'Teste Pix · 1💎', priceBRL: 0.01, diamonds: 1 },
@@ -120,12 +137,28 @@ async function saveCustomPacks(list) {
   await kvSet(PACKS_KV_KEY, list);
 }
 
-/** Resolve um pacote: fichas embutidos → teste → custom do admin. O cliente nunca envia preço. */
+/** Resolve um pacote: fichas → loja (moedas) → passe → teste → custom do admin. O cliente nunca envia preço. */
 async function resolvePack(packId) {
   if (FICHA_PACKS[packId]) return FICHA_PACKS[packId];
+  if (COIN_PACKS[packId]) return COIN_PACKS[packId];
+  if (packId === 'premium_pass') return PASS_PACK;
   if (TEST_PACKS[packId]) return TEST_PACKS[packId];
   const custom = await getCustomPacks();
   return custom.find((p) => p.id === packId) ?? null;
+}
+
+/**
+ * Conteúdo ENTREGÁVEL de um pacote (fichas/moedas/diamantes) — a fonte da
+ * verdade da entrega. O app NUNCA decide o que recebe: resolve aqui, na
+ * cobrança, e é devolvido em /api/pix/status quando o pagamento aprova.
+ * Pacotes sem conteúdo (ex.: o passe, que entrega via recibo) retornam undefined.
+ */
+function packContent(pack) {
+  const c = {};
+  if (Number.isFinite(pack.fichas) && pack.fichas > 0) c.fichas = pack.fichas;
+  if (typeof pack.gold === 'string' && Number(pack.gold) > 0) c.gold = pack.gold;
+  if (Number.isFinite(pack.diamonds) && pack.diamonds > 0) c.diamonds = pack.diamonds;
+  return Object.keys(c).length > 0 ? c : undefined;
 }
 
 /** Valida um pacote do admin (mesmas regras do cliente + limites rígidos). */
@@ -157,6 +190,28 @@ export function createApp(env = process.env) {
   /** Segredo compartilhado app→backend (proteção leve). Se vazio, não é exigido. */
   const APP_SHARED_SECRET = env.APP_SHARED_SECRET ?? '';
   const BASE_URL = (env.BASE_URL ?? `http://localhost:${env.PORT ?? 8787}`).replace(/\/$/, '');
+
+  /**
+   * Chave PRIVADA Ed25519 dos recibos do Passe Premium (seed 32 bytes hex — só
+   * aqui, nunca no app). O app verifica com a chave pública embutida. Sem ela,
+   * o recibo NÃO é emitido (fail-closed). Gerar: npm run gen:receipt-keys.
+   */
+  const RECEIPT_PRIVATE_KEY = env.RECEIPT_PRIVATE_KEY ?? '';
+  /** Prefixo PKCS#8 do Ed25519 (0x302e...04220420) + seed → chave pronta. */
+  const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+  let receiptKey = null;
+  if (/^[0-9a-f]{64}$/.test(RECEIPT_PRIVATE_KEY)) {
+    try {
+      receiptKey = crypto.createPrivateKey({
+        key: Buffer.concat([ED25519_PKCS8_PREFIX, Buffer.from(RECEIPT_PRIVATE_KEY, 'hex')]),
+        format: 'der',
+        type: 'pkcs8',
+      });
+    } catch (err) {
+      console.error('❌ RECEIPT_PRIVATE_KEY inválida — recibos do passe desativados:', err.message);
+      receiptKey = null;
+    }
+  }
 
   // ── validação de assinatura de webhook (HMAC-SHA256) ───────
   // Template documentado: "id:<data.id>;request-id:<x-request-id>;ts:<ts>;"
@@ -202,6 +257,17 @@ export function createApp(env = process.env) {
     let json = null;
     try { json = text ? JSON.parse(text) : null; } catch { /* não-JSON */ }
     return { status: res.status, json };
+  }
+
+  /**
+   * Assina o recibo do Passe Premium (Ed25519 com a chave PRIVADA do servidor).
+   * O app verifica a assinatura com a chave pública embutida — ninguém forja
+   * sem esta chave, e o recibo só sai daqui após o MP confirmar a aprovação.
+   */
+  function signServerReceipt(orderId, playerId) {
+    const template = Buffer.from(`premium_pass|${orderId}|${playerId}`, 'utf8');
+    const sig = crypto.sign(null, template, receiptKey);
+    return `srv2:${sig.toString('hex')}`;
   }
 
   /** Cria a cobrança Pix (retorna id, qr_code e qr_code_base64). */
@@ -269,7 +335,9 @@ export function createApp(env = process.env) {
   app.use(express.json({ limit: '3mb' }));
 
   app.get('/api/health', (_req, res) => {
-    const hasKv = Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+    // lê do env INJETADO (createApp(env)) — não de process.env direto, senão
+    // testes/deploys com env customizado reportam o status errado do KV.
+    const hasKv = Boolean(env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN);
     res.json({ ok: true, mp: ACCESS_TOKEN ? 'configured' : 'missing-token', kv: hasKv ? 'configured' : 'memory', version: loadContent().gameVersion });
   });
 
@@ -357,6 +425,12 @@ export function createApp(env = process.env) {
     if (!Number.isInteger(playerId) || playerId <= 0) return res.status(400).json({ ok: false, reason: 'Jogador inválido' });
     const r = await createPixCharge(pack, playerId, typeof payerEmail === 'string' ? payerEmail.slice(0, 100) : undefined);
     if (!r.ok) return res.status(502).json({ ok: false, reason: r.reason });
+    // metadado do pedido (rastreio + conteúdo AUTORITATIVO a entregar quando
+    // aprovado) — o app nunca decide o que recebe, o conteúdo vem do catálogo
+    // do servidor e é persistido aqui para /api/pix/status devolver na hora.
+    const isPass = String(packId) === 'premium_pass';
+    const content = isPass ? undefined : packContent(pack);
+    await kvSet(`pixOrder:${r.id}`, { packId, playerId, at: Date.now(), ...(content ? { content } : {}) }, 3600);
     console.log(`[charge] pedido ${r.id} · ${pack.name} · R$ ${pack.priceBRL} · player ${playerId}`);
     return res.json({
       ok: true,
@@ -365,6 +439,7 @@ export function createApp(env = process.env) {
       pixCode: r.qrCode,
       qrCodeBase64: r.qrCodeBase64,
       amountBRL: pack.priceBRL,
+      ...(content ? { content } : {}),
     });
   });
 
@@ -454,7 +529,25 @@ export function createApp(env = process.env) {
   app.get('/api/pix/status/:id', async (req, res) => {
     if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
     const s = await getPaymentStatus(req.params.id);
-    return res.json({ ok: s.status !== 'invalid' && s.status !== 'unknown', ...s });
+    // pedido aprovado → o servidor ENTREGA: recibo assinado (passe, chave
+    // privada) ou o conteúdo autoritativo rastreado na cobrança (fichas/moedas/)
+    // diamantes). O app concede exatamente o que vier daqui — o save não manda.
+    let receipt;
+    let content;
+    if (s.status === 'approved') {
+      const meta = await kvGetJson(`pixOrder:${req.params.id}`);
+      if (meta?.packId === 'premium_pass' && receiptKey && Number.isInteger(meta.playerId) && meta.playerId > 0) {
+        receipt = signServerReceipt(req.params.id, meta.playerId);
+      } else if (meta?.content && typeof meta.content === 'object') {
+        content = meta.content;
+      }
+    }
+    return res.json({
+      ok: s.status !== 'invalid' && s.status !== 'unknown',
+      ...s,
+      ...(receipt ? { receipt } : {}),
+      ...(content ? { content } : {}),
+    });
   });
 
   /** Mercado Pago → notificação de pagamento (webhook). */
@@ -499,5 +592,10 @@ if (isMain) {
   const server = startServer(Number(env.PORT ?? 8787), env);
   if (!env.MERCADO_PAGO_WEBHOOK_SECRET) {
     console.warn('⚠️ MERCADO_PAGO_WEBHOOK_SECRET não definido — webhooks serão rejeitados.');
+  }
+  if (!env.RECEIPT_PRIVATE_KEY) {
+    console.warn('⚠️ RECEIPT_PRIVATE_KEY não definido — recibos do Passe Premium não serão emitidos. Gere com: npm run gen:receipt-keys');
+  } else if (env.RECEIPT_PRIVATE_KEY === '202a7eff7bc44a12972e6ea5fae5d6b55e1bb82ee550003d11cc0b155df10cb6') {
+    console.warn('⚠️ RECEIPT_PRIVATE_KEY é a chave de DESENVOLVIMENTO (pública no repositório) — gere a SUA com `npm run gen:receipt-keys` e faça build novo do app com a pública correspondente.');
   }
 }

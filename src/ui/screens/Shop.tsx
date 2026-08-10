@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useGame } from '../context';
 import { RarityBadge, Panel, TabBar, EmptyState, Tooltip, Modal } from '../kit';
 import { EQUIP_SLOTS, EQUIPMENT_LIST, type EquipSlot } from '../../shop/equipment';
 import { CONSUMABLE_DEFS } from '../../shop/consumables';
 import { BOX_DEFS } from '../../shop/boxes';
 import { COIN_PACKS, packPriceLabel, type CoinPackDef } from '../../shop/packs';
+import { pixOnlineEnabled, testPixBackend } from '../../wallet/mp';
+import { PixOrderModal, type ActivePixOrder, type PixOrderResult } from '../PixOrderModal';
 import { D } from '../../core/bignum';
 import { audio } from '../../audio/audio';
 
@@ -17,6 +19,9 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
   const [confirmPack, setConfirmPack] = useState<CoinPackDef | null>(null);
   const [buying, setBuying] = useState(false);
   const [notice, setNotice] = useState('');
+  const [activeOrder, setActiveOrder] = useState<ActivePixOrder | null>(null);
+  const [conn, setConn] = useState<{ ok: boolean; label: string } | null>(null);
+  const online = pixOnlineEnabled();
 
   const items = slotFilter === 'all' ? EQUIPMENT_LIST : EQUIPMENT_LIST.filter((e) => e.slot === slotFilter);
 
@@ -25,17 +30,72 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
     setTimeout(() => setNotice(''), 3500);
   }
 
+  // status da conexão com o backend de pagamentos (aviso claro quando offline)
+  const applyConn = useCallback((r: { ok: boolean; mp?: string; reason?: string }) => {
+    setConn(r.ok
+      ? { ok: true, label: r.mp === 'configured' ? 'Mercado Pago configurado' : 'Servidor ok, mas Mercado Pago não configurado no servidor' }
+      : { ok: false, label: r.reason ?? 'Sem conexão' });
+  }, []);
+
+  useEffect(() => {
+    if (!online) { setConn(null); return; }
+    let alive = true;
+    void testPixBackend().then((r) => { if (alive) applyConn(r); });
+    return () => { alive = false; };
+  }, [online, applyConn]);
+
+  // retoma pedidos Pix pendentes ao abrir a Loja (pagamento em andamento)
+  useEffect(() => {
+    if (!online) return;
+    const pend = engine.pendingPixOrders();
+    if (pend.length === 0) return;
+    const p = pend[0];
+    setActiveOrder({
+      orderId: p.orderId,
+      packId: p.packId,
+      label: p.label,
+      pixCode: p.pixCode ?? '',
+      amountBRL: p.amountBRL ?? 0,
+    });
+  }, [engine, online]);
+
   async function doBuyPack() {
     if (!confirmPack) return;
     setBuying(true);
     const r = await engine.buyCoinPack(confirmPack.id);
     setBuying(false);
     if (r.ok) {
-      flash(`🛍️ ${confirmPack.name} entregue! +${r.diamonds} 💎 e +${r.gold} 🪙`);
+      if (r.pending) {
+        // cobrança real criada (Mercado Pago) — exibe o QR e inicia o polling
+        setActiveOrder({ orderId: r.orderId ?? '', packId: confirmPack.id, label: confirmPack.name, pixCode: r.pixCode ?? '', qrCodeBase64: r.qrCodeBase64, amountBRL: confirmPack.priceBRL });
+      } else {
+        const parts = [
+          r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
+          r.diamonds && r.diamonds > 0 ? `${fmt(r.diamonds, 0)} diamantes` : '',
+        ].filter(Boolean);
+        flash(`🛍️ ${confirmPack.name} entregue! (+${parts.join(' · ')})`);
+        audio.buy();
+      }
     } else {
       flash(`❌ ${r.reason ?? 'Falha na compra'}`);
     }
     setConfirmPack(null);
+  }
+
+  /** Pagamento aprovado pelo Mercado Pago — o engine já concedeu o conteúdo. */
+  function handlePixApproved(r: PixOrderResult) {
+    setActiveOrder(null);
+    const parts = [
+      r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
+      r.diamonds && r.diamonds > 0 ? `${fmt(r.diamonds, 0)} diamantes` : '',
+    ].filter(Boolean);
+    flash(`✅ ${parts.join(' · ') || 'pedido'} adicionados!`);
+    audio.buy();
+  }
+
+  function handlePixRejected(status: string) {
+    setActiveOrder(null);
+    flash(`❌ Pagamento ${status}.`);
   }
 
   return (
@@ -182,8 +242,16 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
 
       {tab === 'packs' && (
         <>
+          {online && conn && (
+            <div className={`pix-conn-banner ${conn.ok ? 'ok' : 'err'}`}>
+              <strong>{conn.ok ? '🟢 Pagamentos reais ativos' : '🔴 Sem conexão com o servidor de pagamentos'}</strong>
+              <span className="muted small">{conn.label}</span>
+              <button className="btn btn-xs" onClick={() => void testPixBackend().then(applyConn)}>↻ Verificar</button>
+            </div>
+          )}
           <p className="muted small">
             💎 <strong>Diamantes</strong> são a moeda paga do jogo — e todo pacote inclui <strong>Moedas 🪙</strong> bônus para turbinar sua jornada.
+            Compra via <strong>Pix {online ? '💳 real (Mercado Pago)' : '(simulação local)'}</strong>.
           </p>
           <div className="item-grid">
             {COIN_PACKS.map((p) => (
@@ -202,13 +270,17 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
                 </div>
                 <div className="item-actions">
                   <button className={`btn btn-sm ${p.featured ? 'btn-primary' : ''}`} onClick={() => setConfirmPack(p)}>
-                    Comprar · {packPriceLabel(p)}
+                    Comprar via Pix · {packPriceLabel(p)}
                   </button>
                 </div>
               </div>
             ))}
           </div>
-          <p className="muted small center">Compra simulada localmente (gateway de teste) — nenhum valor é cobrado.</p>
+          <p className="muted small center">
+            {online
+              ? '💳 Pagamento processado pelo Mercado Pago — o QR Code real aparece ao confirmar.'
+              : '⚠️ Pagamento simulado localmente (gateway de teste) — nenhum valor é cobrado. Configure o backend Pix para cobranças reais.'}
+          </p>
         </>
       )}
 
@@ -228,16 +300,29 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
               <div className="pack-row"><span>💎</span><strong>{fmt(confirmPack.diamonds, 0)}</strong><small>diamantes</small></div>
               <div className="pack-row"><span>🪙</span><strong>{fmt(D(confirmPack.gold), 0)}</strong><small>moedas</small></div>
             </div>
-            <p className="muted small center">Total: <strong>{packPriceLabel(confirmPack)}</strong> — compra simulada, nenhum valor será cobrado.</p>
+            <p className="muted small center">
+              Total: <strong>{packPriceLabel(confirmPack)}</strong>.{online
+                ? ' Você será direcionado ao Pix para pagar — QR Code real pelo Mercado Pago.'
+                : ' Compra simulada localmente — nada será cobrado.'}
+            </p>
             <div className="modal-actions">
               <button className="btn" disabled={buying} onClick={() => setConfirmPack(null)}>Cancelar</button>
               <button className="btn btn-primary" disabled={buying} onClick={() => void doBuyPack()}>
-                {buying ? 'Processando…' : `Confirmar · ${packPriceLabel(confirmPack)}`}
+                {buying ? 'Processando…' : `Pagar via Pix · ${packPriceLabel(confirmPack)}`}
               </button>
             </div>
           </div>
         )}
       </Modal>
+
+      {/* QR / pagamento em andamento (compartilhado com a Carteira) */}
+      <PixOrderModal
+        order={activeOrder}
+        onClose={() => setActiveOrder(null)}
+        onApproved={handlePixApproved}
+        onRejected={handlePixRejected}
+        onNotify={flash}
+      />
     </div>
   );
 }

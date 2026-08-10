@@ -1,8 +1,8 @@
 /**
  * Pacotes de compra com dinheiro real (Loja → aba "Moedas").
  *
- * A compra passa pela camada de pagamento (PaymentGateway) — hoje local de
- * teste; numa versão online, o backend processaria o pagamento de verdade.
+ * A compra passa pelo fluxo Pix (engine.buyCoinPack → buyPixPack): online =
+ * Mercado Pago via servidor (preço validado lá) ou local = simulado.
  * Moedas (gold) são a moeda normal; Diamantes (crystals) são a moeda paga.
  */
 export interface CoinPackDef {

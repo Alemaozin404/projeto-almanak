@@ -7,6 +7,14 @@ export const GameConfig = {
 
   // ── Passe Premium global ──
   pass: {
+    /** Preço do passe em R$ — o servidor cobra o MESMO valor (espelhado em server/index.js). */
+    priceBRL: 9.9,
+    /**
+     * Chave pública Ed25519 (32 bytes hex) dos recibos do passe — par gerado com
+     * `npm run gen:receipt-keys`. O app SÓ conhece a pública; a privada vive no
+     * servidor (RECEIPT_PRIVATE_KEY). TROCA = nova chave pública + novo build.
+     */
+    receiptPublicKey: '8820d8c85dc950e12830fac749623c92c65672ec0870deabe8bdb60600ca59d6',
     maxLevel: 100,
     /** XP total para completar o nível `n` (curva progressiva). */
     xpForLevel: (n: number): number => Math.round(250 * Math.pow(n, 1.65)),

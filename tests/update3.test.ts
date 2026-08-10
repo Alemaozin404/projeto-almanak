@@ -20,9 +20,11 @@ import { saveDraft, publishContent, autoBackup, backupList, restoreBackup, loadC
 import { SEASON_ID } from '../src/content/seasons';
 
 // ── mock de localStorage (para admin content/auth) ──
+// A chave do backend Pix retorna '' → compras ficam no gateway local simulado
+// (sem rede) — necessário para os testes de compra do passe premium.
 const mem = new Map<string, string>();
 (globalThis as any).localStorage = {
-  getItem: (k: string) => mem.get(k) ?? null,
+  getItem: (k: string) => (k === GameConfig.wallet.backendUrlKey ? '' : mem.get(k) ?? null),
   setItem: (k: string, v: string) => { mem.set(k, v); },
   removeItem: (k: string) => { mem.delete(k); },
   key: (i: number) => [...mem.keys()][i] ?? null,

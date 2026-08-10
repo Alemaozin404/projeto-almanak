@@ -18,6 +18,8 @@ import crypto from 'node:crypto';
 import { createApp } from '../server/index.js';
 import { GameEngine } from '../src/game/engine';
 import { GameConfig } from '../src/config/GameConfig';
+import { validateState } from '../src/save/validation';
+import { D } from '../src/core/bignum';
 
 const MP_API = 'https://api.mercadopago.com';
 const WEBHOOK_SECRET = 'test-webhook-secret';
@@ -131,6 +133,8 @@ describe('Integração Pix — cobrança → pagamento → webhook → fichas', 
       MERCADO_PAGO_ACCESS_TOKEN: ACCESS_TOKEN,
       MERCADO_PAGO_WEBHOOK_SECRET: WEBHOOK_SECRET,
       APP_SHARED_SECRET: GameConfig.wallet.appSharedSecret,
+      // seed da chave privada de TESTE — casa com GameConfig.pass.receiptPublicKey
+      RECEIPT_PRIVATE_KEY: 'e0d471744613806eb1f58fcc3492ea4aaf1148894ab568834a0c9bb9217c200a',
       PORT: '0',
     });
     server = app.listen(0, '127.0.0.1');
@@ -199,6 +203,159 @@ describe('Integração Pix — cobrança → pagamento → webhook → fichas', 
     st = await e.checkPixOrder(orderId);
     expect(st.done).toBe(true);
     expect(e.state.fichas).toBe('100');
+  });
+
+  it('pacote de moedas da Loja: cobrança real → aprovação → moedas e diamantes entregues', async () => {
+    const e = new GameEngine();
+
+    // 1. COBRANÇA — a Loja compra um pacote de moedas via Pix (mesmo fluxo da Carteira)
+    const buy = await e.buyCoinPack('pack_starter');
+    expect(buy.ok).toBe(true);
+    expect(buy.pending).toBe(true);
+    expect(buy.orderId).toBeTruthy();
+    expect(e.state.gold).toBe('0'); // nada concedido antes de pagar
+    expect(e.state.crystals).toBe('0');
+    expect(e.pendingPixOrders()).toHaveLength(1);
+
+    const orderId = buy.orderId!;
+    const mpId = Number(orderId);
+
+    // o preço é definido pelo SERVIDOR (pack_starter = R$ 9,99), não pelo cliente
+    expect(fakeMp.payment(mpId)?.amount).toBe(9.99);
+
+    // 2. PAGAMENTO — jogador paga; MP aprova
+    fakeMp.approve(mpId);
+
+    // 3. POLLING — o app consulta e o servidor confirma no MP
+    const st = await e.checkPixOrder(orderId);
+    expect(st.status).toBe('approved');
+    expect(st.gold).toBe('25000');
+    expect(st.diamonds).toBe(1000);
+    expect(D(e.state.gold).toFixed(0)).toBe('25000');
+    expect(D(e.state.crystals).toFixed(0)).toBe('1000');
+    expect(e.state.pixOrders[orderId].status).toBe('done');
+
+    // idempotente: um novo check não dobra o conteúdo
+    const again = await e.checkPixOrder(orderId);
+    expect(again.done).toBe(true);
+    expect(D(e.state.gold).toFixed(0)).toBe('25000');
+    expect(D(e.state.crystals).toFixed(0)).toBe('1000');
+  });
+
+  it('Passe Premium: cobrança real → aprovação → recibo assinado no servidor', async () => {
+    const e = new GameEngine();
+
+    // 1. COBRANÇA — o app compra o passe via Pix (mesmo fluxo da Carteira)
+    const buy = await e.buyPremiumPass();
+    expect(buy.ok).toBe(true);
+    expect(buy.pending).toBe(true);
+    expect(buy.orderId).toBeTruthy();
+    expect(e.state.premiumPass.owned).toBe(false); // nada antes de pagar
+    expect(e.pendingPixOrders()).toHaveLength(1);
+
+    const orderId = buy.orderId!;
+    const mpId = Number(orderId);
+
+    // o preço do passe é definido pelo SERVIDOR (R$ 9,90), não pelo cliente
+    expect(fakeMp.payment(mpId)?.amount).toBe(GameConfig.pass.priceBRL);
+
+    // 2. POLLING antes do pagamento → continua pendente, sem posse
+    let st = await e.checkPixOrder(orderId);
+    expect(st.status).toBe('pending');
+    expect(e.state.premiumPass.owned).toBe(false);
+
+    // 3. PAGAMENTO — jogador paga; MP aprova
+    fakeMp.approve(mpId);
+
+    // 4. POLLING aprovado → recibo srv2 (Ed25519) do servidor + passe concedido
+    st = await e.checkPixOrder(orderId);
+    expect(st.status).toBe('approved');
+    expect(st.done).toBe(true);
+    expect(e.state.premiumPass.owned).toBe(true);
+    expect(e.state.premiumPass.orderId).toBe(orderId);
+    expect(e.state.premiumPass.purchaseTimestamp).toBeGreaterThan(0);
+    expect(e.state.premiumPass.signature.startsWith('srv2:')).toBe(true);
+    expect(e.state.premiumPass.signature).toMatch(/^srv2:[0-9a-f]{128}$/);
+    expect(e.state.avatarItems).toContain('fr_premium');
+    expect(e.state.titles).toContain('pass_premium');
+    expect(e.pendingPixOrders()).toHaveLength(0);
+
+    // 5. a validação do save VERIFICA a assinatura com a chave pública embutida
+    const { state: validated } = validateState(e.state);
+    expect(validated.premiumPass.owned).toBe(true);
+
+    // 6. idempotente: novo check não revoga nem duplica
+    const again = await e.checkPixOrder(orderId);
+    expect(again.done).toBe(true);
+    expect(e.state.premiumPass.owned).toBe(true);
+    expect(e.state.premiumPass.signature.startsWith('srv2:')).toBe(true);
+  });
+
+  it('recibo srv2 NÃO é emitido para pedidos que não são o Passe Premium — mas o conteúdo AUTORITATIVO é entregue', async () => {
+    // cobrança de fichas aprovada → o status respondido ao app não carrega
+    // recibo do passe, e sim o conteúdo que o SERVIDOR resolveu na cobrança
+    const e = new GameEngine();
+    const buy = await e.buyFichaPack('fichas_100');
+    expect(buy.pending).toBe(true);
+    fakeMp.approve(Number(buy.orderId));
+    const res = await fetch(`${baseUrl}/api/pix/status/${buy.orderId}`, {
+      headers: { 'x-app-secret': GameConfig.wallet.appSharedSecret },
+    });
+    const body = (await res.json()) as { status?: string; receipt?: string; content?: { fichas?: number } };
+    expect(body.status).toBe('approved');
+    expect(body.receipt).toBeUndefined();
+    expect(body.content).toEqual({ fichas: 100 });
+  });
+
+  it('conteúdo é AUTORITATIVO: /api/pix/charge devolve fichas/moedas/diamantes resolvidos no servidor', async () => {
+    // o app nunca diz o que vai receber — a resposta da cobrança carrega o
+    // conteúdo definido pelo catálogo do SERVIDOR (fichas_100 → 100 fichas)
+    const r1 = await fetch(`${baseUrl}/api/pix/charge`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret },
+      body: JSON.stringify({ packId: 'fichas_100', playerId: 4242 }),
+    });
+    const b1 = (await r1.json()) as { content?: { fichas?: number; gold?: string; diamonds?: number } };
+    expect(b1.content).toEqual({ fichas: 100 });
+
+    // pacote de moedas → moedas + diamantes do catálogo do servidor
+    const r2 = await fetch(`${baseUrl}/api/pix/charge`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret },
+      body: JSON.stringify({ packId: 'pack_starter', playerId: 4242 }),
+    });
+    const b2 = (await r2.json()) as { content?: { fichas?: number; gold?: string; diamonds?: number } };
+    expect(b2.content).toEqual({ gold: '25000', diamonds: 1000 });
+
+    // passe premium NÃO carrega conteúdo (a entrega é via recibo assinado)
+    const r3 = await fetch(`${baseUrl}/api/pix/charge`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret },
+      body: JSON.stringify({ packId: 'premium_pass', playerId: 4242 }),
+    });
+    const b3 = (await r3.json()) as { content?: unknown };
+    expect(b3.content).toBeUndefined();
+  });
+
+  it('entrega autoritativa: save adulterado não muda o conteúdo entregue', async () => {
+    const e = new GameEngine();
+    const buy = await e.buyCoinPack('pack_starter');
+    expect(buy.pending).toBe(true);
+    const orderId = buy.orderId!;
+
+    // um jogador (ou cheat) edita o pedido no save para pedir mais
+    e.state.pixOrders[orderId].gold = '999999999';
+    e.state.pixOrders[orderId].diamonds = 999999;
+
+    fakeMp.approve(Number(orderId));
+    const st = await e.checkPixOrder(orderId);
+    expect(st.status).toBe('approved');
+    // o servidor entrega o conteúdo DELE (R$ 9,99 → 25.000 moedas + 1.000 💎),
+    // não o valor adulterado no save
+    expect(st.gold).toBe('25000');
+    expect(st.diamonds).toBe(1000);
+    expect(D(e.state.gold).toFixed(0)).toBe('25000');
+    expect(D(e.state.crystals).toFixed(0)).toBe('1000');
   });
 
   it('pedido rejeitado pelo MP (erro do gateway) não concede fichas e volta como falha', async () => {

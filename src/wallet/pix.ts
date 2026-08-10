@@ -6,10 +6,9 @@
  * (1 crédito equivale a R$ 0,05 de valor). Os diamantes são gastos no sistema
  * premium do jogo (caixas, consumíveis, upgrades).
  *
- * ⚠️ Arquitetura local de teste (como o PaymentGateway do passe): a interface
- * `PixGateway` separa a camada de pagamento — nada sensível fica no cliente.
- * Numa versão online, o backend implementaria `PixGateway` com um provedor
- * regulado (Asaas, Pagar.me, Mercado Pago, Celcoin…) com CNPJ + KYC.
+ * A interface `PixGateway` separa a camada de pagamento — nada sensível fica
+ * no cliente. O gateway ONLINE (src/wallet/mp.ts) fala com o backend, que
+ * cobra pelo Mercado Pago e guarda o access token (nunca vai ao app).
  */
 import { GameConfig } from '../config/GameConfig';
 
@@ -95,17 +94,34 @@ export interface PixPaymentResult {
   qrCodeBase64?: string;
   /** True quando o pagamento ainda aguarda compensação (online) — fichas só após aprovação. */
   pending?: boolean;
+  /** Conteúdo autoritativo definido pelo servidor na cobrança (online). */
+  content?: PixContent;
   /** Motivo do erro quando ok=false (gateway online — ex.: sem conexão, servidor recusou). */
   reason?: string;
 }
 
 export type PixOrderStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' | 'unknown';
 
+/**
+ * Conteúdo ENTREGÁVEL de um pacote Pix — quando online, vem do SERVIDOR
+ * (autoritativo: resolvido no catálogo do backend, nunca do save).
+ */
+export interface PixContent {
+  fichas?: number;
+  gold?: string;
+  diamonds?: number;
+}
+
 export interface PixGateway {
   /** Inicia uma compra de fichas. Local: confirma na hora. Online: cria a cobrança e aguarda pagamento. */
   purchase(product: string, meta?: { playerId: number; amountBRL: number; payerEmail?: string }): Promise<PixPaymentResult>;
-  /** Consulta o status de um pedido (online). O gateway local responde 'approved' para pedidos que criou. */
-  checkOrder(orderId: string): Promise<{ status: PixOrderStatus }>;
+  /**
+   * Consulta o status de um pedido (online). O gateway local responde 'approved'
+   * para pedidos que criou. `receipt` (assinado pelo servidor) vem quando o
+   * pedido é um Passe Premium aprovado — a posse depende dele. `content` é o
+   * conteúdo autoritativo que o servidor entrega quando o pagamento aprova.
+   */
+  checkOrder(orderId: string): Promise<{ status: PixOrderStatus; receipt?: string; content?: PixContent }>;
   /** Camada futura: frontend → API → processadora. Nunca armazena credenciais. */
   readonly provider: 'local' | 'online';
 }

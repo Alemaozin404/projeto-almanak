@@ -38,7 +38,9 @@ O app do jogador nunca o vê — se um hacker abrir o jogo, não encontra segred
                             │                                  notification_url: ...webhook }
                             │                              ────────────────────────────►
                             │                              ◄── 4. { id, qr_code, qr_code_base64 }
-                            │ ◄── 5. { orderId, pixCode, qrCodeBase64 }
+                            │ ◄── 5. { orderId, pixCode, qrCodeBase64, content }
+                            │        content = o que o SERVIDOR resolveu entregar
+                            │        (ex.: fichas_100 → { fichas: 100 })
                             │
    6. Vê o QR REAL na tela ─┤
       paga no app do banco ─┼───────────────────────────────────────────────────────► (dinheiro vai
@@ -48,14 +50,44 @@ O app do jogador nunca o vê — se um hacker abrir o jogo, não encontra segred
                             │ ────────────────────────────────────►
                             │     8. GET /v1/payments/:id  ◄───────
                             │     ◄── 9. { status: 'approved' }
-                            │ ◄── 10. { status: 'approved' }
+                            │ ◄── 10. { status: 'approved', content }
+                            │        content = o conteúdo AUTORITATIVO do servidor
                             │
-  11. Fichas 🎰 concedidas ──┤ (só agora! +100 fichas)
+  11. Conteúdo 🎰 concedido ─┤ (só agora! e exatamente o que o servidor mandou)
 ```
 
 ### Resumo do passo 10→11 (regra de segurança)
 O app **nunca entrega fichas na hora da compra** — só entrega quando o backend
 confirma que o Mercado Pago **realmente aprovou** o pagamento.
+
+---
+
+## 2.1 Entrega autoritativa de conteúdo (o servidor manda)
+
+O conteúdo (fichas/moedas/diamantes) de cada pacote é resolvido **no servidor**:
+
+- **`POST /api/pix/charge`** — resolve o pacote no catálogo do backend
+  (`FICHA_PACKS` / `COIN_PACKS` / `TEST_PACKS` / custom do admin) e devolve
+  `content` na resposta (ex.: `pack_starter` → `{ gold: '25000', diamonds: 1000 }`);
+- **KV `pixOrder:{id}`** — o conteúdo é **persistido na cobrança** para todo
+  pacote (não só o passe) junto com `packId`/`playerId`;
+- **`GET /api/pix/status/:id`** — quando o pagamento aprova, o servidor devolve
+  o `content` que ele mesmo gravou na cobrança;
+- **O app concede exatamente o `content` recebido** (com fallback para o que foi
+  gravado no pedido na hora da cobrança — que também veio do servidor no modo
+  online). O save do jogador **nunca decide** o que é entregue: editar o pedido
+  no save para "pedir mais" não muda nada, pois a entrega vem do servidor.
+
+> **Limitação conhecida (fallback de resiliência):** a garantia *total* da
+> entrega autoritativa depende do registro `pixOrder:{id}` existir no KV na
+> hora do `status` (TTL 1h, maior que os 30 min de expiração do pedido no app).
+> Se o KV estiver ausente — cold start de serverless **sem Upstash** (KV em
+> memória) ou TTL expirado — o servidor devolve sem `content` e o app cai no
+> fallback do conteúdo gravado no pedido, que no modo online **veio da própria
+> resposta da cobrança** (logo, ainda é o do servidor). O único cenário em que
+> essa proteção não existe é **servidor antigo + app novo**: um backend que não
+> devolve `content` na cobrança (versões anteriores) faz o app gravar o catálogo
+> local — por isso app e servidor devem ser publicados juntos.
 
 ---
 
@@ -94,6 +126,8 @@ R$ 6,25 via Pix  ───►   aprovação do Pix      ───►    (1 ficha
 | Etapa | Onde | Quanto |
 |---|---|---|
 | Compra fichas | Carteira → Comprar | R$ 6,25 = 100 🎰 (margem de 20% para você) |
+| Compra diamantes/moedas | Carteira (pacotes admin) ou Loja → Moedas | R$ 3,99 a R$ 199,99 (COIN_PACKS) |
+| Compra do Passe Premium | Passe → Adquirir | R$ 9,90 (GameConfig.pass.priceBRL — recibo assinado no servidor) |
 | Fichas → Créditos | Carteira → Converter | 1 ficha = 1 crédito |
 | Créditos → Diamantes | Carteira → Diamantes | 1 crédito = 1 💎 |
 | Gasta diamantes | Loja (sistema que já existe) | caixas, itens premium |
@@ -121,7 +155,7 @@ R$ 6,25 via Pix  ───►   aprovação do Pix      ───►    (1 ficha
 
 ```
 server/                     ← BACKEND (publicar no Railway/Render/VPS)
-  index.js                  ← servidor Express + API Mercado Pago
+  index.js                  ← servidor Express + API Mercado Pago + recibo Ed25519 do passe (RECEIPT_PRIVATE_KEY)
   package.json              ← dependências do servidor (separado do app)
   .env.example              ← modelo de configuração (token, secrets)
   README.md                 ← passo a passo de deploy
@@ -131,11 +165,18 @@ src/wallet/                 ← camada de pagamento no app
   mp.ts                     ← OnlinePixGateway + resolvePixGateway (escolhe o modo)
 
 src/game/
-  engine.ts                 ← buyFichaPack (cria pedido) + checkPixOrder (concede)
+  engine.ts                 ← buyFichaPack/buyCoinPack/buyPremiumPass (cria pedido) + checkPixOrder (concede)
   types.ts                  ← save v8: pixOrders (pedidos pendentes)
+
+src/security/
+  passReceipt.ts            ← recibo do passe: local (chave no app) OU servidor (srv2: Ed25519 — o app verifica com a chave pública embutida)
+
+src/ui/
+  PixOrderModal.tsx         ← modal compartilhado de pagamento (QR + polling) — Carteira e Loja
 
 src/ui/screens/
   Wallet.tsx                ← tela Carteira (Comprar / Converter / Diamantes)
+  Shop.tsx                  ← Loja aba "Moedas" — pacotes de diamantes/moedas via Pix
 
 src/config/
   GameConfig.ts             ← wallet.backendUrl, pixPollingMs, expiração
@@ -164,3 +205,5 @@ src/config/
 - [x] Fichas só após confirmação real de aprovação
 - [x] Pedidos expiram em 30 min (sem órfãos eternos)
 - [x] Concessão idempotente (nunca dobra fichas em chamadas concorrentes)
+- [x] **Conteúdo entregue é AUTORITATIVO do servidor**: resolvido no `POST /api/pix/charge` e devolvido no `GET /api/pix/status` — o save adulterado não muda a entrega (teste de regressão cobrindo)
+- [x] Passe Premium via Pix com recibo Ed25519: servidor assina (RECEIPT_PRIVATE_KEY) e o app verifica com a chave pública embutida (GameConfig.pass.receiptPublicKey)

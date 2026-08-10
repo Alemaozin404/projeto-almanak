@@ -3,7 +3,7 @@
  * O servidor REAL (server/index.js) sobe em porta efêmera; sem UPSTASH_*
  * configurado, o store cai para o Map em memória (isolado por processo).
  */
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp } from '../server/index.js';
 import { GameConfig } from '../src/config/GameConfig';
@@ -239,5 +239,74 @@ describe('API online — conteúdo, save na nuvem e ranking', () => {
     expect(charge.status).toBe(400);
     const body = (await charge.json()) as { reason?: string };
     expect(body.reason).toBe('Pacote inexistente');
+  });
+});
+
+/**
+ * GET /api/health deve refletir o env INJETADO no createApp (não process.env).
+ * O process.env aqui está com UPSTASH_* stubbed para '' pelo beforeAll — se o
+ * health lesse process.env direto, reportaria 'memory' mesmo com UPSTASH
+ * injetado (o bug). Com o env injetado, o status sai correto.
+ */
+describe('GET /api/health — usa o env injetado (não process.env)', () => {
+  let healthServer: Server | null = null;
+
+  afterEach(async () => {
+    if (healthServer) {
+      await new Promise<void>((resolve) => healthServer!.close(() => resolve()));
+      healthServer = null;
+    }
+  });
+
+  /** Sobe um servidor isolado com o env injetado desejado (fecha em caso de falha). */
+  async function startHealthServer(env: { mp?: string; kvUrl?: string; kvToken?: string } = {}): Promise<string> {
+    const app = createApp({
+      MERCADO_PAGO_ACCESS_TOKEN: env.mp ?? '',
+      MERCADO_PAGO_WEBHOOK_SECRET: 'test-webhook-secret',
+      APP_SHARED_SECRET: GameConfig.wallet.appSharedSecret,
+      UPSTASH_REDIS_REST_URL: env.kvUrl ?? '',
+      UPSTASH_REDIS_REST_TOKEN: env.kvToken ?? '',
+      PORT: '0',
+    });
+    const srv = app.listen(0, '127.0.0.1');
+    healthServer = srv;
+    try {
+      await new Promise<void>((resolve) => srv.once('listening', resolve));
+      const addr = srv.address();
+      if (!addr || typeof addr === 'string') throw new Error('sem porta atribuída');
+      return `http://127.0.0.1:${addr.port}`;
+    } catch (err) {
+      // não deixa servidor órfão se a subida falhar no meio
+      await new Promise<void>((resolve) => srv.close(() => resolve()));
+      healthServer = null;
+      throw err;
+    }
+  }
+
+  it('com UPSTASH + token do MP no env INJETADO → kv configured e mp configured (mesmo sem process.env)', async () => {
+    const url = await startHealthServer({ mp: 'APP_USR-PRODUCAO', kvUrl: 'https://upstash.example.com', kvToken: 'token-secreto' });
+    const res = await fetch(`${url}/api/health`);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { ok?: boolean; mp?: string; kv?: string; version?: string };
+    expect(data.ok).toBe(true);
+    expect(data.mp).toBe('configured');
+    expect(data.kv).toBe('configured');
+    expect(typeof data.version).toBe('string');
+  });
+
+  it('sem nada injetado → mp missing-token e kv memory', async () => {
+    const url = await startHealthServer();
+    const res = await fetch(`${url}/api/health`);
+    const data = (await res.json()) as { mp?: string; kv?: string };
+    expect(data.mp).toBe('missing-token');
+    expect(data.kv).toBe('memory');
+  });
+
+  it('com MP mas sem UPSTASH injetado → mp configured e kv memory', async () => {
+    const url = await startHealthServer({ mp: 'APP_USR-PRODUCAO' });
+    const res = await fetch(`${url}/api/health`);
+    const data = (await res.json()) as { mp?: string; kv?: string };
+    expect(data.mp).toBe('configured');
+    expect(data.kv).toBe('memory');
   });
 });

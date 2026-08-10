@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useGame } from '../context';
 import { Panel, TabBar, Modal, Tooltip } from '../kit';
 import { FICHA_PACKS, fmtBRL, fichasToCredits, creditsToBRL, creditsToDiamonds, type FichaPackDef } from '../../wallet/pix';
 import { pixOnlineEnabled, testPixBackend } from '../../wallet/mp';
-import { GameConfig } from '../../config/GameConfig';
 import { shopPacks, type AdminPack } from '../../admin/sales';
+import { PixOrderModal, type ActivePixOrder, type PixOrderResult } from '../PixOrderModal';
 import { D } from '../../core/bignum';
 import { audio } from '../../audio/audio';
 
@@ -13,37 +13,18 @@ type WalletTab = 'buy' | 'convert' | 'diamonds';
 /** Item comprável via Pix na carteira — ficha padrão ou pacote custom do admin. */
 type Buyable = FichaPackDef | AdminPack;
 
-interface ActiveOrder {
-  orderId: string;
-  packId: string;
-  label?: string;
-  pixCode: string;
-  qrCodeBase64?: string;
-  amountBRL: number;
-}
-
-const ORDER_STATUS_LABEL: Record<string, string> = {
-  pending: 'Aguardando pagamento…',
-  approved: 'Aprovado!',
-  rejected: 'Rejeitado',
-  cancelled: 'Cancelado',
-  unknown: 'Consultando…',
-};
-
 export function Wallet() {
   const { engine, fmt } = useGame();
   const [tab, setTab] = useState<WalletTab>('buy');
   const [confirmPack, setConfirmPack] = useState<Buyable | null>(null);
   const [customPacks, setCustomPacks] = useState<AdminPack[]>([]);
   const [buying, setBuying] = useState(false);
-  const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
-  const [orderStatus, setOrderStatus] = useState<string>('pending');
+  const [activeOrder, setActiveOrder] = useState<ActivePixOrder | null>(null);
   const [convertQty, setConvertQty] = useState('');
   const [diamondQty, setDiamondQty] = useState('');
   const [notice, setNotice] = useState('');
   const [conn, setConn] = useState<{ ok: boolean; label: string } | null>(null);
   const online = pixOnlineEnabled();
-  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // status da conexão com o backend de pagamentos (aviso claro quando offline)
   const applyConn = useCallback((r: { ok: boolean; mp?: string; reason?: string }) => {
@@ -81,44 +62,22 @@ export function Wallet() {
     setTimeout(() => setNotice(''), 3500);
   }
 
-  // ── polling automático do pedido ativo ───────────────────
-  const pollOrder = useCallback(async (order: ActiveOrder) => {
-    const r = await engine.checkPixOrder(order.orderId);
-    setOrderStatus(r.status);
-    if (r.status === 'approved') {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      setActiveOrder(null);
-      const parts = [
-        r.fichas ? `${fmt(r.fichas, 0)} fichas` : '',
-        r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
-        r.diamonds && r.diamonds > 0 ? `${fmt(r.diamonds, 0)} diamantes` : '',
-      ].filter(Boolean);
-      flash(`✅ ${parts.join(' · ') || 'pedido'} adicionados!`);
-      audio.buy();
-    } else if (r.status === 'rejected' || r.status === 'cancelled') {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-      setActiveOrder(null);
-      flash(`❌ Pagamento ${r.status}.`);
-    }
-  }, [engine, fmt]);
+  /** Pagamento aprovado pelo Mercado Pago — o engine já concedeu o conteúdo. */
+  function handlePixApproved(r: PixOrderResult) {
+    setActiveOrder(null);
+    const parts = [
+      r.fichas ? `${fmt(r.fichas, 0)} fichas` : '',
+      r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
+      r.diamonds && r.diamonds > 0 ? `${fmt(r.diamonds, 0)} diamantes` : '',
+    ].filter(Boolean);
+    flash(`✅ ${parts.join(' · ') || 'pedido'} adicionados!`);
+    audio.buy();
+  }
 
-  useEffect(() => {
-    if (activeOrder && online) {
-      void pollOrder(activeOrder);
-      pollingRef.current = setInterval(() => void pollOrder(activeOrder), GameConfig.wallet.pixPollingMs);
-      return () => {
-        if (pollingRef.current) clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      };
-    }
-    return undefined;
-  }, [activeOrder, online, pollOrder]);
+  function handlePixRejected(status: string) {
+    setActiveOrder(null);
+    flash(`❌ Pagamento ${status}.`);
+  }
 
   // ── retomada de pedidos pendentes ao abrir a tela ────────
   useEffect(() => {
@@ -126,7 +85,7 @@ export function Wallet() {
     const pend = engine.pendingPixOrders();
     if (pend.length === 0) return;
     const p = pend[0];
-    // o polling abaixo já consulta o status; só reabre o modal se ainda houver código p/ pagar
+    // o polling do modal consulta o status; reabre se ainda houver código p/ pagar
     setActiveOrder({
       orderId: p.orderId,
       packId: p.packId,
@@ -134,7 +93,6 @@ export function Wallet() {
       pixCode: p.pixCode ?? '',
       amountBRL: p.amountBRL ?? 0,
     });
-    setOrderStatus('pending');
   }, [engine, online]);
 
   /** Converte o item em um pacote compatível com o engine (ficha ou custom). */
@@ -155,7 +113,6 @@ export function Wallet() {
       if (r.pending) {
         // cobrança real criada — exibe o QR e inicia o polling
         setActiveOrder({ orderId: r.orderId ?? '', packId: confirmPack.id, label: confirmPack.name, pixCode: r.pixCode ?? '', qrCodeBase64: r.qrCodeBase64, amountBRL: confirmPack.priceBRL });
-        setOrderStatus('pending');
       } else {
         const parts = [
           r.fichas ? `${fmt(r.fichas, 0)} fichas` : '',
@@ -398,50 +355,14 @@ export function Wallet() {
         )}
       </Modal>
 
-      {/* QR / pagamento em andamento */}
-      <Modal open={activeOrder !== null} onClose={() => { if (pollingRef.current) clearInterval(pollingRef.current); pollingRef.current = null; setActiveOrder(null); }} title="🧾 Pagamento Pix" width={480}>
-        {activeOrder && (
-          <div className="pix-receipt">
-            <p className="muted small center">{ORDER_STATUS_LABEL[orderStatus] ?? orderStatus}</p>
-
-            {activeOrder.qrCodeBase64 ? (
-              <div className="pix-qr-wrap">
-                <img className="pix-qr-img" src={`data:image/png;base64,${activeOrder.qrCodeBase64}`} alt="QR Code Pix" />
-              </div>
-            ) : activeOrder.pixCode ? (
-              <p className="muted small center">🧾 Pedido em andamento — use o código copia-e-cola abaixo para pagar no seu banco.</p>
-            ) : (
-              <p className="muted small center">Aguardando QR Code…</p>
-            )}
-
-            <div className="wallet-summary">
-              <div><span>Pacote</span><strong>{activeOrder.label ?? FICHA_PACKS.find((p) => p.id === activeOrder.packId)?.name ?? activeOrder.packId}</strong></div>
-              <div><span>Valor</span><strong>{fmtBRL(activeOrder.amountBRL)}</strong></div>
-              <div><span>Status</span><strong>{ORDER_STATUS_LABEL[orderStatus] ?? orderStatus}</strong></div>
-            </div>
-
-            {activeOrder.pixCode && (
-              <div className="pix-code-box">
-                <small className="muted">Código Pix copia-e-cola</small>
-                <code className="pix-code">{activeOrder.pixCode}</code>
-                <button className="btn btn-sm" onClick={() => { void navigator.clipboard?.writeText(activeOrder.pixCode).catch(() => {}); flash('📋 Código copiado!'); }}>
-                  📋 Copiar código
-                </button>
-              </div>
-            )}
-
-            {orderStatus === 'pending' && (
-              <p className="muted small center">⏳ Pague no app do seu banco — o jogo confere automaticamente a cada {Math.round(GameConfig.wallet.pixPollingMs / 1000)}s e entrega o conteúdo quando aprovar.</p>
-            )}
-
-            <div className="modal-actions">
-              <button className="btn" onClick={() => { if (pollingRef.current) clearInterval(pollingRef.current); pollingRef.current = null; setActiveOrder(null); }}>
-                Fechar
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
+      {/* QR / pagamento em andamento (compartilhado com a Loja) */}
+      <PixOrderModal
+        order={activeOrder}
+        onClose={() => setActiveOrder(null)}
+        onApproved={handlePixApproved}
+        onRejected={handlePixRejected}
+        onNotify={flash}
+      />
     </div>
   );
 }

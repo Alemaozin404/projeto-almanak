@@ -32,11 +32,18 @@ App (jogador)          Servidor (Vercel)         Mercado Pago / Upstash
 | `MERCADO_PAGO_ACCESS_TOKEN` | Token de produção MP (`APP_USR-...`) — obrigatório p/ pagamentos |
 | `MERCADO_PAGO_WEBHOOK_SECRET` | Painel MP → Suas integrações → Webhooks |
 | `APP_SHARED_SECRET` | Deve bater com `GameConfig.wallet.appSharedSecret` do jogo |
+| `RECEIPT_PRIVATE_KEY` | Seed Ed25519 (64 hex) dos recibos do Passe — gere com `npm run gen:receipt-keys`; a pública vai no app (`GameConfig.pass.receiptPublicKey`) |
 | `BASE_URL` | URL pública (ex.: `https://nucleo-clicker-server.vercel.app`) |
 | `UPSTASH_REDIS_REST_URL` | console.upstash.com → Database → REST API (opcional: nuvem/ranking) |
 | `UPSTASH_REDIS_REST_TOKEN` | idem |
 
 > Sem Upstash, saves/ranking usam um Map em memória (somem ao reiniciar o processo — ok p/ dev).
+
+> ⚠️ **Chaves do Passe Premium:** a seed que aparece nos testes (`202a7eff…`) e a pública
+> embutida no `GameConfig` são de **DESENVOLVIMENTO e são públicas no repositório**. Antes de
+> publicar, gere o SEU par com `npm run gen:receipt-keys`, coloque a seed em `RECEIPT_PRIVATE_KEY`
+> no servidor e a pública em `GameConfig.pass.receiptPublicKey` num **novo build do app**. O
+> servidor avisa no boot se a seed de dev estiver configurada.
 
 4. Teste: `curl https://seu-projeto.vercel.app/api/health` → `{ "ok": true, "mp": "configured", "kv": "configured" }`.
 
