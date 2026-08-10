@@ -34,6 +34,7 @@ import { equippedSkin } from './content/skins';
 import { UpdateManager } from './liveops/UpdateManager';
 import { latestUpdate, updateByVersion } from './content/updates';
 import { syncRemoteContent, SYNC_INTERVAL_MS } from './liveops/RemoteContent';
+import { startHeartbeat } from './online/heartbeat';
 import { audio } from './audio/audio';
 import { applyTheme } from './ui/theme';
 import { bus } from './core/events';
@@ -74,6 +75,8 @@ export default function App() {
   if (!saveMgrRef.current) saveMgrRef.current = new SaveManager();
   const engineRef = useRef<GameEngine | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
+  // heartbeat oculto: sinal ao servidor a cada 1 min (presença + atualização rápida)
+  const heartbeatStopRef = useRef<(() => void) | null>(null);
 
   // ── anexar/desanexar engine ──────────────────────────────
   const attach = useCallback((e: GameEngine, fixed?: string[]) => {
@@ -103,6 +106,8 @@ export default function App() {
       e.tick(dt);
     }, 100);
     saveMgrRef.current!.startAutoSave(e, e.state.settings.autoSaveMinutes);
+    // sinal oculto de 1 min — mantém presença no servidor e detecta conteúdo novo
+    heartbeatStopRef.current = startHeartbeat(e.state.createdAt, () => force());
 
     setEngine(e);
     setScreen('home');
@@ -126,6 +131,8 @@ export default function App() {
       unsub();
       offs.forEach((o) => o());
       window.clearInterval(iv);
+      heartbeatStopRef.current?.();
+      heartbeatStopRef.current = null;
       saveMgrRef.current!.stopAutoSave();
     };
   }, []);

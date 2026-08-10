@@ -402,6 +402,36 @@ export function createApp(env = process.env) {
     return res.json({ ok: true });
   });
 
+  // ── heartbeat do app (sinal oculto — presença + ponteiro de atualização) ──
+  // O jogo envia um POST /api/heartbeat a cada 1 minuto (sem UI). O servidor:
+  //   1. registra a presença do jogador (expira sozinho em 3 min sem sinal);
+  //   2. devolve o "ponteiro de atualização" (versão + conteúdo exportado) —
+  //      o app compara e, se mudou, re-sincroniza o conteúdo NA HORA.
+  app.post('/api/heartbeat', async (req, res) => {
+    if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
+    const { playerId, gameVersion } = req.body ?? {};
+    if (rateLimited(`heartbeat:${String(playerId ?? '')}`, 60)) return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    if (PLAYER_ID_RE.test(String(playerId ?? ''))) {
+      try {
+        await kvSet(
+          `presence:${playerId}`,
+          { at: Date.now(), gameVersion: typeof gameVersion === 'string' ? gameVersion.slice(0, 20) : '' },
+          180, // TTL de 3 min — sem sinal, o registro de presença some sozinho
+        );
+      } catch (err) {
+        console.error('[heartbeat] falha ao registrar presença:', err);
+      }
+    }
+    const c = loadContent();
+    return res.json({
+      ok: true,
+      ts: Date.now(),
+      gameVersion: c.gameVersion,
+      contentUpdatedAt: c.exportedAt ?? null,
+      maintenance: Array.isArray(c.maintenance) && c.maintenance.length > 0,
+    });
+  });
+
   /** App → polling do status de um pedido. */
   app.get('/api/pix/status/:id', async (req, res) => {
     if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
