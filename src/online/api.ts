@@ -58,6 +58,28 @@ export async function fetchGlobalRank(kind: RankEntry['kind'], limit = 10): Prom
   }
 }
 
+export interface OnlinePlayer {
+  playerId: string;
+  gameVersion?: string;
+  lastSeenAt: number;
+}
+
+/**
+ * Lista os jogadores online agora (presença do heartbeat — sinal nos últimos 3 min).
+ * Retorna null quando o servidor está inacessível/recusou (falha ≠ lista vazia).
+ */
+export async function fetchOnlinePlayers(): Promise<OnlinePlayer[] | null> {
+  try {
+    const res = await apiFetch('/api/online');
+    if (res.redirected) return null; // protegido por login (Vercel Authentication)
+    if (!res.ok) return null;
+    const data = await apiJson<{ ok?: boolean; online?: OnlinePlayer[] }>(res);
+    return Array.isArray(data?.online) ? data.online : [];
+  } catch {
+    return null;
+  }
+}
+
 /** Publica um ciclo no ranking global. Retorna a posição (ou null). */
 export async function submitGlobalRank(entry: Omit<RankEntry, 'at'> & { at?: number }): Promise<{ ok: boolean; position?: number | null; reason?: string }> {
   try {

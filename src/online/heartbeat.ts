@@ -29,9 +29,13 @@ interface HeartbeatDto {
 /** Último ponteiro de atualização visto (evita re-sync repetido do mesmo conteúdo). */
 let lastContentStamp: string | null = null;
 
+/** Último flag de manutenção sinalizado pelo servidor (evita aviso repetido a cada minuto). */
+let lastMaintenanceFlag: boolean | null = null;
+
 /** Zera o estado interno (usado em testes — isolamento entre execuções). */
 export function resetHeartbeatState(): void {
   lastContentStamp = null;
+  lastMaintenanceFlag = null;
 }
 
 /** Envia um único sinal ao servidor. Falha → null (silencioso). */
@@ -56,10 +60,12 @@ async function sendHeartbeat(playerId: number): Promise<HeartbeatDto | null> {
 
 /**
  * Inicia o heartbeat oculto do jogador. Retorna a função que o encerra.
- * `onChange` é chamado quando um sinal detecta conteúdo novo e o re-sync
- * trouxe dados do servidor (para forçar re-render das telas).
+ * - `onChange` é chamado quando um sinal detecta conteúdo novo e o re-sync
+ *   trouxe dados do servidor (para forçar re-render das telas);
+ * - `onMaintenance` é chamado UMA vez quando o servidor passa a sinalizar
+ *   manutenção (transição false → true) — o jogo avisa o jogador.
  */
-export function startHeartbeat(playerId: number, onChange?: () => void): () => void {
+export function startHeartbeat(playerId: number, onChange?: () => void, onMaintenance?: () => void): () => void {
   if (!pixOnlineEnabled()) return () => {};
   let stopped = false;
   let busy = false; // evita sobreposição: o sinal imediato e o do intervalo nunca correm juntos
@@ -70,17 +76,19 @@ export function startHeartbeat(playerId: number, onChange?: () => void): () => v
     try {
       const sig = await sendHeartbeat(playerId);
       if (!sig || stopped) return;
-      // ponteiro de atualização: primeira leitura apenas registra; mudança → re-sync na hora
+      // manutenção: aviso único na transição false → true (sem spam a cada minuto)
+      const maintTransition = sig.maintenance === true && lastMaintenanceFlag !== true;
+      lastMaintenanceFlag = sig.maintenance ?? false;
+      // ponteiro de atualização: primeira leitura registra; mudança → re-sync na hora
       const stamp = `${sig.gameVersion ?? ''}:${sig.contentUpdatedAt ?? ''}`;
-      if (lastContentStamp === null) {
-        lastContentStamp = stamp;
-        return;
-      }
-      if (stamp !== lastContentStamp) {
-        lastContentStamp = stamp;
+      const stampChanged = lastContentStamp !== null && stamp !== lastContentStamp;
+      lastContentStamp = stamp;
+      // sincroniza ANTES de avisar — o toast precisa das janelas já hidratadas
+      if (maintTransition || stampChanged) {
         const r = await syncRemoteContent();
         if (r === 'online' && !stopped) onChange?.();
       }
+      if (maintTransition && !stopped) onMaintenance?.();
     } finally {
       busy = false;
     }

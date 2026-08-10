@@ -16,6 +16,7 @@ import { D } from '../../core/bignum';
 import { fmtBRL } from '../../shop/packs';
 import { GameConfig } from '../../config/GameConfig';
 import { testPixBackend } from '../../wallet/mp';
+import { fetchOnlinePlayers, type OnlinePlayer } from '../../online/api';
 
 const STATUS_FLOW: ContentStatus[] = ['DRAFT', 'REVIEW', 'SCHEDULED', 'PUBLISHED', 'DISABLED', 'ARCHIVED'];
 
@@ -97,6 +98,7 @@ export function Admin() {
         <TabBar
           tabs={[
             { id: 'dashboard', name: 'Dashboard', icon: '📊' },
+            { id: 'online', name: 'Online', icon: '🟢' },
             { id: 'content', name: 'Conteúdo', icon: '🗂️' },
             { id: 'sales', name: 'Vendas', icon: '💰' },
             { id: 'rewards', name: 'Recompensas', icon: '🎁' },
@@ -122,6 +124,8 @@ export function Admin() {
             <div className="admin-stat"><span>Erros recentes (log)</span><strong>{engine.state.log.length}</strong></div>
           </div>
         )}
+
+        {tab === 'online' && <OnlineTab flashSave={flashSave} />}
 
         {tab === 'content' && (
           <div>
@@ -231,6 +235,80 @@ function DraftForm({ onDone }: { onDone: (msg: string) => void }) {
       {errors.length > 0 && <p className="muted small" style={{ color: 'var(--danger)' }}>{errors.join(' · ')}</p>}
       <div className="modal-actions">
         <button className="btn btn-sm" onClick={save}>💾 Salvar rascunho</button>
+      </div>
+    </div>
+  );
+}
+
+// ── aba Online: jogadores com presença ativa (sinais do heartbeat) ──
+
+const ONLINE_POLL_MS = 10_000;
+
+function OnlineTab({ flashSave }: { flashSave: (msg: string) => void }) {
+  const [players, setPlayers] = useState<OnlinePlayer[]>([]);
+  const [conn, setConn] = useState<{ ok: boolean; label: string } | null>(null);
+  const [lastCheck, setLastCheck] = useState(0);
+  const online = pixTestEnabled();
+
+  const load = useCallback(async () => {
+    const list = await fetchOnlinePlayers();
+    if (list === null) {
+      // servidor inacessível/recusou — falha de conexão, não "ninguém online"
+      setConn({ ok: false, label: 'Sem conexão com o servidor de presença' });
+      return;
+    }
+    setPlayers(list);
+    setLastCheck(Date.now());
+    setConn({ ok: true, label: `${list.length} jogador(es) online` });
+  }, []);
+
+  useEffect(() => {
+    if (!online) { setConn(null); setPlayers([]); return; }
+    void load();
+    const iv = window.setInterval(() => { void load(); }, ONLINE_POLL_MS);
+    return () => window.clearInterval(iv);
+  }, [online, load]);
+
+  const now = Date.now();
+  return (
+    <div>
+      <div className="admin-actions">
+        <button className="btn btn-sm" disabled={!online} onClick={() => void load()}>↻ Atualizar agora</button>
+        <span className="muted small">
+          {online ? `Atualiza automaticamente a cada ${Math.round(ONLINE_POLL_MS / 1000)}s` : 'Backend não configurado — sem dados de presença'}
+        </span>
+      </div>
+
+      {conn && (
+        <div className={`pix-conn-banner ${conn.ok ? 'ok' : 'err'}`} style={{ marginBottom: 10 }}>
+          <strong>{conn.ok ? '🟢 Servidor de presença conectado' : '🔴 Servidor de presença offline'}</strong>
+          <span className="muted small">{conn.label}{lastCheck ? ` · ${new Date(lastCheck).toLocaleTimeString('pt-BR')}` : ''}</span>
+          <button className="btn btn-xs" onClick={() => void load()}>↻ Verificar</button>
+        </div>
+      )}
+
+      <h4>🟢 Jogadores online agora ({players.length})</h4>
+      <p className="muted small">
+        Presença registrada pelos sinais de heartbeat (a cada 1 min) — jogadores que não enviam sinal há mais de 3 minutos saem da lista.
+      </p>
+
+      <div className="history-list" style={{ marginTop: 8 }}>
+        {!online && <p className="muted small">Configure o backend (Configurações → Pagamentos) para ver jogadores online.</p>}
+        {online && players.length === 0 && <p className="muted small">Nenhum jogador online no momento.</p>}
+        {players.map((p) => {
+          const age = now - p.lastSeenAt;
+          const ageLabel = age < 1000 ? 'agora' : age < 60_000 ? `há ${Math.floor(age / 1000)}s` : `há ${Math.floor(age / 60_000)}min`;
+          return (
+            <div key={p.playerId} className="admin-content-row">
+              <span className="content-status content-published">🟢 ATIVO</span>
+              <strong>Jogador #{p.playerId}</strong>
+              <span className="muted small">{p.gameVersion ? `v${p.gameVersion}` : 'v—'} · sinal {ageLabel}</span>
+              <div>
+                <button className="btn btn-xs ghost" onClick={() => { void navigator.clipboard?.writeText(p.playerId).catch(() => {}); flashSave(`📋 ID ${p.playerId} copiado`); }}>📋 ID</button>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

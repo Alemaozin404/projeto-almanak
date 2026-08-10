@@ -65,6 +65,13 @@ export class UpdateManager {
     return MAINTENANCE_WINDOWS.find((m) => m.startAt <= nowMs && nowMs <= m.endAt);
   }
 
+  /** Próxima janela de manutenção programada (futura, ainda não iniciada) — ou undefined. */
+  static nextMaintenance(nowMs: number = Date.now()): import('../content/maintenance').MaintenanceWindow | undefined {
+    return MAINTENANCE_WINDOWS
+      .filter((m) => m.startAt > nowMs)
+      .sort((a, b) => a.startAt - b.startAt)[0];
+  }
+
   static setDebugMaintenance(window: import('../content/maintenance').MaintenanceWindow | null): void {
     debugMaintenance = window;
   }

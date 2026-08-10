@@ -85,6 +85,41 @@ describe('Servidor — POST /api/heartbeat', () => {
     const data = (await res.json()) as { ok: boolean };
     expect(data.ok).toBe(true);
   });
+
+  it('GET /api/online lista quem sinalizou nos últimos 3 min e exige x-app-secret', async () => {
+    // sem secret → 401
+    const denied = await fetch(`${baseUrl}/api/online`);
+    expect(denied.status).toBe(401);
+
+    // dois jogadores únicos sinalizam → ambos aparecem, mais recente primeiro
+    const h1 = await fetch(`${baseUrl}/api/heartbeat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret },
+      body: JSON.stringify({ playerId: 1111, gameVersion: '1.2.4' }),
+    });
+    expect(h1.status).toBe(200);
+    await new Promise((r) => setTimeout(r, 10)); // garante ordem de lastSeenAt
+    const h2 = await fetch(`${baseUrl}/api/heartbeat`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret },
+      body: JSON.stringify({ playerId: 2222, gameVersion: '1.2.4' }),
+    });
+    expect(h2.status).toBe(200);
+
+    const list = await fetch(`${baseUrl}/api/online`, {
+      headers: { 'x-app-secret': GameConfig.wallet.appSharedSecret },
+    });
+    const data = (await list.json()) as { ok: boolean; count: number; online: { playerId: string; gameVersion: string; lastSeenAt: number }[] };
+    expect(data.ok).toBe(true);
+    const ids = data.online.map((p) => p.playerId);
+    expect(ids).toContain('1111');
+    expect(ids).toContain('2222');
+    // os dois sinais que acabamos de enviar são os mais recentes e nessa ordem
+    expect(ids[0]).toBe('2222');
+    expect(ids[1]).toBe('1111');
+    expect(data.online.find((p) => p.playerId === '1111')?.gameVersion).toBe('1.2.4');
+    expect(typeof data.online[0].lastSeenAt).toBe('number');
+  });
 });
 
 describe('Cliente — startHeartbeat (sinal oculto de 1 min)', () => {
@@ -110,8 +145,10 @@ describe('Cliente — startHeartbeat (sinal oculto de 1 min)', () => {
   it('envia o sinal a cada 1 minuto e re-sincroniza quando o conteúdo muda', async () => {
     vi.useFakeTimers();
     let contentStamp = '2026-01-01T00:00:00.000Z';
+    let maintenance = false;
     let beats = 0;
     const onChange = vi.fn();
+    const onMaintenance = vi.fn();
 
     vi.stubGlobal(
       'fetch',
@@ -123,7 +160,7 @@ describe('Cliente — startHeartbeat (sinal oculto de 1 min)', () => {
         // /api/heartbeat — o servidor devolve o ponteiro atual
         if (url.endsWith('/api/heartbeat') && init?.method === 'POST') {
           beats += 1;
-          return json({ ok: true, ts: Date.now(), gameVersion: '1.2.4', contentUpdatedAt: contentStamp, maintenance: false });
+          return json({ ok: true, ts: Date.now(), gameVersion: '1.2.4', contentUpdatedAt: contentStamp, maintenance });
         }
         // /api/content — o conteúdo que o re-sync baixa
         if (url.endsWith('/api/content')) {
@@ -146,12 +183,13 @@ describe('Cliente — startHeartbeat (sinal oculto de 1 min)', () => {
       }),
     );
 
-    const stop = startHeartbeat(1, onChange);
+    const stop = startHeartbeat(1, onChange, onMaintenance);
 
     // sinal imediato (1º batimento registra o ponteiro — sem re-sync)
     await vi.advanceTimersByTimeAsync(0);
     expect(beats).toBe(1);
     expect(onChange).not.toHaveBeenCalled();
+    expect(onMaintenance).not.toHaveBeenCalled(); // servidor sem manutenção
 
     // +1 min: ponteiro igual → sinal enviado, mas SEM re-sync
     await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS);
@@ -163,11 +201,27 @@ describe('Cliente — startHeartbeat (sinal oculto de 1 min)', () => {
     await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS);
     expect(beats).toBe(3);
     expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onMaintenance).not.toHaveBeenCalled();
+
+    // servidor sinaliza manutenção → +1 min: aviso ÚNICO na transição false → true.
+    // O sync também roda de novo (o conteúdo mudou junto) → onChange chega à 2ª chamada.
+    maintenance = true;
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS);
+    expect(beats).toBe(4);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onMaintenance).toHaveBeenCalledTimes(1);
+
+    // manutenção continua sinalizada → +1 min: NÃO repete o aviso nem o re-sync
+    await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS);
+    expect(beats).toBe(5);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onMaintenance).toHaveBeenCalledTimes(1);
 
     // parado → não envia mais
     stop();
     await vi.advanceTimersByTimeAsync(HEARTBEAT_INTERVAL_MS * 3);
-    expect(beats).toBe(3);
-    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(beats).toBe(5);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    expect(onMaintenance).toHaveBeenCalledTimes(1);
   });
 });

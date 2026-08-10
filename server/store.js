@@ -74,3 +74,29 @@ export async function kvGetJson(key) {
     return null;
   }
 }
+
+/**
+ * Lista as chaves com um prefixo (ex.: 'presence:').
+ * - Upstash: SCAN iterativo (MATCH `${prefix}*`);
+ * - memória: filtra as chaves do Map.
+ */
+export async function kvKeys(prefix) {
+  if (configured()) {
+    try {
+      const keys = [];
+      let cursor = '0';
+      do {
+        const cmd = ['SCAN', cursor, 'MATCH', `${prefix}*`, 'COUNT', '500'];
+        const result = await redisCommand(cmd);
+        if (!Array.isArray(result) || !Array.isArray(result[1])) break;
+        cursor = String(result[0] ?? '0');
+        keys.push(...result[1].map(String));
+      } while (cursor !== '0' && keys.length < 10000);
+      return keys;
+    } catch (err) {
+      console.error('[kv] SCAN falhou:', err);
+      return [];
+    }
+  }
+  return [...memory.keys()].filter((k) => k.startsWith(prefix));
+}

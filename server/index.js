@@ -31,7 +31,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Decimal } from 'decimal.js';
-import { kvGetJson, kvSet } from './store.js';
+import { kvGetJson, kvKeys, kvSet } from './store.js';
 
 // Carrega server/.env (independente do cwd). No Vercel as variáveis vêm do
 // painel — o dotenv simplesmente não encontra o arquivo e segue em frente.
@@ -430,6 +430,24 @@ export function createApp(env = process.env) {
       contentUpdatedAt: c.exportedAt ?? null,
       maintenance: Array.isArray(c.maintenance) && c.maintenance.length > 0,
     });
+  });
+
+  // ── jogadores online (presença do heartbeat — TTL de 3 min) ──
+  app.get('/api/online', async (req, res) => {
+    if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
+    if (rateLimited('online:read', 60)) return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    const cutoff = Date.now() - 180_000; // mesmo TTL da presença: só quem sinalizou nos últimos 3 min
+    const keys = await kvKeys('presence:');
+    const online = [];
+    for (const key of keys) {
+      const playerId = key.slice('presence:'.length);
+      if (!PLAYER_ID_RE.test(playerId)) continue;
+      const data = await kvGetJson(key);
+      if (!data || typeof data.at !== 'number' || data.at < cutoff) continue;
+      online.push({ playerId, gameVersion: typeof data.gameVersion === 'string' ? data.gameVersion : '', lastSeenAt: data.at });
+    }
+    online.sort((a, b) => b.lastSeenAt - a.lastSeenAt); // mais recente primeiro
+    return res.json({ ok: true, count: online.length, online });
   });
 
   /** App → polling do status de um pedido. */

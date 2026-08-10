@@ -107,7 +107,22 @@ export default function App() {
     }, 100);
     saveMgrRef.current!.startAutoSave(e, e.state.settings.autoSaveMinutes);
     // sinal oculto de 1 min — mantém presença no servidor e detecta conteúdo novo
-    heartbeatStopRef.current = startHeartbeat(e.state.createdAt, () => force());
+    heartbeatStopRef.current = startHeartbeat(
+      e.state.createdAt,
+      () => force(),
+      () => {
+        // manutenção JÁ ativa é coberta pela tela cheia — o aviso é só para a iminente
+        if (UpdateManager.maintenanceActive()) return;
+        const next = UpdateManager.nextMaintenance();
+        bus.emit('notify', {
+          kind: 'default',
+          title: '🔧 Manutenção programada',
+          desc: next
+            ? `${next.reason} — previsão: ${next.eta}. Salve seu progresso antes do horário.`
+            : 'O servidor sinalizou manutenção em breve — salve seu progresso.',
+        });
+      },
+    );
 
     setEngine(e);
     setScreen('home');
