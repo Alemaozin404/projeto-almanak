@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.2.6';
+export const GAME_VERSION = '1.2.7';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,18 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.2.7',
+    title: 'PATCH DE MANUTENÇÃO',
+    date: '2026-08-11',
+    description: 'Manutenção da infraestrutura: pipeline de publicação e CI estáveis para entregas mais rápidas e confiáveis de versões futuras.',
+    hotfix: true,
+    sections: [
+      { tag: 'ALTERADO', icon: '⚙', items: ['Pipeline de publicação do instalador estabilizado (permissões e modo de publicação do GitHub Releases)', 'Dependências do servidor sincronizadas no lockfile — CI e builds reproduzíveis'] },
+      { tag: 'CORRIGIDO', icon: '🐛', items: ['Publicação automática do instalador: o release agora é publicado de verdade (não fica em rascunho) — auto-update encontra a versão nova'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.2.6',
     title: '100% ONLINE POR PADRÃO',
