@@ -42,18 +42,49 @@ dotenv.config({ path: path.join(__serverDir, '.env') });
 const MP_API = 'https://api.mercadopago.com';
 
 // ── conteúdo online (server/content.json — gerado por npm run content:export) ──
-const CONTENT_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'content.json');
+// O Vercel empaqueta a função com esbuild e injeta server/content.json via
+// includeFiles (ver vercel.json → functions). Em produção o import.meta.url
+// aponta para o BUNDLE, não para o arquivo original — então tentamos vários
+// caminhos antes de desistir: dev normal, bundle com estrutura preservada,
+// bundle achatado e cwd relativo.
+const EMPTY_CONTENT = {
+  gameVersion: '0.0.0',
+  updates: [],
+  news: [],
+  banners: [],
+  events: [],
+  seasons: [],
+  codes: [],
+  maintenance: [],
+};
+
+function contentFileCandidates() {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return [
+    path.join(__serverDir, 'content.json'), // dev / execução normal (server/content.json)
+    path.join(here, 'server', 'content.json'), // bundle Vercel (includeFiles preserva server/)
+    path.join(here, 'content.json'), // bundle Vercel (includeFiles achatado na raiz da função)
+    path.join(process.cwd(), 'server', 'content.json'), // fallback por cwd
+  ];
+}
 
 let contentCache = null;
 
 function loadContent() {
   if (contentCache) return contentCache;
-  try {
-    contentCache = JSON.parse(fs.readFileSync(CONTENT_FILE, 'utf8'));
-  } catch {
-    // sem arquivo exportado (dev sem rodar o script): conteúdo vazio, jogo usa o local
-    contentCache = { gameVersion: '0.0.0', updates: [], news: [], banners: [], events: [], seasons: [], codes: [], maintenance: [] };
+  for (const file of contentFileCandidates()) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (parsed && typeof parsed === 'object') {
+        contentCache = parsed;
+        return contentCache;
+      }
+    } catch {
+      // tenta o próximo caminho
+    }
   }
+  // sem arquivo exportado (dev sem rodar o script): conteúdo vazio, jogo usa o local
+  contentCache = EMPTY_CONTENT;
   return contentCache;
 }
 

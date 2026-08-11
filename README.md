@@ -16,7 +16,7 @@ Jogo clicker/idle para Windows (Electron + React + Vite) com **servidor online**
 ```
 ┌──────────────┐   HTTPS   ┌─────────────────────────┐   HTTPS   ┌──────────────────┐
 │  App Windows │ ────────► │  Servidor (Vercel)      │ ────────► │  Mercado Pago    │
-│  Electron    │           │  server/api/index.js    │  POST     │  /v1/payments    │
+│  Electron    │           │  api/index.js (raiz)    │  POST     │  /v1/payments    │
 │              │ ◄──────── │  Express serverless     │ ◄──────── │  webhook (HMAC)  │
 │              │  QR/status│                         │           └──────────────────┘
 │              │           │  /api/content (JSON)    │
@@ -38,6 +38,7 @@ Jogo clicker/idle para Windows (Electron + React + Vite) com **servidor online**
 | `src/online/api.ts` / `cloudSave.ts` | Cliente da API online (ranking + save nuvem) |
 | `src/wallet/mp.ts` | Gateway Pix online (backend Mercado Pago) |
 | `server/` | Backend Express (pagos + conteúdo + save + ranking) |
+| `api/index.js` | Entrypoint serverless do Vercel — re-exporta o Express na raiz (deploy unificado) |
 | `scripts/export-content.mjs` | Gera `server/content.json` a partir de `src/content/*` |
 
 ---
@@ -57,13 +58,17 @@ git push -u origin main
 
 
 
-### 2. Servidor no Vercel
+### 2. Deploy unificado no Vercel (jogo + backend no MESMO domínio)
 
 1. Acesse [vercel.com/new](https://vercel.com/new) e **Importe o repositório** do GitHub.
-2. Em **Root Directory**, selecione `server` (o backend fica na subpasta).
-3. Framework: **Other**. O `server/vercel.json` roteia tudo para a função serverless.
-4. Vercel detecta e instala as dependências de `server/package.json` (express, cors, decimal.js).
-5. Copie a URL gerada (ex.: `https://nucleo-clicker-server.vercel.app`).
+2. **Root Directory**: raiz do repositório (padrão). Framework: **Vite**.
+3. O `vercel.json` da raiz faz tudo:
+   - `vite build` → pasta `dist` (o jogo no navegador);
+   - `api/index.js` → função serverless que re-exporta o Express de `server/index.js` (todos os `/api/*`);
+   - `rewrites`: `/api/*` → backend · `/*` → `index.html` (SPA);
+   - `includeFiles`: embute `server/content.json` no pacote da função.
+4. Vercel instala as dependências da raiz (inclui express, cors, dotenv — já em `package.json`).
+5. A URL gerada (ex.: `https://projeto-almanak-alemaozin404s-projects.vercel.app`) serve **jogo e backend juntos** — nada de subpasta `server`.
 
 ### 3. Variáveis de ambiente no Vercel (Project → Settings → Environment Variables)
 

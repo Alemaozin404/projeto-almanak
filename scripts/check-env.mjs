@@ -73,7 +73,7 @@ async function run() {
     fail('Vercel Authentication está ATIVA (302 → SSO). Desative em Settings → Deployment Protection.');
   }
   if (health.status === 404) {
-    fail(`404 em /api/health — o deploy não está servindo o backend. Confira o Root Directory (deve ser 'server') e se o deploy de produção é o mais recente.`);
+    fail(`404 em /api/health — o deploy não está servindo o backend. Confira se o projeto usa o DEPLOY UNIFICADO (vercel.json na raiz com rewrites /api/*) e se o deploy de produção é o mais recente.`);
   }
   if (health.status !== 200 || !health.body?.ok) {
     fail(`/api/health respondeu ${health.status} — ${JSON.stringify(health.body)}`);
