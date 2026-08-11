@@ -35,6 +35,15 @@ jobs:
 
       - run: npm run build
 
+      # O electron-builder cria releases DRAFT por padrão e, se já existir um
+      # draft para a tag, REUSA e mantém como draft — o auto-update não vê.
+      # Deletamos o release anterior da tag (mantendo a tag) para garantir um
+      # release PUBLICADO novo (releaseType: release no package.json).
+      - name: Remover release anterior da tag (draft quebrado)
+        run: gh release delete "${{ github.ref_name }}" --yes || echo 'sem release anterior — ok'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Empacotar e publicar (GitHub Releases)
         run: npx electron-builder --win nsis --publish always
         env:

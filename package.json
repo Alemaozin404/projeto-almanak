@@ -107,7 +107,8 @@
       {
         "provider": "github",
         "owner": "Alemaozin404",
-        "repo": "projeto-almanak"
+        "repo": "projeto-almanak",
+        "releaseType": "release"
       }
     ]
   }
