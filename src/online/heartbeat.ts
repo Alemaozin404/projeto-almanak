@@ -15,6 +15,7 @@
 import { GameConfig } from '../config/GameConfig';
 import { pixBackendUrl, pixOnlineEnabled } from '../wallet/mp';
 import { syncRemoteContent } from '../liveops/RemoteContent';
+import { setCloudStatus } from './status';
 
 /** Intervalo do sinal — 1 minuto. */
 export const HEARTBEAT_INTERVAL_MS = 60 * 1000;
@@ -32,10 +33,15 @@ let lastContentStamp: string | null = null;
 /** Último flag de manutenção sinalizado pelo servidor (evita aviso repetido a cada minuto). */
 let lastMaintenanceFlag: boolean | null = null;
 
+/** Falhas consecutivas do sinal — evita piscar o indicador em falhas transitórias. */
+let consecutiveFailures = 0;
+const OFFLINE_AFTER_FAILURES = 2;
+
 /** Zera o estado interno (usado em testes — isolamento entre execuções). */
 export function resetHeartbeatState(): void {
   lastContentStamp = null;
   lastMaintenanceFlag = null;
+  consecutiveFailures = 0;
 }
 
 /** Envia um único sinal ao servidor. Falha → null (silencioso). */
@@ -49,13 +55,24 @@ async function sendHeartbeat(playerId: number): Promise<HeartbeatDto | null> {
       },
       body: JSON.stringify({ playerId, gameVersion: GameConfig.version }),
     });
-    if (res.redirected) return null; // servidor protegido por login — ignora
-    if (!res.ok) return null;
+    if (res.redirected) return reportFailure(null); // servidor protegido por login — ignora
+    if (!res.ok) return reportFailure(null);
     const data = (await res.json()) as HeartbeatDto;
-    return data?.ok ? data : null;
+    if (!data?.ok) return reportFailure(null);
+    // sucesso: zera o contador e marca online
+    consecutiveFailures = 0;
+    setCloudStatus('online');
+    return data;
   } catch {
-    return null;
+    return reportFailure(null);
   }
+}
+
+/** Registra uma falha do sinal; só marca 'offline' após falhas consecutivas (evita oscilação). */
+function reportFailure<T>(fallback: T): T {
+  consecutiveFailures += 1;
+  if (consecutiveFailures >= OFFLINE_AFTER_FAILURES) setCloudStatus('offline');
+  return fallback;
 }
 
 /**
@@ -66,7 +83,10 @@ async function sendHeartbeat(playerId: number): Promise<HeartbeatDto | null> {
  *   manutenção (transição false → true) — o jogo avisa o jogador.
  */
 export function startHeartbeat(playerId: number, onChange?: () => void, onMaintenance?: () => void): () => void {
-  if (!pixOnlineEnabled()) return () => {};
+  if (!pixOnlineEnabled()) {
+    setCloudStatus('disabled');
+    return () => {};
+  }
   let stopped = false;
   let busy = false; // evita sobreposição: o sinal imediato e o do intervalo nunca correm juntos
 

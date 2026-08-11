@@ -80,6 +80,8 @@ export interface Settings {
   reducedMotion: boolean;
   autoSaveEnabled: boolean;
   autoSaveMinutes: number;
+  /** Sincronização automática com a nuvem (envio a cada save + restauração no boot). */
+  cloudSyncEnabled: boolean;
   showPopups: boolean;
   showNews: boolean;
   offlineCapHours: number;
@@ -155,6 +157,7 @@ export function defaultSettings(): Settings {
     reducedMotion: false,
     autoSaveEnabled: true,
     autoSaveMinutes: 1,
+    cloudSyncEnabled: true,
     showPopups: true,
     showNews: true,
     offlineCapHours: 12,

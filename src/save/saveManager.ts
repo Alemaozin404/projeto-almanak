@@ -216,11 +216,17 @@ export class SaveManager {
     return metas;
   }
 
-  startAutoSave(engine: GameEngine, minutes: number): void {
+  /**
+   * Liga o auto-save (a cada `minutes`). `onSave` é chamado após cada save
+   * local bem-sucedido — usado para empurrar o save para a nuvem na hora.
+   */
+  startAutoSave(engine: GameEngine, minutes: number, onSave?: (engine: GameEngine) => void): void {
     this.stopAutoSave();
     const ms = Math.max(0.25, minutes) * 60 * 1000;
     this.timer = setInterval(() => {
-      void this.save(engine);
+      void this.save(engine).then((ok) => {
+        if (ok) onSave?.(engine);
+      });
     }, ms);
   }
 

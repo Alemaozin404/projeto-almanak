@@ -13,6 +13,7 @@
  * local embutido — nada muda para quem joga offline.
  */
 import { pixBackendUrl, pixOnlineEnabled } from '../wallet/mp';
+import { setCloudStatus } from '../online/status';
 import { hydrateNews, type NewsItem } from '../content/news';
 import { hydrateUpdates, type PatchNote } from '../content/updates';
 import { hydrateBanners, type BannerDef } from '../content/banners';
@@ -119,14 +120,22 @@ export function applyCachedContent(): boolean {
  *  - 'offline' → nenhum backend configurado (jogo 100% local).
  */
 export async function syncRemoteContent(): Promise<SyncResult> {
-  if (!pixOnlineEnabled()) return 'offline';
+  if (!pixOnlineEnabled()) {
+    setCloudStatus('disabled');
+    return 'offline';
+  }
   try {
     const dto = await fetchRemoteContent();
-    if (!dto) return applyCachedContent() ? 'cached' : 'offline';
+    if (!dto) {
+      setCloudStatus('offline');
+      return applyCachedContent() ? 'cached' : 'offline';
+    }
     applyRemoteContent(dto);
     writeCache(dto);
+    setCloudStatus('online');
     return 'online';
   } catch {
+    setCloudStatus('offline');
     return applyCachedContent() ? 'cached' : 'offline';
   }
 }

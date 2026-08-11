@@ -4,8 +4,9 @@ import { Panel } from '../kit';
 import { SaveManager, SAVE_SLOTS, type SaveSlot } from '../../save/saveManager';
 import type { RunRecord } from '../../game/types';
 import { D, type Num } from '../../core/bignum';
-import { onlineEnabled, fetchGlobalRank, submitGlobalRank, type RankEntry } from '../../online/api';
+import { onlineEnabled, fetchGlobalRank, type RankEntry } from '../../online/api';
 import { cloudPlayerId } from '../../online/cloudSave';
+import { publishBestRuns } from '../../online/autoRank';
 
 const RANK_KINDS = ['prestige', 'ascension', 'transcendence'] as const;
 type RankKind = (typeof RANK_KINDS)[number];
@@ -93,28 +94,22 @@ export function Ranking({ saveMgr }: { saveMgr: SaveManager }) {
       setRankMsg('Carregue o save atual para publicar seus recordes.');
       return;
     }
-    const playerId = cloudPlayerId(s);
-    if (!playerId) {
+    if (!cloudPlayerId(s)) {
       setRankMsg('Save sem identificador válido.');
       return;
     }
     setRankMsg('Publicando…');
-    const published: string[] = [];
-    for (const kind of RANK_KINDS) {
-      const bestRun = own.runs
-        .filter((r) => r.kind === kind)
-        .sort((a, b) => D(b.gain).cmp(D(a.gain)))[0];
-      if (!bestRun) continue;
-      const r = await submitGlobalRank({
-        playerId: String(playerId),
-        name: own.name || 'Jogador',
-        kind,
-        gain: bestRun.gain.toString(),
-        count: bestRun.count,
-      });
-      published.push(r.ok ? `${KIND_META[kind].label} #${bestRun.count}` : `${KIND_META[kind].label} (${r.reason ?? 'erro'})`);
+    // helper compartilhado com a publicação automática (online por padrão)
+    const results = await publishBestRuns(s);
+    const ok = results.filter((r) => r.ok);
+    const fail = results.filter((r) => !r.ok);
+    if (ok.length > 0) {
+      setRankMsg(`Publicado: ${ok.map((r) => KIND_META[r.kind].label).join(' · ')}${fail.length > 0 ? ` · ${fail.map((r) => `${KIND_META[r.kind].label} (${r.reason ?? 'erro'})`).join(' · ')}` : ''}`);
+    } else if (fail.length > 0) {
+      setRankMsg(`Falha: ${fail.map((r) => `${KIND_META[r.kind].label} (${r.reason ?? 'erro'})`).join(' · ')}`);
+    } else {
+      setRankMsg('Nenhum ciclo para publicar ainda.');
     }
-    setRankMsg(published.length > 0 ? `Publicado: ${published.join(' · ')}` : 'Nenhum ciclo para publicar ainda.');
     void loadGlobal();
   }
 

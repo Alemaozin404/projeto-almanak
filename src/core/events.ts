@@ -10,6 +10,7 @@ export type GameEventMap = {
   levelUp: { level: number };
   prestige: { fragments: string };
   ascension: { coins: string };
+  transcendence: { essence: string };
   boxOpened: { boxId: string; results: { label: string; rarity: string }[] };
   questDone: { id: string; name: string };
   save: { slot: string };

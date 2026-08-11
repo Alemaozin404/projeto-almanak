@@ -35,6 +35,8 @@ import { UpdateManager } from './liveops/UpdateManager';
 import { latestUpdate, updateByVersion } from './content/updates';
 import { syncRemoteContent, SYNC_INTERVAL_MS } from './liveops/RemoteContent';
 import { startHeartbeat } from './online/heartbeat';
+import { autoPushSave, autoSyncOnLoad } from './online/autoCloud';
+import { autoPublishBestRuns } from './online/autoRank';
 import { audio } from './audio/audio';
 import { applyTheme } from './ui/theme';
 import { bus } from './core/events';
@@ -95,6 +97,10 @@ export default function App() {
       bus.on('boxOpened', () => audio.box()),
       bus.on('prestige', () => audio.prestige()),
       bus.on('questDone', () => audio.quest()),
+      // ranking global: publica os melhores ciclos automaticamente (online por padrão)
+      bus.on('prestige', () => void autoPublishBestRuns(e.state)),
+      bus.on('ascension', () => void autoPublishBestRuns(e.state)),
+      bus.on('transcendence', () => void autoPublishBestRuns(e.state)),
     ];
     let last = performance.now();
     const iv = window.setInterval(() => {
@@ -105,7 +111,10 @@ export default function App() {
       if (document.visibilityState === 'hidden' && e.state.settings?.gameplay?.pauseIdle) return;
       e.tick(dt);
     }, 100);
-    saveMgrRef.current!.startAutoSave(e, e.state.settings.autoSaveMinutes);
+    // auto-save local + push do save para a nuvem a cada save (online por padrão)
+    saveMgrRef.current!.startAutoSave(e, e.state.settings.autoSaveMinutes, (eng) => {
+      void autoPushSave(eng, saveMgrRef.current!);
+    });
     // sinal oculto de 1 min — mantém presença no servidor e detecta conteúdo novo
     heartbeatStopRef.current = startHeartbeat(
       e.state.createdAt,
@@ -154,7 +163,11 @@ export default function App() {
 
   const detach = useCallback(() => {
     const e = engineRef.current;
-    if (e) void saveMgrRef.current!.save(e);
+    if (e) {
+      void saveMgrRef.current!.save(e).then((ok) => {
+        if (ok) void autoPushSave(e, saveMgrRef.current!, true);
+      });
+    }
     cleanupRef.current?.();
     cleanupRef.current = null;
     engineRef.current = null;
@@ -186,7 +199,11 @@ export default function App() {
   useEffect(() => {
     const save = () => {
       const e = engineRef.current;
-      if (e) void saveMgrRef.current!.save(e);
+      if (e) {
+        void saveMgrRef.current!.save(e).then((ok) => {
+          if (ok) void autoPushSave(e, saveMgrRef.current!);
+        });
+      }
     };
     const onHide = () => {
       if (document.visibilityState === 'hidden') save();
@@ -223,6 +240,26 @@ export default function App() {
       });
     });
   }, []);
+
+  // ── sincronização automática com a nuvem no boot (online por padrão) ──
+  // Restaura o save da nuvem quando ela está mais recente; senão, sobe o local.
+  useEffect(() => {
+    const e = engineRef.current;
+    if (!e) return;
+    let alive = true;
+    void autoSyncOnLoad(saveMgrRef.current!, e).then((r) => {
+      if (!alive) return;
+      if (r === 'restored') {
+        bus.emit('notify', {
+          kind: 'default',
+          title: '☁️ Save restaurado da nuvem',
+          desc: 'Uma versão mais recente do seu save foi encontrada no servidor e carregada.',
+        });
+        onContinue(saveMgrRef.current!.getSlot());
+      }
+    });
+    return () => { alive = false; };
+  }, [engine, onContinue]);
 
   // ── formatação ───────────────────────────────────────────
   const fmt = useCallback((v: Num, digits?: number) => {
@@ -349,7 +386,7 @@ export default function App() {
 
         <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu" width={380}>
           <div className="menu-inline">
-            <button className="btn" onClick={() => { void saveMgrRef.current!.save(engine).then((ok) => flashMenu(ok ? '✅ Save salvo!' : '❌ Falha ao salvar')); }}>💾 Salvar agora</button>
+            <button className="btn" onClick={() => { void saveMgrRef.current!.save(engine).then((ok) => { flashMenu(ok ? '✅ Save salvo!' : '❌ Falha ao salvar'); if (ok) void autoPushSave(engine, saveMgrRef.current!); }); }}>💾 Salvar agora</button>
             <button className="btn" onClick={() => { void saveMgrRef.current!.exportToFile(engine).then((r) => flashMenu(r.ok ? '✅ Save exportado!' : r.reason ?? '❌ Falha')); }}>📤 Exportar save</button>
             <button className="btn" onClick={() => { void saveMgrRef.current!.createBackup(engine).then((b) => flashMenu(b ? `✅ Backup: ${b}` : '❌ Falha')); }}>🛡️ Criar backup</button>
             <button className="btn" onClick={() => { void saveMgrRef.current!.openDataDir(); }}>📁 Pasta de dados</button>

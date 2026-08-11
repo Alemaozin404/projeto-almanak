@@ -1136,6 +1136,7 @@ export class GameEngine {
     this.notify('transcendence');
     this.recordRun('transcendence', ess, s.transcendence.count);
     appendLog(s, 'transcendence', `Transcendência #${s.transcendence.count}: +${ess.toString()} essência`);
+    bus.emit('transcendence', { essence: ess.toString() });
     bus.emit('notify', { kind: 'transcendence', title: 'TRANSCENDÊNCIA!', desc: `+${ess.toString()} essência — bônus permanente multiplicado` });
     return { essence: ess.toString() };
   }

@@ -1,14 +1,25 @@
+import { useSyncExternalStore } from 'react';
 import { RESOURCE_LIST, type ResourceId } from '../economy/resources';
 import { NumText, Tooltip } from './kit';
 import { useGame } from './context';
 import { xpForLevel } from '../economy/formulas';
 import { D } from '../core/bignum';
+import { getCloudStatus, subscribeCloudStatus } from '../online/status';
+
+const CLOUD_LABEL: Record<string, { icon: string; text: string }> = {
+  online: { icon: '🟢', text: 'Online — sincronizado com o servidor' },
+  offline: { icon: '🔴', text: 'Offline — sem conexão com o servidor' },
+  disabled: { icon: '⚪', text: 'Modo local — backend não configurado' },
+  unknown: { icon: '🟡', text: 'Verificando conexão…' },
+};
 
 export function TopBar({ onMenu, worldName }: { onMenu: () => void; worldName: string }) {
   const { engine } = useGame();
   const s = engine.state;
   const need = xpForLevel(s.level);
   const xpPct = Math.min(100, (D(s.xp).div(need).toNumber()) * 100);
+  const cloud = useSyncExternalStore(subscribeCloudStatus, getCloudStatus);
+  const cloudMeta = CLOUD_LABEL[cloud] ?? CLOUD_LABEL.unknown;
 
   return (
     <header className="topbar">
@@ -34,6 +45,10 @@ export function TopBar({ onMenu, worldName }: { onMenu: () => void; worldName: s
         ))}
       </div>
 
+      <span className={`cloud-status cloud-${cloud}`} title={cloudMeta.text}>
+        <span className="cloud-dot" />
+        <span className="cloud-text">{cloudMeta.text}</span>
+      </span>
       <button className="icon-btn menu-btn" onClick={onMenu} title="Menu">☰</button>
     </header>
   );

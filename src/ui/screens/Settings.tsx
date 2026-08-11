@@ -295,7 +295,7 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
                   {STATUS_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.icon} {p.label}</option>)}
                 </select>
               </label>
-              <p className="muted small">O status é apenas local neste jogo offline — nada é enviado a servidores.</p>
+              <p className="muted small">O status do perfil respeita o escopo de privacidade escolhido — nada além do save (quando a sincronização automática está ativa) sai do seu computador.</p>
             </div>
           </div>
         )}
@@ -313,7 +313,7 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
                 </label>
               ))}
               <button className="btn" onClick={() => block('privacy', defaultPrivacyPrefs())}>↺ Restaurar padrões</button>
-              <p className="muted small">Jogo 100% offline: nenhum dado sai do seu computador. A estrutura de escopos prepara futura integração online.</p>
+              <p className="muted small">Os escopos controlam o que aparece publicamente no perfil e no ranking. O save em si é sincronizado com a nuvem apenas para recuperação entre computadores — nunca é exibido a outros jogadores.</p>
             </div>
             <div className="settings-col">
               <h4>🎁 Conteúdo</h4>
@@ -328,9 +328,14 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
             <div className="settings-col">
               <h4>☁️ Save na nuvem</h4>
               <p className="muted small">
-                Envie seu progresso para o servidor (Vercel + Upstash) e recupere em outro computador.
-                O save é identificado pelo código abaixo e validado como um save normal ao baixar.
+                Online por padrão: o save é enviado ao servidor automaticamente a cada auto-save e ao
+                sair do jogo, e a versão mais recente é restaurada ao abrir. Recupere seu progresso em
+                outro computador com o mesmo identificador.
               </p>
+              <label className="setting-row">
+                <span>Sincronização automática</span>
+                <input type="checkbox" checked={s.settings.cloudSyncEnabled} onChange={(e) => set({ cloudSyncEnabled: e.target.checked })} />
+              </label>
               <label className="setting-row">
                 <span>Identificador do save</span>
                 <code className="settings-text-input" style={{ fontSize: 12, padding: '6px 8px', userSelect: 'all' }}>{playerId || '—'}</code>
@@ -373,6 +378,7 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
                 </p>
               )}
               {!online && <p className="muted small settings-err">⚪ Backend não configurado — configure a URL do servidor para usar a nuvem.</p>}
+              {!s.settings.cloudSyncEnabled && <p className="muted small settings-err">🔴 Sincronização automática desativada — o save fica apenas neste computador (os botões abaixo continuam manuais).</p>}
               {cloudMsg && <p className={`muted small ${cloudMsg.startsWith('✅') ? 'settings-ok' : 'settings-err'}`}>{cloudMsg}</p>}
               <div className="cloud-status muted small">
                 <span>🖥️ Servidor: <code>{serverUrl() || '—'}</code></span>

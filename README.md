@@ -4,8 +4,9 @@ Jogo clicker/idle para Windows (Electron + React + Vite) com **servidor online**
 
 - 🌐 **Conteúdo ao vivo** — notícias, eventos, banners, códigos, changelog e janelas de manutenção vêm do servidor (Vercel). Publique conteúdo sem redistribuir o jogo.
 - 💳 **Pagamentos Pix reais** — integração com o **Mercado Pago** (cobrança com QR Code, webhook validado por HMAC, fichas entregues após aprovação).
-- ☁️ **Save na nuvem** — sincronize seu progresso entre computadores (Upstash Redis).
-- 🏆 **Ranking global** — publique seus melhores ciclos de Prestígio/Ascensão/Transcendência.
+- ☁️ **Save na nuvem** — **online por padrão**: o save é enviado ao servidor automaticamente a cada auto-save e ao sair, e a versão mais recente é restaurada ao abrir o jogo (Upstash Redis). Desative em Configurações → Dados → Sincronização automática.
+- 🏆 **Ranking global** — seus melhores ciclos de Prestígio/Ascensão/Transcendência são publicados **automaticamente** (sem botão manual); a tela de Ranking também tem publicação manual.
+- 🟢 **Indicador de conexão** — o TopBar mostra online/offline em tempo real (heartbeat a cada 1 min).
 - 🔄 **Auto-update** — quando você publica uma tag `v*`, o app se atualiza sozinho via GitHub Releases.
 
 ---
@@ -26,7 +27,7 @@ Jogo clicker/idle para Windows (Electron + React + Vite) com **servidor online**
 ```
 
 - **O access token do Mercado Pago vive SÓ no servidor** — nunca no app (Electron é descompilável).
-- O app fala apenas com o nosso servidor; sem servidor configurado, o jogo roda 100% offline (conteúdo local + pagamentos simulados).
+- O app fala apenas com o nosso servidor; sem servidor configurado, o jogo roda 100% offline (conteúdo local + pagamentos simulados), mas com o backend configurado (padrão de produção) tudo sincroniza automaticamente.
 
 ## 📁 Estrutura relevante
 
