@@ -4,9 +4,14 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * *' # diariamente 08:00 UTC — verifica o backend mesmo sem push
 
 jobs:
   ci:
+    # a checagem agendada só monitora o backend; não precisa rodar testes de novo
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,3 +40,22 @@ jobs:
 
       - run: git diff --exit-code server/content.json
         name: Conteúdo exportado em dia (sem diffs pendentes)
+
+  # Monitora o backend de PRODUÇÃO: a cada push, manualmente ou diariamente.
+  # Se qualquer variável de ambiente (MP token, Upstash, APP_SHARED_SECRET) ou
+  # rota (health/heartbeat/save/online) regredir, o CI fica vermelho.
+  check-env:
+    if: github.event_name != 'pull_request' # PRs não deployam — não testam produção
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # URL padrão = GameConfig.wallet.backendUrl; sobrescreva com a variável
+      # CHECK_ENV_URL (Settings → Variables) se o deploy estiver em outro domínio.
+      - run: node scripts/check-env.mjs ${{ vars.CHECK_ENV_URL }}
+        name: Verifica backend de produção (health/heartbeat/Upstash)

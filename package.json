@@ -25,6 +25,7 @@
     "server:dev": "npm --prefix server run dev",
     "dist:signed": "npm run check:signing && npm run build && electron-builder --win nsis",
     "check:signing": "node scripts/check-signing.mjs",
+    "check:env": "node scripts/check-env.mjs",
     "dist:dir": "npm run build && electron-builder --win dir x64",
     "dist:release": "npm run build && electron-builder --win nsis --publish always"
   },

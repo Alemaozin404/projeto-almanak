@@ -1,6 +1,57 @@
 {
-  "gameVersion": "1.2.4",
+  "gameVersion": "1.2.5",
   "updates": [
+    {
+      "version": "1.2.5",
+      "title": "ONLINE AO VIVO — HEARTBEAT + LOJA PIX DO ADMIN",
+      "date": "2026-08-11",
+      "description": "O jogo agora mantém presença online com um sinal oculto a cada 1 minuto (heartbeat), recebe conteúdo novo na hora, avisa sobre manutenção iminente e o Admin ganhou venda de diamantes/moedas com Pix real.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "💓",
+          "items": [
+            "Heartbeat oculto: sinal ao servidor a cada 1 min — presença online e conteúdo novo re-sincronizado NA HORA",
+            "Aviso de manutenção iminente (o servidor sinaliza antes do bloqueio)",
+            "Entrega autoritativa no servidor: o que você recebe no Pix é decidido AQUI (o save não manda)"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "Admin → Vendas: pacotes de diamantes/moedas com Pix real (teste embutido: R$ 0,01 por 1💎)",
+            "Aba Jogadores Online no Admin (presença do heartbeat)",
+            "Backend Vercel como padrão + banners de status (sem conexão / servidor protegido / MP sem token)"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Recibos do Passe Premium assinados com a chave Ed25519 de PRODUÇÃO do servidor",
+            "Content.json com timestamps UTC — determinístico no CI"
+          ]
+        },
+        {
+          "tag": "CORRIGIDO",
+          "icon": "🐛",
+          "items": [
+            "payer.email com TLD válido e notification_url só com BASE_URL público (o MP recusava localhost)",
+            "CI instala dependências do servidor antes dos testes"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
     {
       "version": "1.2.4",
       "title": "PIX ONLINE COM MERCADO PAGO",

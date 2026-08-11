@@ -33,6 +33,7 @@ export default tseslint.config(
         webkitAudioContext: 'readonly',
         Buffer: 'readonly',
         process: 'readonly',
+        fetch: 'readonly',
         __dirname: 'readonly',
         require: 'readonly',
       },
