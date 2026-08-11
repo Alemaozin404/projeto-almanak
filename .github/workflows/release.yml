@@ -39,8 +39,13 @@ jobs:
       # draft para a tag, REUSA e mantém como draft — o auto-update não vê.
       # Deletamos o release anterior da tag (mantendo a tag) para garantir um
       # release PUBLICADO novo (releaseType: release no package.json).
+      # shell: bash explícito — o padrão no Windows é o PowerShell, onde o
+      # operador `||` não captura exit code de comando externo (o fallback
+      # "sem release anterior" nunca rodava e o passo falhava na 1ª release
+      # da tag, quando não há o que deletar).
       - name: Remover release anterior da tag (draft quebrado)
-        run: gh release delete "${{ github.ref_name }}" --yes || echo 'sem release anterior — ok'
+        shell: bash
+        run: gh release delete "${{ github.ref_name }}" --repo "${{ github.repository }}" --yes 2>/dev/null || echo 'sem release anterior — ok'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
