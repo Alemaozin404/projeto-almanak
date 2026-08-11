@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.2.5';
+export const GAME_VERSION = '1.2.6';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,18 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.2.6',
+    title: '100% ONLINE POR PADRÃO',
+    date: '2026-08-11',
+    description: 'O jogo agora é online por padrão: o save sobe para a nuvem automaticamente, o ranking publica seus recordes sozinho e um indicador mostra a conexão em tempo real. Deploy unificado: jogo e backend no mesmo domínio.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '☁️', items: ['Save na nuvem AUTOMÁTICO: a cada auto-save o progresso vai para o servidor silenciosamente (sem botões manuais)', 'Restauração automática no boot: se a nuvem estiver mais nova, restaura com backup local antes de sobrescrever', 'Ranking global automático: Prestígio/Ascensão/Transcendência publicam o melhor ciclo de cada tipo sozinhos'] },
+      { tag: 'NOVO', icon: '✨', items: ['Indicador de conexão na barra superior — 🟢 online / 🔴 offline / ⚪ modo local', 'Configuração "Sincronização automática" em Configurações → Dados (ligada por padrão, pode desligar)', 'Deploy unificado no Vercel: jogo e backend servidos no MESMO domínio'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Tela de Ranking usa o mesmo motor de publicação automática dos recordes', 'Textos do jogo corrigidos — não é mais "100% offline"'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.2.5',
     title: 'ONLINE AO VIVO — HEARTBEAT + LOJA PIX DO ADMIN',
