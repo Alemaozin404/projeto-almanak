@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.2.7';
+export const GAME_VERSION = '1.2.8';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,17 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.2.8',
+    title: 'PIX DE PRODUÇÃO ATIVO',
+    date: '2026-08-11',
+    description: 'As compras com Pix agora usam as credenciais de PRODUÇÃO do Mercado Pago: o jogador paga com o QR Code real e as fichas/moedas/diamantes são entregues automaticamente quando o pagamento é aprovado.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '💳', items: ['Pagamentos Pix REAIS habilitados: Carteira, Loja de Moedas e Passe Premium cobram de verdade no Mercado Pago', 'QR Code e copia-e-cola válidos — o jogador paga pelo app do banco e a entrega é automática após a aprovação'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Backend de produção no ar: token APP_USR ativo (antes era modo teste)', 'CI 100% verde: token configurado e verificado de ponta a ponta'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.2.7',
     title: 'PATCH DE MANUTENÇÃO',
