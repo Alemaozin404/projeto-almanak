@@ -2230,7 +2230,7 @@
           "name": "Título: Elite VIP",
           "icon": "👑",
           "desc": "Título exclusivo VIP.",
-          "cost": "200",
+          "cost": "150",
           "type": "title",
           "value": "vip_elite"
         },
@@ -2239,7 +2239,7 @@
           "name": "Champagne",
           "icon": "🥂",
           "desc": "Dobra o clique por 10 minutos.",
-          "cost": "150",
+          "cost": "60",
           "type": "buff",
           "value": "click_x2",
           "durationMs": 600000,
@@ -2250,7 +2250,7 @@
           "name": "Camarote",
           "icon": "🎭",
           "desc": "Dobra a produção por 15 minutos.",
-          "cost": "250",
+          "cost": "90",
           "type": "buff",
           "value": "prod_x2",
           "durationMs": 900000,
@@ -2261,7 +2261,7 @@
           "name": "Caixa VIP",
           "icon": "🎁",
           "desc": "1 Caixa do Evento.",
-          "cost": "300",
+          "cost": "100",
           "type": "box",
           "value": "event"
         },
@@ -2270,7 +2270,7 @@
           "name": "Selo VIP",
           "icon": "🪙",
           "desc": "+15% ouro permanente.",
-          "cost": "900",
+          "cost": "500",
           "type": "permanent",
           "value": "vip_perma"
         },
@@ -2280,7 +2280,7 @@
           "icon": "💎",
           "desc": "Título de elite comprado direto com diamantes.",
           "cost": "999999",
-          "diamondCost": "250",
+          "diamondCost": "1200",
           "type": "title",
           "value": "vip_magnata"
         }

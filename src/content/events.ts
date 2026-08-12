@@ -304,13 +304,15 @@ export let EVENTS: EventDef[] = [
     skins: [],
     tags: ['premium', 'vip', 'sempre'],
     shop: [
-      { id: 'vip_title', name: 'Título: Elite VIP', icon: '👑', desc: 'Título exclusivo VIP.', cost: '200', type: 'title', value: 'vip_elite' },
-      buff('Champagne', '🥂', 'Dobra o clique por 10 minutos.', '150', 'click_x2', 2, 600000),
-      buff('Camarote', '🎭', 'Dobra a produção por 15 minutos.', '250', 'prod_x2', 2, 900000),
-      { id: 'vip_chest', name: 'Caixa VIP', icon: '🎁', desc: '1 Caixa do Evento.', cost: '300', type: 'box', value: 'event' },
-      { id: 'vip_perma', name: 'Selo VIP', icon: '🪙', desc: '+15% ouro permanente.', cost: '900', type: 'permanent', value: 'vip_perma' },
-      // compra direta com DIAMANTES 💎 — sem gastar fichas
-      { id: 'vip_magnata', name: 'Título: Magnata', icon: '💎', desc: 'Título de elite comprado direto com diamantes.', cost: '999999', diamondCost: '250', type: 'title', value: 'vip_magnata' },
+      // preços em FICHAS 🎰 (1 ficha ≈ R$ 0,0625): buffs baratos, títulos médios,
+      // permanente caro — e o item de diamante equivale ao tier do Elite VIP
+      { id: 'vip_title', name: 'Título: Elite VIP', icon: '👑', desc: 'Título exclusivo VIP.', cost: '150', type: 'title', value: 'vip_elite' },
+      buff('Champagne', '🥂', 'Dobra o clique por 10 minutos.', '60', 'click_x2', 2, 600000),
+      buff('Camarote', '🎭', 'Dobra a produção por 15 minutos.', '90', 'prod_x2', 2, 900000),
+      { id: 'vip_chest', name: 'Caixa VIP', icon: '🎁', desc: '1 Caixa do Evento.', cost: '100', type: 'box', value: 'event' },
+      { id: 'vip_perma', name: 'Selo VIP', icon: '🪙', desc: '+15% ouro permanente.', cost: '500', type: 'permanent', value: 'vip_perma' },
+      // compra direta com DIAMANTES 💎 — mesmo tier do Elite VIP (150 fichas ≈ R$ 9,38 ≈ 1.200💎)
+      { id: 'vip_magnata', name: 'Título: Magnata', icon: '💎', desc: 'Título de elite comprado direto com diamantes.', cost: '999999', diamondCost: '1200', type: 'title', value: 'vip_magnata' },
     ],
     pass: defaultPass('vip', 'fx_snow'),
     dailyRewards: [
