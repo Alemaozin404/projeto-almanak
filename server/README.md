@@ -33,6 +33,8 @@ App (jogador)          Servidor (Vercel)         Mercado Pago / Upstash
 | `MERCADO_PAGO_WEBHOOK_SECRET` | Painel MP → Suas integrações → Webhooks |
 | `APP_SHARED_SECRET` | Deve bater com `GameConfig.wallet.appSharedSecret` do jogo |
 | `RECEIPT_PRIVATE_KEY` | Seed Ed25519 (64 hex) dos recibos do Passe — gere com `npm run gen:receipt-keys`; a pública vai no app (`GameConfig.pass.receiptPublicKey`) |
+| `GMAIL_USER` | Conta Gmail REMETENTE dos e-mails do sistema de contas (confirmação, agradecimento e recuperação) |
+| `GMAIL_APP_PASSWORD` | Senha de app do Gmail (conta Google → Segurança → 2 etapas → Senhas de app). Sem estas duas variáveis, os e-mails vão para o console em modo dev (`devCode` na resposta) |
 | `BASE_URL` | URL pública (ex.: `https://nucleo-clicker-server.vercel.app`) |
 | `UPSTASH_REDIS_REST_URL` | console.upstash.com → Database → REST API (opcional: nuvem/ranking) |
 | `UPSTASH_REDIS_REST_TOKEN` | idem |
@@ -93,11 +95,34 @@ Depois commite o `server/content.json` e faça push — o Vercel redeploya e o j
 | GET | `/api/save/:playerId` | Baixa o save da nuvem (exige `x-app-secret`) |
 | POST | `/api/rank` | Publica um ciclo no ranking (exige `x-app-secret`) |
 | GET | `/api/rank?kind=prestige` | Top 100 do ranking (público) |
+| POST | `/api/account/register` | Cria conta (usuário + e-mail Gmail + senha) → envia código de confirmação |
+| POST | `/api/account/verify` | Valida o código de confirmação → marca verificada → envia e-mail de agradecimento |
+| POST | `/api/account/resend` | Reenvia o código de confirmação |
+| POST | `/api/account/login` | Login → `{ token, username, email, verified, hasSave }` (sessão de 30 dias) |
+| POST | `/api/account/logout` | Encerra a sessão |
+| POST | `/api/account/change-password` | Troca a senha estando logado (exige `x-account-token` + senha atual; derruba as outras sessões) |
+| POST | `/api/account/recover` | Envia código de recuperação de senha (15 min) |
+| POST | `/api/account/reset` | Redefine a senha com o código de recuperação |
+| GET | `/api/account/me` | Dados da sessão atual (exige header `x-account-token`) |
+| GET | `/api/account/save` | Baixa o save da conta (exige `x-account-token`) |
+| PUT | `/api/account/save` | Guarda o save da conta — o app envia automaticamente a cada 1 h (exige `x-account-token`) |
+| POST | `/api/account/link-slot` | Re-vincula o save da conta a outro slot (`slot1|slot2|slot3`) sem reenviar (exige `x-account-token`) |
 
 > **Pacotes de diamantes/moedas** (Admin → Vendas): o jogo publica pacotes em `/api/packs`
 > e cobra por `packId` em `/api/pix/charge` — o preço em R$ é sempre revalidado aqui
 > (entre R$ 0,01 e R$ 1.000) e o cliente nunca envia valor. O pacote embutido
 > `pix_test_1d` (R$ 0,01 → 1💎) permite o teste de ponta a ponta do Admin.
+
+## Sistema de contas
+
+O jogo tem conta por **nome de usuário + e-mail Gmail + senha**. O servidor:
+
+- Armazena a senha apenas como **scrypt + sal** (Node nativo, comparação timing-safe).
+- Envia **3 tipos de e-mail** pela conta Gmail configurada: **código de confirmação** (registro), **agradecimento** (pós-confirmação) e **código de recuperação** (senha esquecida).
+- Mantém **sessões por token** (32 bytes hex, TTL 30 dias) — o app envia o token no header `x-account-token`.
+- Guarda o **save da conta** em `account:save:<usuário>`; o jogo o envia **automaticamente a cada 1 hora** quando conectado (botões manuais na tela Conta).
+
+> Sem `GMAIL_USER`/`GMAIL_APP_PASSWORD` o servidor roda em **modo dev**: os e-mails vão para o console e as respostas incluem `devCode` para completar o fluxo.
 
 ## Segurança
 

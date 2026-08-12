@@ -5,7 +5,7 @@ import { GameContext } from './ui/context';
 import { Sidebar, type Screen } from './ui/sidebar';
 import { TopBar } from './ui/topbar';
 import { Toasts } from './ui/toasts';
-import { Modal } from './ui/kit';
+import { Modal, ConfirmModal } from './ui/kit';
 import { MainMenu } from './ui/MainMenu';
 import { Home } from './ui/screens/Home';
 import { Upgrades } from './ui/screens/Upgrades';
@@ -28,6 +28,7 @@ import { Updates } from './ui/screens/Updates';
 import { SeasonHub } from './ui/screens/SeasonHub';
 import { Pass } from './ui/screens/Pass';
 import { Admin } from './ui/screens/Admin';
+import { Account } from './ui/screens/Account';
 import { Settings } from './ui/screens/Settings';
 import { Debug } from './ui/screens/Debug';
 import { equippedSkin } from './content/skins';
@@ -36,6 +37,8 @@ import { latestUpdate, updateByVersion } from './content/updates';
 import { syncRemoteContent, SYNC_INTERVAL_MS } from './liveops/RemoteContent';
 import { startHeartbeat } from './online/heartbeat';
 import { autoPushSave, autoSyncOnLoad } from './online/autoCloud';
+import { getSession, pullAccountSave } from './online/account';
+import { startAccountAutoSave, stopAccountAutoSave, checkAccountRestore, applyAccountRestore, pushAccountSaveNow, type AccountRestoreInfo } from './online/accountSync';
 import { autoPublishBestRuns } from './online/autoRank';
 import { audio } from './audio/audio';
 import { applyTheme } from './ui/theme';
@@ -43,6 +46,12 @@ import { bus } from './core/events';
 import { formatNumber, formatFull, formatDuration } from './core/notation';
 import type { Num } from './core/bignum';
 import type { CSSProperties } from 'react';
+
+/** Data curta pt-BR para os modais (0 = nunca). */
+function formatWhen(ts: number): string {
+  if (!ts) return 'nunca';
+  return new Date(ts).toLocaleString('pt-BR');
+}
 
 /** Cursor custom gerado de um emoji (SVG data-uri) — offline, sem assets. */
 function cursorDataUri(emoji: string): string {
@@ -58,6 +67,9 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuMsg, setMenuMsg] = useState('');
   const [showUpdatePopup, setShowUpdatePopup] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  // restauração automática do save da conta no boot aguardando confirmação
+  const [pendingAccountRestore, setPendingAccountRestore] = useState<AccountRestoreInfo | null>(null);
 
   // ── conteúdo online (LiveOps): sincroniza no boot e revalida periodicamente ──
   // Notícias, eventos, banners, códigos, changelog e manutenção vêm do servidor
@@ -115,6 +127,8 @@ export default function App() {
     saveMgrRef.current!.startAutoSave(e, e.state.settings.autoSaveMinutes, (eng) => {
       void autoPushSave(eng, saveMgrRef.current!);
     });
+    // save automático da CONTA no servidor a cada 1 hora (quando conectado)
+    startAccountAutoSave(e, saveMgrRef.current!);
     // sinal oculto de 1 min — mantém presença no servidor e detecta conteúdo novo
     heartbeatStopRef.current = startHeartbeat(
       e.state.createdAt,
@@ -158,6 +172,7 @@ export default function App() {
       heartbeatStopRef.current?.();
       heartbeatStopRef.current = null;
       saveMgrRef.current!.stopAutoSave();
+      stopAccountAutoSave();
     };
   }, []);
 
@@ -225,9 +240,33 @@ export default function App() {
   }, [attach]);
 
   const onContinue = useCallback((slot: SaveSlot) => {
-    void saveMgrRef.current!.load(slot).then((res) => {
-      if (res) attach(res.engine, res.fixed);
-      else bus.emit('notify', { kind: 'default', title: 'Falha ao carregar', desc: 'O save está corrompido ou não existe.' });
+    void saveMgrRef.current!.load(slot).then(async (res) => {
+      if (res) {
+        attach(res.engine, res.fixed);
+        return;
+      }
+      // slot vazio → tenta restaurar o save da CONTA vinculado a este slot
+      // (caso típico de máquina nova: o progresso volta no login)
+      const session = getSession();
+      if (session) {
+        const cloud = await pullAccountSave(session.token);
+        if (cloud.ok && cloud.info && (!cloud.info.slot || cloud.info.slot === slot)) {
+          const imp = await saveMgrRef.current!.importText(slot, cloud.info.saveText);
+          if (imp.ok) {
+            const loaded = await saveMgrRef.current!.load(slot);
+            if (loaded) {
+              bus.emit('notify', {
+                kind: 'default',
+                title: '👤 Save da conta restaurado',
+                desc: 'O slot estava vazio — o save vinculado à sua conta foi carregado automaticamente.',
+              });
+              attach(loaded.engine, loaded.fixed);
+              return;
+            }
+          }
+        }
+      }
+      bus.emit('notify', { kind: 'default', title: 'Falha ao carregar', desc: 'O save está corrompido ou não existe.' });
     });
   }, [attach]);
 
@@ -241,13 +280,15 @@ export default function App() {
     });
   }, []);
 
-  // ── sincronização automática com a nuvem no boot (online por padrão) ──
-  // Restaura o save da nuvem quando ela está mais recente; senão, sobe o local.
+  // ── sincronização automática no boot (online por padrão) ──
+  // 1. Nuvem (playerId): restaura quando mais recente; senão, sobe o local.
+  // 2. Conta (quando logado): restaura o save vinculado ao slot atual se a
+  //    conta estiver mais recente (mesmo mecanismo, vinculado ao slot).
   useEffect(() => {
     const e = engineRef.current;
     if (!e) return;
     let alive = true;
-    void autoSyncOnLoad(saveMgrRef.current!, e).then((r) => {
+    void autoSyncOnLoad(saveMgrRef.current!, e).then(async (r) => {
       if (!alive) return;
       if (r === 'restored') {
         bus.emit('notify', {
@@ -256,10 +297,41 @@ export default function App() {
           desc: 'Uma versão mais recente do seu save foi encontrada no servidor e carregada.',
         });
         onContinue(saveMgrRef.current!.getSlot());
+        return;
+      }
+      // nuvem sem restauração → verifica a CONTA (save vinculado ao slot atual).
+      // Se há candidato, PEDE CONFIRMAÇÃO antes de sobrescrever o save local.
+      const check = await checkAccountRestore(saveMgrRef.current!, e);
+      if (!alive) return;
+      if (check.pending) {
+        setPendingAccountRestore(check.info);
+        return;
+      }
+      if (check.reason === 'no-save') {
+        // conta nova sem save → sobe o local como primeiro backup (silencioso)
+        await pushAccountSaveNow(e, saveMgrRef.current!);
       }
     });
     return () => { alive = false; };
   }, [engine, onContinue]);
+
+  // aplica a restauração confirmada do save da conta e recarrega o jogo
+  const confirmAccountRestore = useCallback(() => {
+    const info = pendingAccountRestore;
+    setPendingAccountRestore(null);
+    if (!info) return;
+    const e = engineRef.current;
+    if (!e) return;
+    void applyAccountRestore(saveMgrRef.current!, e, info).then((ok) => {
+      if (!ok) return;
+      bus.emit('notify', {
+        kind: 'default',
+        title: '👤 Save da conta restaurado',
+        desc: 'O save vinculado à sua conta (slot atual) foi carregado automaticamente.',
+      });
+      onContinue(saveMgrRef.current!.getSlot());
+    });
+  }, [pendingAccountRestore, onContinue]);
 
   // ── formatação ───────────────────────────────────────────
   const fmt = useCallback((v: Num, digits?: number) => {
@@ -270,9 +342,17 @@ export default function App() {
 
   // ── menu principal (sem jogo ativo) ──────────────────────
   if (!engine) {
-    return (
+    return accountOpen ? (
       <>
-        <MainMenu saveMgr={saveMgrRef.current!} onNewGame={onNewGame} onContinue={onContinue} onImport={onImport} />
+        <Account saveMgr={saveMgrRef.current!} engine={null} />
+        <div className="menu-account-back">
+          <button className="btn btn-sm" onClick={() => setAccountOpen(false)}>← Voltar ao menu</button>
+        </div>
+        <Toasts />
+      </>
+    ) : (
+      <>
+        <MainMenu saveMgr={saveMgrRef.current!} onNewGame={onNewGame} onContinue={onContinue} onImport={onImport} onAccount={() => setAccountOpen(true)} />
         <Toasts />
       </>
     );
@@ -325,7 +405,7 @@ export default function App() {
         </div>
         <Sidebar screen={screen} onNavigate={setScreen} />
         <div className="main">
-          <TopBar onMenu={() => setMenuOpen(true)} worldName={engine.worldName()} />
+          <TopBar onMenu={() => setMenuOpen(true)} worldName={engine.worldName()} onAccountClick={() => setScreen('account')} />
           <main className="content">
             {screen === 'home' && <Home onNavigate={setScreen} />}
             {screen === 'upgrades' && <Upgrades />}
@@ -348,6 +428,7 @@ export default function App() {
             {screen === 'season' && <SeasonHub />}
             {screen === 'pass' && <Pass />}
             {screen === 'admin' && <Admin />}
+            {screen === 'account' && <Account saveMgr={saveMgrRef.current!} engine={engine} onReload={() => onContinue(saveMgrRef.current!.getSlot())} />}
             {screen === 'settings' && <Settings saveMgr={saveMgrRef.current!} onBackToMenu={detach} onReload={() => onContinue(saveMgrRef.current!.getSlot())} />}
             {screen === 'debug' && <Debug />}
           </main>
@@ -383,6 +464,19 @@ export default function App() {
             );
           })()}
         </Modal>
+
+        <ConfirmModal
+          open={pendingAccountRestore !== null}
+          onClose={() => setPendingAccountRestore(null)}
+          onConfirm={confirmAccountRestore}
+          title="Restaurar save da conta?"
+          desc={
+            pendingAccountRestore
+              ? `O save da conta (${pendingAccountRestore.name}, salvo em ${formatWhen(pendingAccountRestore.savedAt)}) é mais novo que o save local deste slot (${pendingAccountRestore.localSavedAt ? formatWhen(pendingAccountRestore.localSavedAt) : 'sem save local'}). Um backup do save local é criado antes de restaurar. Deseja continuar?`
+              : ''
+          }
+          confirmLabel="Restaurar e recarregar"
+        />
 
         <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu" width={380}>
           <div className="menu-inline">

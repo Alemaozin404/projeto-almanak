@@ -13,3 +13,6 @@ server/.vercel
 .env
 .env.local
 server/.env
+
+.vercel
+.env*

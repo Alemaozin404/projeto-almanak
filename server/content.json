@@ -1,6 +1,51 @@
 {
-  "gameVersion": "1.2.8",
+  "gameVersion": "1.2.9",
   "updates": [
+    {
+      "version": "1.2.9",
+      "title": "SISTEMA DE CONTAS",
+      "date": "2026-08-12",
+      "description": "Novo sistema de contas com e-mail: crie sua conta com Gmail, confirme por código (e receba um e-mail de agradecimento 💛), recupere a senha se esquecer e tenha o save guardado automaticamente no servidor a cada 1 hora — restaurável em qualquer computador.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "👤",
+          "items": [
+            "Contas por e-mail Gmail: registro, código de confirmação (com agradecimento 💛) e recuperação de senha",
+            "Save automático no servidor a cada 1 hora — o progresso fica guardado na conta e pode ser restaurado em outro computador",
+            "Save da conta vinculado ao slot, com restauração automática (pedindo confirmação antes de sobrescrever o save local)"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "Tela Conta no menu principal e na barra lateral: criar conta, entrar, confirmar e-mail e recuperar senha",
+            "Indicador de conta na barra superior com countdown do próximo save automático",
+            "Card da conta no menu principal mostrando o usuário e o slot vinculado",
+            "Escolha a qual slot o save da conta fica vinculado (AUTO/SLOT1-3)",
+            "Troca de senha estando logado (derruba as outras sessões da conta)"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Sessão persistida no dispositivo: ao abrir o jogo com a conta conectada, o save da conta é verificado automaticamente",
+            "Primeiro envio: quando a conta ainda não tem save, o jogo sobe o atual como primeiro backup (silencioso)"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
     {
       "version": "1.2.8",
       "title": "PIX DE PRODUÇÃO ATIVO",

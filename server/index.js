@@ -13,12 +13,17 @@
  *   manutenção) é servido de server/content.json (gerado por npm run content:export).
  * - Saves na nuvem e ranking usam um KV serverless (Upstash Redis REST).
  *   Sem UPSTASH configurado, caem para um Map em memória (dev/testes).
+ * - Sistema de contas (server/accounts.js): registro, verificação por e-mail,
+ *   login, recuperação de senha e save automático (1h) — senhas com scrypt,
+ *   sessões por token, e-mails via Gmail SMTP.
  *
  * Configuração (server/.env → Vercel Environment Variables):
  *   MERCADO_PAGO_ACCESS_TOKEN=APP_USR-...      (obrigatório p/ pagamentos)
  *   MERCADO_PAGO_WEBHOOK_SECRET=...            (obrigatório — painel MP → Webhooks)
  *   APP_SHARED_SECRET=...                      (proteção leve app→backend)
  *   RECEIPT_PRIVATE_KEY=...                    (obrigatório p/ passe — seed Ed25519, npm run gen:receipt-keys)
+ *   GMAIL_USER=seu.jogo@gmail.com              (remetente dos e-mails da conta)
+ *   GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx     (senha de app do Gmail — obrigatória p/ e-mails reais)
  *   BASE_URL=https://seu-projeto.vercel.app    (URL pública — notification_url)
  *   UPSTASH_REDIS_REST_URL=...                 (opcional — save nuvem + ranking)
  *   UPSTASH_REDIS_REST_TOKEN=...               (opcional)
@@ -33,6 +38,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Decimal } from 'decimal.js';
 import { kvGetJson, kvKeys, kvSet } from './store.js';
+import { attachAccountRoutes } from './accounts.js';
 
 // Carrega server/.env (independente do cwd). No Vercel as variáveis vêm do
 // painel — o dotenv simplesmente não encontra o arquivo e segue em frente.
@@ -369,7 +375,8 @@ export function createApp(env = process.env) {
     // lê do env INJETADO (createApp(env)) — não de process.env direto, senão
     // testes/deploys com env customizado reportam o status errado do KV.
     const hasKv = Boolean(env.UPSTASH_REDIS_REST_URL && env.UPSTASH_REDIS_REST_TOKEN);
-    res.json({ ok: true, mp: ACCESS_TOKEN ? 'configured' : 'missing-token', kv: hasKv ? 'configured' : 'memory', version: loadContent().gameVersion });
+    const hasEmail = Boolean(env.GMAIL_USER && env.GMAIL_APP_PASSWORD);
+    res.json({ ok: true, mp: ACCESS_TOKEN ? 'configured' : 'missing-token', kv: hasKv ? 'configured' : 'memory', email: hasEmail ? 'configured' : 'missing', version: loadContent().gameVersion });
   });
 
   // ── conteúdo online (público — notícias, eventos, banners, códigos, changelog, manutenção) ──
@@ -593,6 +600,11 @@ export function createApp(env = process.env) {
     console.log(`[webhook] payment ${dataId} → ${s.status}${s.detail ? ` (${s.detail})` : ''}`);
     return res.status(200).json({ ok: true });
   });
+
+  // ── sistema de contas (registro, verificação, login, recuperação, save automático) ──
+  // E-mails (agradecimento, confirmação, recuperação) via Gmail SMTP (nodemailer).
+  // Sem GMAIL_USER/GMAIL_APP_PASSWORD → modo dev (códigos no console + devCode).
+  attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLimited });
 
   return app;
 }

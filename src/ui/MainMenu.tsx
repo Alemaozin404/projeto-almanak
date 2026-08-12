@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { SaveManager, type SaveSlot } from '../save/saveManager';
 import { ConfirmModal } from './kit';
 import { formatDuration } from '../core/notation';
 import { GAME_VERSION } from '../content/updates';
 import { audio } from '../audio/audio';
 import { applyTheme, storedTheme } from './theme';
+import { getSessionSnapshot, subscribeAccountSession, fetchAccountMe, clearSession, type AccountInfo } from '../online/account';
+import { onlineEnabled } from '../online/api';
 
 /** A intro cinematográfica é exibida uma única vez por sessão. */
 let introDone = false;
@@ -14,9 +16,11 @@ interface Props {
   onNewGame: (slot: SaveSlot) => void;
   onContinue: (slot: SaveSlot) => void;
   onImport: (slot: SaveSlot, text: string) => void;
+  /** Abre a tela de Conta (registro/login/recuperação) a partir do menu. */
+  onAccount?: () => void;
 }
 
-export function MainMenu({ saveMgr, onNewGame, onContinue, onImport }: Props) {
+export function MainMenu({ saveMgr, onNewGame, onContinue, onImport, onAccount }: Props) {
   const [view, setView] = useState<'menu' | 'slots'>('menu');
   const [slots, setSlots] = useState<Awaited<ReturnType<SaveManager['listSlots']>>>([]);
   const [confirmDelete, setConfirmDelete] = useState<SaveSlot | null>(null);
@@ -27,11 +31,38 @@ export function MainMenu({ saveMgr, onNewGame, onContinue, onImport }: Props) {
   );
   const [closing, setClosing] = useState(false);
 
+  // conta conectada: reage a login/logout via store (mesmo padrão da TopBar)
+  const account = useSyncExternalStore(subscribeAccountSession, getSessionSnapshot);
+  // dados frescos da conta no servidor (slot vinculado ao save etc.)
+  const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
+  const online = onlineEnabled();
+
   // música + ambiente do menu (sintetizados) e tema persistido da última sessão
   useEffect(() => {
     audio.startMenu();
     applyTheme(storedTheme());
   }, []);
+
+  // sessão local existente → valida no servidor e atualiza os dados (slot vinculado)
+  useEffect(() => {
+    let alive = true;
+    if (!account) {
+      setAccountInfo(null);
+      return;
+    }
+    setAccountInfo(null);
+    void fetchAccountMe(account.token).then((r) => {
+      if (!alive) return;
+      if (r.ok) {
+        setAccountInfo({ ...r, username: r.username || account.username, email: r.email || account.email });
+      } else if (r.status === 401) {
+        // sessão morta no servidor → remove a sessão local
+        clearSession();
+      }
+      // falha de rede: mantém o card com o username local, sem slot
+    });
+    return () => { alive = false; };
+  }, [account]);
 
   const finishIntro = useCallback(() => {
     introDone = true;
@@ -122,6 +153,25 @@ export function MainMenu({ saveMgr, onNewGame, onContinue, onImport }: Props) {
         <p className="menu-tagline">Toque o Núcleo. Evolua sem limites.</p>
         <span className="menu-chip">💾 100% offline · sem anúncios</span>
 
+        {account && onAccount && (
+          <button className="menu-account-card" onClick={() => { audio.ui(); onAccount(); }} title="Gerenciar conta">
+            <span className="menu-account-icon">👤</span>
+            <span className="menu-account-info">
+              <strong>{accountInfo?.username ?? account.username}</strong>
+              <small>
+                {accountInfo?.saveSlot
+                  ? <>Save vinculado ao <b>{accountInfo.saveSlot.toUpperCase()}</b></>
+                  : accountInfo?.hasSave
+                    ? 'Conta conectada — save sem slot vinculado'
+                    : online
+                      ? 'Conta conectada'
+                      : 'Conta conectada (backend offline)'}
+              </small>
+            </span>
+            <span className="menu-account-cta">Gerenciar ▸</span>
+          </button>
+        )}
+
         {view === 'menu' ? (
           <div className="menu-buttons">
             <button className="btn btn-primary btn-big" onClick={() => { audio.ui(); void refresh(); setView('slots'); }}>
@@ -131,15 +181,23 @@ export function MainMenu({ saveMgr, onNewGame, onContinue, onImport }: Props) {
             <button className="btn btn-big" onClick={() => { audio.ui(); flash('Configurações globais são salvas em cada save — acesse dentro do jogo.'); }}>
               ⚙ CONFIGURAÇÕES
             </button>
+            {onAccount && (
+              <button className="btn btn-big" onClick={() => { audio.ui(); onAccount(); }}>👤 CONTA</button>
+            )}
             <button className="btn btn-big" onClick={() => { audio.ui(); window.close(); }}>⏻ SAIR</button>
           </div>
         ) : (
           <div className="slot-list">
             <button className="btn btn-sm" onClick={() => { audio.ui(); setView('menu'); }}>← Voltar</button>
-            {slots.map((meta) => (
-              <div key={meta.slot} className={`slot-card ${meta.exists ? '' : 'empty'}`}>
+            {slots.map((meta) => {
+              const linked = accountInfo?.saveSlot === meta.slot;
+              return (
+              <div key={meta.slot} className={`slot-card ${meta.exists ? '' : 'empty'} ${linked ? 'linked' : ''}`}>
                 <div className="slot-info">
-                  <strong>{meta.slot.toUpperCase()}</strong>
+                  <span className="slot-title-row">
+                    <strong>{meta.slot.toUpperCase()}</strong>
+                    {linked && <span className="slot-account-badge" title="Slot vinculado ao save da sua conta">🔗 Conta</span>}
+                  </span>
                   {meta.exists ? (
                     <>
                       <span>{meta.name} · Nv {meta.level} · {meta.prestige} prestígios</span>
@@ -159,7 +217,8 @@ export function MainMenu({ saveMgr, onNewGame, onContinue, onImport }: Props) {
                   {meta.exists && <button className="btn btn-sm btn-danger" onClick={() => { audio.ui(); setConfirmDelete(meta.slot); }}>Apagar</button>}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

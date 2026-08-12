@@ -90,6 +90,12 @@ async function run() {
     health.body.kv === 'configured',
     health.body.kv === 'configured' ? 'KV configurado (nuvem + ranking)' : "em MEMÓRIA — variáveis Upstash não chegaram",
   );
+  record(
+    'GMAIL_USER / GMAIL_APP_PASSWORD',
+    health.body.email === 'configured',
+    health.body.email === 'configured' ? 'e-mails da conta ativos (Gmail SMTP)' : 'MODO DEV — códigos só no console (sem e-mails reais)',
+    { informational: health.body.email !== 'configured' },
+  );
 
   // ── 2. APP_SHARED_SECRET: heartbeat com e sem o segredo ──────────────────────
   const hbWith = await fetchJson(`${base}/api/heartbeat`, {

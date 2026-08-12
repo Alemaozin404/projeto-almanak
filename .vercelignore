@@ -1,0 +1,26 @@
+# dependências (o Vercel roda `npm install` no build)
+node_modules/
+server/node_modules/
+
+# build local / artefatos desktop (o Vercel roda `vite build` no próprio servidor)
+dist/
+dist-electron/
+release/
+
+# fontes do app desktop (Electron) — não usadas no deploy web
+electron/
+
+# testes e scripts locais
+tests/
+scripts/
+*.log
+
+# segredos e ambiente
+.env
+.env.*
+server/.env
+.vercel/
+server/.vercel/
+
+# git
+.git/

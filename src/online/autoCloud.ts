@@ -26,8 +26,9 @@ const PUSH_THROTTLE_MS = 60 * 1000;
  * depois do save local, então o savedAt da nuvem é naturalmente alguns ms
  * maior que o do arquivo — sem esta margem, o app "restauraria" (e recarregaria)
  * em todo boot, mesmo sem diferença real de conteúdo.
+ * Exportada também para o accountSync (mesma regra de restauração da conta).
  */
-const RESTORE_MIN_NEWER_MS = 60 * 1000;
+export const RESTORE_MIN_NEWER_MS = 60 * 1000;
 let lastPushAt = 0;
 
 /** Zera o estado interno (usado em testes — isolamento entre execuções). */

@@ -3,7 +3,7 @@
  * Não espalhar constantes pelo projeto: economia, passe, offline, admin e debug vivem aqui.
  */
 export const GameConfig = {
-  version: '1.2.8',
+  version: '1.2.9',
 
   // ── Passe Premium global ──
   pass: {
@@ -71,6 +71,16 @@ export const GameConfig = {
     pixTestPackId: 'pix_test_1d',
     pixTestPriceBRL: 0.01,
     pixTestDiamonds: 1,
+  },
+
+  // ── Conta (sistema de contas + save automático no servidor) ──
+  account: {
+    /** Intervalo do envio automático do save da conta ao servidor (em horas). */
+    autoSaveHours: 1,
+    /** Chave do localStorage onde a sessão da conta é guardada. */
+    sessionStorageKey: 'nc_account_session_v1',
+    /** Chave do localStorage onde o slot escolhido para vincular o save da conta é guardado ('' = automático). */
+    slotStorageKey: 'nc_account_slot_v1',
   },
 
   // ── Admin ──

@@ -1,7 +1,7 @@
 {
   "name": "nucleo-clicker",
   "productName": "Nucleo Clicker",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Núcleo Clicker — jogo clicker/idle completo para Windows com servidor online: conteúdo ao vivo, pagamentos Pix (Mercado Pago), save na nuvem e ranking global.",
   "author": "Nucleo Games",
   "license": "MIT",
@@ -37,6 +37,7 @@
     "dotenv": "^16.4.5",
     "electron-updater": "^6.3.9",
     "express": "^4.21.2",
+    "nodemailer": "^6.9.16",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
