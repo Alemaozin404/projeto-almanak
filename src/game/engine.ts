@@ -1440,22 +1440,29 @@ export class GameEngine {
     this.notify('profile');
   }
 
-  /** Compra um item de avatar premium com créditos 💳 (preço definido no catálogo). */
-  buyAvatarItem(catId: keyof typeof AVATAR_CATALOG, id: string): { ok: boolean; reason?: string } {
+  /** Compra um item de avatar premium com CRÉDITOS 💳 ou DIAMANTES 💎 (preço definido no catálogo). */
+  buyAvatarItem(catId: keyof typeof AVATAR_CATALOG, id: string, currency: 'credits' | 'diamonds' = 'credits'): { ok: boolean; reason?: string } {
     const s = this.state;
     const cat = AVATAR_CATALOG[catId];
     const item = cat.find((i) => i.id === id);
     if (!item) return { ok: false, reason: 'Item inexistente' };
     if (s.avatarItems.includes(id)) return { ok: false, reason: 'Item já possuído' };
-    const price = item.creditCost;
-    if (!price || price <= 0) return { ok: false, reason: 'Item não comprável com créditos' };
-    if (this.getRes('credits').lt(price)) return { ok: false, reason: '💳 Créditos insuficientes' };
-    this.spend('credits', D(price));
+    const price = currency === 'diamonds' ? item.diamondCost : item.creditCost;
+    if (!price || price <= 0) {
+      return { ok: false, reason: currency === 'diamonds' ? 'Item não comprável com diamantes' : 'Item não comprável com créditos' };
+    }
+    if (currency === 'diamonds') {
+      if (this.getRes('crystals').lt(price)) return { ok: false, reason: '💎 Diamantes insuficientes' };
+      this.spend('crystals', D(price));
+    } else {
+      if (this.getRes('credits').lt(price)) return { ok: false, reason: '💳 Créditos insuficientes' };
+      this.spend('credits', D(price));
+    }
     this.grantAvatarItem(id);
-    appendLog(s, 'wallet', `Avatar ${item.label} comprado com ${price} créditos`);
+    appendLog(s, 'wallet', `Avatar ${item.label} comprado com ${price} ${currency === 'diamonds' ? 'diamantes' : 'créditos'}`);
     this.invalidate();
     this.notify('profile');
-    bus.emit('notify', { kind: 'level', title: '🎨 Avatar desbloqueado!', desc: `${item.label} adquirido com créditos.` });
+    bus.emit('notify', { kind: 'level', title: '🎨 Avatar desbloqueado!', desc: `${item.label} adquirido com ${currency === 'diamonds' ? 'diamantes 💎' : 'créditos 💳'}.` });
     return { ok: true };
   }
 

@@ -3,6 +3,7 @@ import { GameEngine } from '../src/game/engine';
 import { FICHA_PACKS, CREDIT_PACKS, fichaPackById, creditPackById, creditsToBRL, creditsToDiamonds, generatePixCopyPaste } from '../src/wallet/pix';
 import { BOX_DEFS } from '../src/shop/boxes';
 import { CONSUMABLE_DEFS } from '../src/shop/consumables';
+import { AVATAR_CATALOG } from '../src/profile/avatars';
 import { resolvePixGateway, pixBackendUrl, setPixBackendUrl, clearPixBackendUrl, testPixBackend, isPixBackendUrlValid } from '../src/wallet/mp';
 import { GameConfig } from '../src/config/GameConfig';
 import { D } from '../src/core/bignum';
@@ -143,6 +144,28 @@ describe('Carteira Ficha/Créditos', () => {
     expect(e.buyAvatarItem('icons', 'av_cyber').ok).toBe(false);
     // item sem preço não é comprável
     expect(e.buyAvatarItem('icons', 'av_hero').ok).toBe(false);
+  });
+
+  it('Loja de Diamantes: decoração de perfil comprável com diamantes 💎', () => {
+    const e = new GameEngine();
+    // itens exclusivos têm preço em diamantes no catálogo
+    const frame = AVATAR_CATALOG.frames.find((i) => i.id === 'fr_diamond')!;
+    expect(frame.diamondCost).toBeGreaterThan(0);
+    // sem diamantes: falha
+    expect(e.buyAvatarItem('frames', 'fr_diamond', 'diamonds').ok).toBe(false);
+    // item de créditos NÃO compra com diamantes (e vice-versa)
+    expect(e.buyAvatarItem('icons', 'av_cyber', 'diamonds').ok).toBe(false);
+    expect(e.buyAvatarItem('icons', 'av_diamond', 'credits').ok).toBe(false);
+    e.addRes('crystals', D(frame.diamondCost! + 50));
+    const before = e.getRes('crystals');
+    const r = e.buyAvatarItem('frames', 'fr_diamond', 'diamonds');
+    expect(r.ok).toBe(true);
+    expect(e.state.avatarItems).toContain('fr_diamond');
+    expect(e.getRes('crystals').toString()).toBe(before.minus(frame.diamondCost!).toString());
+    // item já possuído não compra de novo
+    expect(e.buyAvatarItem('frames', 'fr_diamond', 'diamonds').ok).toBe(false);
+    // créditos intactos (pagou só com diamantes)
+    expect(e.getRes('credits').toString()).toBe('0');
   });
 
   it('caixas premium podem ser pagas com CRÉDITOS (moeda principal)', () => {

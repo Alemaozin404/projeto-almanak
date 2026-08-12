@@ -6,12 +6,21 @@ import { CONSUMABLE_DEFS } from '../../shop/consumables';
 import { BOX_DEFS } from '../../shop/boxes';
 import { COIN_PACKS, packPriceLabel, type CoinPackDef } from '../../shop/packs';
 import { CREDIT_PACKS, fmtBRL, creditsToBRL, creditsToDiamonds, type CreditPackDef } from '../../wallet/pix';
+import { AVATAR_CATALOG } from '../../profile/avatars';
 import { pixOnlineEnabled, testPixBackend } from '../../wallet/mp';
 import { PixOrderModal, type ActivePixOrder, type PixOrderResult } from '../PixOrderModal';
 import { D } from '../../core/bignum';
 import { audio } from '../../audio/audio';
 
-type ShopTab = 'equipment' | 'consumables' | 'boxes' | 'credits' | 'packs';
+type ShopTab = 'equipment' | 'consumables' | 'boxes' | 'credits' | 'diamonds' | 'packs';
+
+/** Nomes das categorias de decoração de perfil (Loja de Diamantes). */
+const DECOR_LABEL: Record<keyof typeof AVATAR_CATALOG, string> = {
+  icons: 'Ícones',
+  frames: 'Molduras',
+  effects: 'Efeitos',
+  badges: 'Badges',
+};
 
 export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
   const { engine, fmt } = useGame();
@@ -128,6 +137,7 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
             { id: 'consumables', name: 'Consumíveis', icon: '🧪' },
             { id: 'boxes', name: 'Caixas', icon: '📦' },
             { id: 'credits', name: 'Créditos', icon: '💳' },
+            { id: 'diamonds', name: 'Diamantes', icon: '💎' },
             { id: 'packs', name: 'Moedas', icon: '💰' },
           ]}
           active={tab}
@@ -316,6 +326,77 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
           </div>
           <p className="muted small center">
             💎 Também quer <strong>Diamantes</strong>? Compre nos pacotes da aba <strong>Moedas</strong> ou converta seus créditos na <strong>Carteira</strong> (1💳 = 1💎).
+          </p>
+        </>
+      )}
+
+      {tab === 'diamonds' && (
+        <>
+          <div className="diamond-shop-head">
+            <span className="diamond-shop-icon">💎</span>
+            <div>
+              <strong>Loja de Diamantes</strong>
+              <p className="muted small">Decoração EXCLUSIVA de perfil paga em diamantes — o emblema de quem investe no jogo.
+                Ganhe diamantes nos pacotes da aba <strong>Moedas</strong> ou converta seus <strong>Créditos</strong> na Carteira (1💳 = 1💎).</p>
+            </div>
+          </div>
+          <div className="diamond-balance">
+            💎 Você tem <strong>{fmt(engine.getRes('crystals'), 0)}</strong> diamantes
+          </div>
+          {(Object.keys(AVATAR_CATALOG) as (keyof typeof AVATAR_CATALOG)[]).map((cat) => {
+            const items = AVATAR_CATALOG[cat].filter((i) => i.diamondCost);
+            if (items.length === 0) return null;
+            return (
+              <div key={cat}>
+                <h4 className="diamond-section-title">💎 {DECOR_LABEL[cat]}</h4>
+                <div className="item-grid">
+                  {items.map((item) => {
+                    const cost = item.diamondCost;
+                    if (!cost) return null;
+                    const owned = engine.state.avatarItems.includes(item.id);
+                    const can = engine.canAfford('crystals', D(cost)) && !owned;
+                    return (
+                      <div key={item.id} className="item-card diamond-card">
+                        <div className="item-head">
+                          {cat === 'badges' ? (
+                            <span className="diamond-badge-preview">{item.value}</span>
+                          ) : (
+                            <div className={`avatar avatar-lg ${cat === 'frames' || cat === 'effects' ? item.value : ''}`}>
+                              {cat === 'icons' ? item.value : '💎'}
+                            </div>
+                          )}
+                          <div className="item-title">
+                            <strong>{item.label}</strong>
+                            <span className="muted small">{cat === 'icons' ? 'Ícone de perfil' : cat === 'frames' ? 'Moldura do avatar' : cat === 'effects' ? 'Efeito animado' : 'Badge do perfil'}</span>
+                          </div>
+                          {owned && <span className="item-count owned-tag">✓ Possuído</span>}
+                        </div>
+                        <div className="item-actions">
+                          {owned ? (
+                            <span className="owned-text">Adicionado ao seu perfil ✨</span>
+                          ) : (
+                            <button
+                              className="btn btn-sm diamond-buy"
+                              disabled={!can}
+                              onClick={() => {
+                                const r = engine.buyAvatarItem(cat, item.id, 'diamonds');
+                                if (r.ok) audio.buy();
+                                else flash(`❌ ${r.reason ?? 'Falha na compra'}`);
+                              }}
+                            >
+                              💎 {fmt(cost, 0)}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+          <p className="muted small center">
+            Os itens comprados aqui aparecem na tela <strong>Perfil → Avatar</strong> para equipar. 💎 Diamantes são a moeda exclusiva de itens de loja — obtidos apenas via Pix ou conversão de créditos.
           </p>
         </>
       )}

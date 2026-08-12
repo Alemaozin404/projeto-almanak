@@ -10,6 +10,8 @@ export interface AvatarItem {
   premium?: boolean;
   /** Preço em CRÉDITOS 💳 quando comprável individualmente (item pago, sem passe). */
   creditCost?: number;
+  /** Preço em DIAMANTES 💎 — item EXCLUSIVO da Loja de Diamantes (decoração de perfil premium). */
+  diamondCost?: number;
   /** Condição de progresso (opcional). */
   unlock?: (p: { prestige: number; ascension: number; levels: number; pets: number }) => boolean;
 }
@@ -35,6 +37,10 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     { id: 'av_god', label: 'Divindade', value: '👑', unlock: (p) => p.ascension >= 2 },
     { id: 'av_cyber', label: 'Netrunner', value: '🧑‍💻', premium: true, creditCost: 150 },
     { id: 'av_star', label: 'Estelar', value: '🌟', premium: true, creditCost: 250 },
+    // ── exclusivos da Loja de Diamantes 💎 (acima do tier de créditos — moeda de prestígio) ──
+    { id: 'av_titan', label: 'Titã', value: '🛡️', diamondCost: 280 },
+    { id: 'av_void', label: 'Vazio', value: '🌌', diamondCost: 420 },
+    { id: 'av_diamond', label: 'Senhor dos Diamantes', value: '💎', diamondCost: 600 },
   ],
   frames: [
     { id: 'fr_none', label: 'Nenhuma', value: '', unlock: none },
@@ -43,6 +49,10 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     { id: 'fr_royal', label: 'Real', value: 'fr-royal', unlock: (p) => p.prestige >= 5 },
     { id: 'fr_celestial', label: 'Celestial', value: 'fr-celestial', unlock: (p) => p.ascension >= 1 },
     { id: 'fr_premium', label: 'Premium', value: 'fr-premium', premium: true, creditCost: 120 },
+    // ── exclusivos da Loja de Diamantes 💎 ──
+    { id: 'fr_obsidian', label: 'Obsidiana', value: 'fr-obsidian', diamondCost: 220 },
+    { id: 'fr_diamond', label: 'Diamante', value: 'fr-diamond', diamondCost: 360 },
+    { id: 'fr_aurora', label: 'Aurora', value: 'fr-aurora', diamondCost: 520 },
   ],
   effects: [
     { id: 'fx_none', label: 'Nenhum', value: '', unlock: none },
@@ -51,6 +61,10 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     { id: 'fx_spin', label: 'Giro', value: 'avfx-spin', unlock: (p) => p.pets >= 10 },
     { id: 'fx_rainbow', label: 'Arco-íris', value: 'avfx-rainbow', unlock: (p) => p.ascension >= 1 },
     { id: 'fx_premium', label: 'Aura Premium', value: 'avfx-premium', premium: true, creditCost: 200 },
+    // ── exclusivos da Loja de Diamantes 💎 ──
+    { id: 'fx_fire', label: 'Chamas', value: 'avfx-fire', diamondCost: 320 },
+    { id: 'fx_shine', label: 'Brilho Diamante', value: 'avfx-shine', diamondCost: 480 },
+    { id: 'fx_galaxy', label: 'Galáxia', value: 'avfx-galaxy', diamondCost: 750 },
   ],
   badges: [
     { id: 'bd_none', label: 'Nenhum', value: '', unlock: none },
@@ -59,6 +73,9 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     { id: 'bd_master', label: 'Mestre', value: '🏅', unlock: (p) => p.prestige >= 5 },
     { id: 'bd_legend', label: 'Lenda', value: '🌟', unlock: (p) => p.ascension >= 1 },
     { id: 'bd_premium', label: 'Premium', value: '💎', premium: true, creditCost: 100 },
+    // ── exclusivos da Loja de Diamantes 💎 ──
+    { id: 'bd_diamond', label: 'Diamante', value: '💠', diamondCost: 180 },
+    { id: 'bd_tycoon', label: 'Magnata', value: '🤑', diamondCost: 280 },
   ],
 };
 

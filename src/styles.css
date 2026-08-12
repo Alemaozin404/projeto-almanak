@@ -1922,15 +1922,35 @@ body {
 .avatar.fr-royal { border-color: #ffe14d; box-shadow: 0 0 20px rgba(255,225,77,0.6); }
 .avatar.fr-celestial { border-color: #37f5ff; box-shadow: 0 0 20px rgba(var(--acc-rgb),0.6); }
 .avatar.fr-premium { border-color: #ff6bff; box-shadow: 0 0 22px rgba(255,107,255,0.7); }
+/* ── Loja de Diamantes 💎 ── */
+.avatar.fr-obsidian { border-color: #9b8cff; box-shadow: 0 0 18px rgba(155,140,255,0.6); }
+.avatar.fr-diamond { border-color: #7df9ff; box-shadow: 0 0 22px rgba(125,249,255,0.75); background: radial-gradient(circle at 30% 30%, rgba(125,249,255,0.22), transparent 70%); }
+.avatar.fr-aurora { border-color: #5dff8a; box-shadow: 0 0 22px rgba(93,255,138,0.6); animation: avatarAurora 3s ease-in-out infinite; }
 .avfx-pulse { animation: avatarPulse 2s ease-in-out infinite; }
 .avfx-glow { box-shadow: 0 0 24px rgba(var(--acc-rgb),0.6); }
 .avfx-spin { animation: avatarSpin 6s linear infinite; }
 .avfx-rainbow { animation: avatarRainbow 4s linear infinite; }
 .avfx-premium { animation: avatarRainbow 3s linear infinite; box-shadow: 0 0 26px rgba(255,107,255,0.8); }
+.avfx-fire { animation: avatarFire 1.5s ease-in-out infinite; box-shadow: 0 0 26px rgba(255,120,40,0.7); }
+.avfx-shine { animation: avatarShine 2.4s ease-in-out infinite; box-shadow: 0 0 26px rgba(125,249,255,0.8); }
+.avfx-galaxy { animation: avatarGalaxy 9s linear infinite; box-shadow: 0 0 30px rgba(155,90,255,0.75); }
 @keyframes avatarPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 @keyframes avatarSpin { to { transform: rotate(360deg); } }
 @keyframes avatarRainbow {
   0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); }
+}
+@keyframes avatarAurora {
+  0%,100% { filter: hue-rotate(0deg) brightness(1); } 50% { filter: hue-rotate(40deg) brightness(1.25); }
+}
+@keyframes avatarFire {
+  0%,100% { box-shadow: 0 0 14px rgba(255,120,40,0.5); transform: scale(1); }
+  50% { box-shadow: 0 0 30px rgba(255,80,20,0.9); transform: scale(1.05); }
+}
+@keyframes avatarShine {
+  0%,100% { filter: brightness(1); } 50% { filter: brightness(1.35) saturate(1.2); }
+}
+@keyframes avatarGalaxy {
+  0% { filter: hue-rotate(0deg) brightness(1); } 50% { filter: hue-rotate(60deg) brightness(1.2); } 100% { filter: hue-rotate(360deg) brightness(1); }
 }
 
 /* ── Seletor de avatar ── */
@@ -1951,6 +1971,32 @@ body {
   transition: transform 0.15s, border-color 0.15s;
 }
 .avatar-buy-btn:hover { transform: translateY(-1px); border-color: #5dff8a; }
+.avatar-buy-btn.diamond { color: #7df9ff; border-color: rgba(125,249,255,0.45); }
+.avatar-buy-btn.diamond:hover { border-color: #7df9ff; }
+
+/* ── Loja de Diamantes ── */
+.diamond-shop-head {
+  display: flex; gap: 12px; align-items: center;
+  background: linear-gradient(120deg, rgba(125,249,255,0.1), rgba(155,90,255,0.08));
+  border: 1px solid rgba(125,249,255,0.28); border-radius: 14px; padding: 12px 14px; margin-bottom: 10px;
+}
+.diamond-shop-icon { font-size: 36px; }
+.diamond-balance {
+  font-size: 14px; padding: 8px 12px; border: 1px dashed rgba(125,249,255,0.4);
+  border-radius: 10px; background: rgba(125,249,255,0.05); margin-bottom: 14px; color: var(--muted);
+}
+.diamond-balance strong { color: #7df9ff; }
+.diamond-section-title { margin: 18px 0 8px; font-size: 13px; color: #7df9ff; text-transform: uppercase; letter-spacing: 0.06em; }
+.diamond-card { border-color: rgba(125,249,255,0.22); background: linear-gradient(160deg, rgba(125,249,255,0.05), var(--panel) 60%); }
+.diamond-card:hover { border-color: rgba(125,249,255,0.5); }
+.diamond-buy { border-color: rgba(125,249,255,0.5); color: #7df9ff; }
+.diamond-buy:hover:not(:disabled) { background: rgba(125,249,255,0.12); box-shadow: 0 0 12px rgba(125,249,255,0.35); }
+.owned-tag { color: #5dff8a; font-weight: 700; }
+.owned-text { font-size: 12px; color: #5dff8a; font-weight: 600; }
+.diamond-badge-preview {
+  width: 46px; height: 46px; display: grid; place-items: center; font-size: 24px;
+  border-radius: 14px; border: 2px dashed rgba(125,249,255,0.5); background: rgba(125,249,255,0.06);
+}
 
 /* ── Status grid ── */
 .status-grid { display: flex; flex-wrap: wrap; gap: 8px; }

@@ -10,21 +10,27 @@ import { AVATAR_CATALOG, type AvatarItem } from '../../profile/avatars';
 import { statusOf, STATUS_PRESETS } from '../../profile/status';
 import { GameConfig } from '../../config/GameConfig';
 
-function AvatarPicker({ items, value, onPick, disabled, onBuy }: { items: AvatarItem[]; value: string; onPick: (id: string) => void; disabled: (id: string) => boolean; onBuy?: (id: string) => void }) {
+function AvatarPicker({ items, value, onPick, disabled, onBuy }: { items: AvatarItem[]; value: string; onPick: (id: string) => void; disabled: (id: string) => boolean; onBuy?: (id: string, currency: 'credits' | 'diamonds') => void }) {
   return (
     <div className="avatar-picker">
       {items.map((it) => {
         const locked = disabled(it.id);
         const active = value === it.id;
-        const buyable = onBuy && it.creditCost && locked;
+        const buyCredit = onBuy && it.creditCost && locked;
+        const buyDiamond = onBuy && it.diamondCost && locked;
         return (
           <div key={it.id} className="avatar-slot">
             <button className={`avatar-option ${active ? 'active' : ''} ${locked ? 'locked' : ''}`} disabled={locked} onClick={() => onPick(it.id)} title={it.label}>
               {locked ? '🔒' : it.value || '·'}
             </button>
-            {buyable && (
-              <button className="avatar-buy-btn" title={`Comprar ${it.label} com ${it.creditCost} créditos 💳`} onClick={() => onBuy!(it.id)}>
+            {buyCredit && (
+              <button className="avatar-buy-btn" title={`Comprar ${it.label} com ${it.creditCost} créditos 💳`} onClick={() => onBuy!(it.id, 'credits')}>
                 💳{it.creditCost}
+              </button>
+            )}
+            {buyDiamond && (
+              <button className="avatar-buy-btn diamond" title={`Comprar ${it.label} com ${it.diamondCost} diamantes 💎`} onClick={() => onBuy!(it.id, 'diamonds')}>
+                💎{it.diamondCost}
               </button>
             )}
           </div>
@@ -118,7 +124,7 @@ export function Profile() {
               value={prof.avatarIcon}
               onPick={(id) => engine.setAvatarIcon(id)}
               disabled={(id) => !engine.avatarItemAvailable(AVATAR_CATALOG.icons, id)}
-              onBuy={(id) => { const r = engine.buyAvatarItem('icons', id); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
+              onBuy={(id, cur) => { const r = engine.buyAvatarItem('icons', id, cur); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
             />
             <h4>Moldura</h4>
             <AvatarPicker
@@ -126,7 +132,7 @@ export function Profile() {
               value={prof.avatarFrame}
               onPick={(id) => engine.setAvatarFrame(id)}
               disabled={(id) => !engine.avatarItemAvailable(AVATAR_CATALOG.frames, id)}
-              onBuy={(id) => { const r = engine.buyAvatarItem('frames', id); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
+              onBuy={(id, cur) => { const r = engine.buyAvatarItem('frames', id, cur); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
             />
             <h4>Efeito</h4>
             <AvatarPicker
@@ -134,7 +140,7 @@ export function Profile() {
               value={prof.avatarEffect}
               onPick={(id) => engine.setAvatarEffect(id)}
               disabled={(id) => !engine.avatarItemAvailable(AVATAR_CATALOG.effects, id)}
-              onBuy={(id) => { const r = engine.buyAvatarItem('effects', id); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
+              onBuy={(id, cur) => { const r = engine.buyAvatarItem('effects', id, cur); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
             />
             <h4>Badge</h4>
             <AvatarPicker
@@ -142,9 +148,9 @@ export function Profile() {
               value={prof.avatarBadge}
               onPick={(id) => engine.setAvatarBadge(id)}
               disabled={(id) => !engine.avatarItemAvailable(AVATAR_CATALOG.badges, id)}
-              onBuy={(id) => { const r = engine.buyAvatarItem('badges', id); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
+              onBuy={(id, cur) => { const r = engine.buyAvatarItem('badges', id, cur); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
             />
-            <p className="muted small">Avatares premium podem ser <strong>comprados com créditos 💳</strong> (botão abaixo do item) ou liberados com o Passe Premium (tela Passe). Itens 🔒 sem preço exigem progresso. Você tem {fmt(engine.getRes('credits'), 0)} 💳.</p>
+            <p className="muted small">Avatares premium podem ser <strong>comprados com créditos 💳</strong> ou <strong>diamantes 💎</strong> (botão abaixo do item) ou liberados com o Passe Premium (tela Passe). Itens 🔒 sem preço exigem progresso. Você tem {fmt(engine.getRes('credits'), 0)} 💳 e {fmt(engine.getRes('crystals'), 0)} 💎.</p>
           </div>
         )}
 
