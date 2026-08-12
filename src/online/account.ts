@@ -348,15 +348,36 @@ export interface AccountSaveInfo {
   slot: string;
 }
 
+/**
+ * Snapshot público do perfil (visível apenas para amigos) enviado junto do
+ * save — nome do save, avatar, status e progresso resumido, sem dados sensíveis.
+ */
+export interface AccountPublicProfile {
+  name: string;
+  avatarIcon: string;
+  status: string;
+  statusMessage: string;
+  level: number;
+  prestige: number;
+}
+
 /** Envia o save atual para a conta (chamado pelo auto-save de 1h e manualmente). */
 export async function pushAccountSave(
   token: string,
   saveText: string,
   name: string,
   slot: string,
+  extra?: { playerId?: number; profile?: AccountPublicProfile },
 ): Promise<AccountResult<{ savedAt?: number }>> {
   try {
-    const body = JSON.stringify({ saveText, name: name.slice(0, 40), savedAt: Date.now(), slot: slot.slice(0, 10) });
+    const body = JSON.stringify({
+      saveText,
+      name: name.slice(0, 40),
+      savedAt: Date.now(),
+      slot: slot.slice(0, 10),
+      ...(extra?.playerId ? { playerId: extra.playerId } : {}),
+      ...(extra?.profile ? { profile: extra.profile } : {}),
+    });
     const res = await apiFetch('/api/account/save', {
       method: 'PUT',
       headers: { 'x-account-token': token },

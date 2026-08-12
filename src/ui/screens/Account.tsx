@@ -13,7 +13,7 @@
  * Funciona no menu principal (engine = null — sem sincronização) e dentro do
  * jogo (engine presente — sync habilitado).
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useSyncExternalStore, useState } from 'react';
 import type { GameEngine } from '../../game/engine';
 import { SAVE_SLOTS, type SaveManager, type SaveSlot } from '../../save/saveManager';
 import {
@@ -23,7 +23,7 @@ import {
   pullAccountSave, getAccountSlotPref, setAccountSlotPref, linkAccountSlot,
   type AccountInfo, type AccountSession,
 } from '../../online/account';
-import { pushAccountSaveNow, checkAccountRestore, applyAccountRestore, lastAccountSyncAt, type AccountRestoreInfo } from '../../online/accountSync';
+import { pushAccountSaveNow, checkAccountRestore, applyAccountRestore, subscribeAccountSync, getAccountSyncSnapshot, type AccountRestoreInfo } from '../../online/accountSync';
 import { onlineEnabled } from '../../online/api';
 import { Panel, ConfirmModal } from '../kit';
 
@@ -70,7 +70,8 @@ export function Account({ saveMgr, engine, onReload }: Props) {
   const [restoreInfo, setRestoreInfo] = useState<{ name: string; savedAt: number } | null>(null);
   // restauração automática pós-login aguardando confirmação do jogador
   const [pendingAutoRestore, setPendingAutoRestore] = useState<AccountRestoreInfo | null>(null);
-  const [lastSync, setLastSync] = useState(lastAccountSyncAt());
+  // estado de sincronização EM TEMPO REAL (mesmo store da TopBar): enviando agora, último erro, última sync
+  const sync = useSyncExternalStore(subscribeAccountSync, getAccountSyncSnapshot);
   // slot escolhido para vincular o save da conta ('' = automático → slot do jogo atual)
   const [slotPref, setSlotPrefState] = useState<SaveSlot | ''>(() => getAccountSlotPref());
 
@@ -115,11 +116,6 @@ export function Account({ saveMgr, engine, onReload }: Props) {
     return () => { alive = false; };
   }, [session]);
 
-  // mantém o horário da última sincronização atualizado (o auto-save de 1h roda fora da tela)
-  useEffect(() => {
-    const iv = window.setInterval(() => setLastSync(lastAccountSyncAt()), 30_000);
-    return () => window.clearInterval(iv);
-  }, []);
 
   // ── registro ───────────────────────────────────────────────
   async function handleRegister() {
@@ -338,7 +334,6 @@ export function Account({ saveMgr, engine, onReload }: Props) {
     setMsg(null);
     const r = await pushAccountSaveNow(engine, saveMgr);
     setBusy(false);
-    setLastSync(lastAccountSyncAt());
     if (r.ok) flash('ok', 'Save enviado para a conta! ✅');
     else flash('err', r.reason ?? 'Falha ao enviar');
   }
@@ -405,7 +400,15 @@ export function Account({ saveMgr, engine, onReload }: Props) {
               {engine && engine.state.settings.cloudSyncEnabled === false && (
                 <p className="muted small settings-err">🔴 Sincronização automática desativada nas Configurações — o envio automático de 1h está pausado (os botões acima continuam manuais).</p>
               )}
-              <p className="muted small">🕒 Última sincronização: {lastSync ? formatWhen(lastSync) : 'ainda não'}</p>
+              <div className="account-sync-live">
+                {sync.syncing && (
+                  <p className="muted small account-sync-live-on"><span className="account-sync-spin">↻</span> Sincronizando o save com a conta…</p>
+                )}
+                {!sync.syncing && sync.lastError && (
+                  <p className="muted small settings-err">⚠️ Último envio falhou: {sync.lastError}</p>
+                )}
+                <p className="muted small">🕒 Última sincronização: {sync.lastSyncAt ? formatWhen(sync.lastSyncAt) : 'ainda não'}</p>
+              </div>
 
               <h4>🎯 Slot de vínculo do save</h4>
               <p className="muted small">
@@ -602,6 +605,10 @@ export function Account({ saveMgr, engine, onReload }: Props) {
             if (!session) return;
             const r = await pullAccountSave(session.token);
             if (!r.ok) { flash('err', r.reason); return; }
+            // paridade com a restauração automática (applyAccountRestore): backup
+            // do save local ANTES de sobrescrever — o modal promete isso e o
+            // download manual não pode ser a exceção (o botão exige engine)
+            if (engine) await saveMgr.createBackup(engine);
             const imp = await saveMgr.importText(saveMgr.getSlot(), r.info.saveText);
             if (imp.ok) {
               flash('ok', 'Save da conta restaurado! Recarregando…');

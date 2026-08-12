@@ -428,7 +428,7 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
     if (rateLimited(`acc:save:${norm(username)}`, 30)) {
       return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
     }
-    const { saveText, name, savedAt, slot } = req.body ?? {};
+    const { saveText, name, savedAt, slot, playerId, profile } = req.body ?? {};
     if (typeof saveText !== 'string' || saveText.length < 10 || saveText.length > SAVE_TEXT_MAX) {
       return res.status(400).json({ ok: false, reason: 'Save inválido ou grande demais' });
     }
@@ -436,6 +436,25 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
     const cleanSlot = typeof slot === 'string' && SLOT_RE.test(slot) ? slot : '';
     const at = Number.isFinite(savedAt) ? savedAt : Date.now();
     await kvSet(`account:save:${norm(username)}`, { saveText, name: cleanName, savedAt: at, slot: cleanSlot });
+    // snapshot PÚBLICO (visível apenas para amigos) — o app envia junto do save:
+    // nome do save, avatar, status e progresso resumido, sem dados sensíveis
+    if (profile && typeof profile === 'object') {
+      const cleanProfile = {
+        name: typeof profile.name === 'string' ? profile.name.replace(/[\u0000-\u001f]/g, '').slice(0, 40) : '',
+        avatarIcon: typeof profile.avatarIcon === 'string' ? profile.avatarIcon.replace(/[^\w-]/g, '').slice(0, 32) : '',
+        status: typeof profile.status === 'string' ? profile.status.replace(/[^\w-]/g, '').slice(0, 32) : '',
+        statusMessage: typeof profile.statusMessage === 'string' ? profile.statusMessage.replace(/[\u0000-\u001f]/g, '').slice(0, 60) : '',
+        level: Number.isFinite(profile.level) ? Math.max(1, Math.min(9999, Math.floor(profile.level))) : 1,
+        prestige: Number.isFinite(profile.prestige) ? Math.max(0, Math.floor(profile.prestige)) : 0,
+        updatedAt: Date.now(),
+      };
+      await kvSet(publicProfileKey(username), cleanProfile);
+      // playerId (createdAt do save) também entra no snapshot — identifica o
+      // dispositivo do amigo para futuras features (deep-link de perfil etc.)
+      if (Number.isFinite(playerId) && playerId > 0) {
+        await kvSet(publicProfileKey(username), { ...cleanProfile, lastPlayerId: Math.floor(playerId) });
+      }
+    }
     console.log(`[account] save automático de ${username} · ${saveText.length} chars${cleanSlot ? ` · ${cleanSlot}` : ''}`);
     return res.json({ ok: true, savedAt: at });
   });
@@ -460,5 +479,220 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
     }
     console.log(`[account] save re-vinculado de ${username} → ${slot || '(nenhum)'}`);
     return res.json({ ok: true, saveSlot: slot });
+  });
+
+  // ── amigos + perfil público (visível apenas para amigos) ──
+  // Amizade é CONFIRMADA pelos dois lados: A adiciona B → solicitação pendente;
+  // B aceita (ou adiciona A de volta) → amizade mútua. A presença do amigo vem
+  // do heartbeat com a sessão (presence:name:<user>), o snapshot do perfil vem
+  // do push do save (account:pub:<user>).
+  const MAX_FRIENDS = 100;
+  const FRIEND_RE = /^[a-zA-Z0-9_]{3,20}$/;
+
+  function publicProfileKey(username) {
+    return `account:pub:${norm(username)}`;
+  }
+
+  function friendKey(username) {
+    return `friend:${norm(username)}`;
+  }
+
+  /** Estado de amizade de um usuário (arrays vazios se nunca usou). */
+  async function getFriendState(username) {
+    const data = await kvGetJson(friendKey(username));
+    return {
+      friends: Array.isArray(data?.friends) ? data.friends : [],
+      incoming: Array.isArray(data?.incoming) ? data.incoming : [],
+      outgoing: Array.isArray(data?.outgoing) ? data.outgoing : [],
+    };
+  }
+
+  async function setFriendState(username, state) {
+    await kvSet(friendKey(username), state);
+  }
+
+  /** Copia o array sem o nome (não muta o original). */
+  function without(list, name) {
+    return list.filter((x) => x !== name);
+  }
+
+  /** Perfil + presença de um amigo (para a lista e o modal de perfil). */
+  async function friendInfo(username) {
+    const u = norm(username);
+    const pub = await kvGetJson(publicProfileKey(u));
+    const presence = await kvGetJson(`presence:name:${u}`);
+    const at = typeof presence?.at === 'number' ? presence.at : 0;
+    return {
+      username: u,
+      name: pub?.name || u,
+      avatarIcon: pub?.avatarIcon || 'av_default',
+      status: pub?.status || 'offline',
+      statusMessage: pub?.statusMessage || '',
+      level: Number.isFinite(pub?.level) ? pub.level : 1,
+      prestige: Number.isFinite(pub?.prestige) ? pub.prestige : 0,
+      online: at > 0 && Date.now() - at < 180_000,
+      lastSeenAt: at || pub?.updatedAt || 0,
+      playerId: Number.isFinite(pub?.lastPlayerId) ? pub.lastPlayerId : 0,
+    };
+  }
+
+  /** Registra o usuário da sessão (ou responde 401). */
+  async function requireSessionUser(req, res) {
+    const username = await sessionUser(req);
+    if (!username) {
+      res.status(401).json({ ok: false, reason: 'Sessão inválida ou expirada' });
+      return null;
+    }
+    return username;
+  }
+
+  // ── lista de amigos (com presença e perfil) ──
+  app.get('/api/friends', async (req, res) => {
+    const username = await requireSessionUser(req, res);
+    if (!username) return;
+    if (rateLimited(`friends:list:${norm(username)}`, 60)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const state = await getFriendState(username);
+    const friends = await Promise.all(state.friends.map(friendInfo));
+    return res.json({ ok: true, friends, incoming: state.incoming, outgoing: state.outgoing });
+  });
+
+  // ── adicionar amigo (cria solicitação; confirma na hora se já havia solicitação contrária) ──
+  app.post('/api/friends/add', async (req, res) => {
+    const username = await requireSessionUser(req, res);
+    if (!username) return;
+    if (rateLimited(`friends:add:${norm(username)}`, 30)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const target = String(req.body?.username ?? '').trim().toLowerCase();
+    if (!FRIEND_RE.test(target)) {
+      return res.status(400).json({ ok: false, reason: 'Usuário inválido' });
+    }
+    const me = norm(username);
+    if (target === me) {
+      return res.status(400).json({ ok: false, reason: 'Você não pode adicionar a si mesmo' });
+    }
+    // 404 aqui revela se o usuário existe — aceito por UX de add-friend (você
+    // precisa saber o nome de quem quer adicionar); o recover, que é por e-mail,
+    // mantém a resposta silenciosa de propósito
+    if (!(await kvGetJson(userKey(target)))) {
+      return res.status(404).json({ ok: false, reason: 'Usuário não encontrado' });
+    }
+    const mine = await getFriendState(me);
+    if (mine.friends.includes(target)) {
+      return res.json({ ok: true, status: 'friends', reason: 'Já são amigos' });
+    }
+    const theirs = await getFriendState(target);
+    if (mine.outgoing.includes(target)) {
+      return res.json({ ok: true, status: 'pending', reason: 'Solicitação já enviada' });
+    }
+    if (mine.friends.length >= MAX_FRIENDS) {
+      return res.status(400).json({ ok: false, reason: `Limite de ${MAX_FRIENDS} amigos atingido` });
+    }
+    if (theirs.outgoing.includes(me)) {
+      // o alvo JÁ me adicionou → vira amizade mútua na hora; a solicitação
+      // que EU tinha recebido dele (mine.incoming) também é consumida
+      if (mine.friends.length >= MAX_FRIENDS) {
+        return res.status(400).json({ ok: false, reason: `Limite de ${MAX_FRIENDS} amigos atingido` });
+      }
+      mine.friends.push(target);
+      mine.incoming = without(mine.incoming, target);
+      theirs.friends.push(me);
+      theirs.outgoing = without(theirs.outgoing, me);
+      await setFriendState(me, mine);
+      await setFriendState(target, theirs);
+      return res.json({ ok: true, status: 'friends' });
+    }
+    mine.outgoing.push(target);
+    theirs.incoming.push(me);
+    await setFriendState(me, mine);
+    await setFriendState(target, theirs);
+    return res.json({ ok: true, status: 'pending' });
+  });
+
+  // ── aceitar solicitação recebida ──
+  app.post('/api/friends/accept', async (req, res) => {
+    const username = await requireSessionUser(req, res);
+    if (!username) return;
+    if (rateLimited(`friends:accept:${norm(username)}`, 30)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const target = String(req.body?.username ?? '').trim().toLowerCase();
+    if (!FRIEND_RE.test(target)) {
+      return res.status(400).json({ ok: false, reason: 'Usuário inválido' });
+    }
+    const me = norm(username);
+    const mine = await getFriendState(me);
+    if (!mine.incoming.includes(target)) {
+      return res.status(400).json({ ok: false, reason: 'Nenhuma solicitação desse usuário' });
+    }
+    // o limite vale para QUEM CONFIRMA também (aceitar não pode estourar a lista)
+    if (mine.friends.length >= MAX_FRIENDS) {
+      return res.status(400).json({ ok: false, reason: `Limite de ${MAX_FRIENDS} amigos atingido` });
+    }
+    const theirs = await getFriendState(target);
+    mine.friends.push(target);
+    mine.incoming = without(mine.incoming, target);
+    theirs.friends.push(me);
+    theirs.outgoing = without(theirs.outgoing, me);
+    await setFriendState(me, mine);
+    await setFriendState(target, theirs);
+    return res.json({ ok: true });
+  });
+
+  // ── recusar solicitação recebida ──
+  app.post('/api/friends/decline', async (req, res) => {
+    const username = await requireSessionUser(req, res);
+    if (!username) return;
+    if (rateLimited(`friends:decline:${norm(username)}`, 30)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const target = String(req.body?.username ?? '').trim().toLowerCase();
+    if (!FRIEND_RE.test(target)) {
+      return res.status(400).json({ ok: false, reason: 'Usuário inválido' });
+    }
+    const me = norm(username);
+    const mine = await getFriendState(me);
+    if (!mine.incoming.includes(target)) {
+      return res.status(400).json({ ok: false, reason: 'Nenhuma solicitação desse usuário' });
+    }
+    const theirs = await getFriendState(target);
+    mine.incoming = without(mine.incoming, target);
+    theirs.outgoing = without(theirs.outgoing, me);
+    await setFriendState(me, mine);
+    await setFriendState(target, theirs);
+    return res.json({ ok: true });
+  });
+
+  // ── remover amigo / cancelar solicitação (qualquer direção) ──
+  app.post('/api/friends/remove', async (req, res) => {
+    const username = await requireSessionUser(req, res);
+    if (!username) return;
+    if (rateLimited(`friends:remove:${norm(username)}`, 30)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const target = String(req.body?.username ?? '').trim().toLowerCase();
+    if (!FRIEND_RE.test(target)) {
+      return res.status(400).json({ ok: false, reason: 'Usuário inválido' });
+    }
+    const me = norm(username);
+    const mine = await getFriendState(me);
+    const theirs = await getFriendState(target);
+    if (mine.friends.includes(target)) {
+      mine.friends = without(mine.friends, target);
+      theirs.friends = without(theirs.friends, me);
+    } else if (mine.outgoing.includes(target)) {
+      // cancelar solicitação que enviei
+      mine.outgoing = without(mine.outgoing, target);
+      theirs.incoming = without(theirs.incoming, me);
+    } else if (mine.incoming.includes(target)) {
+      // descartar solicitação recebida (mesmo efeito do decline)
+      mine.incoming = without(mine.incoming, target);
+      theirs.outgoing = without(theirs.outgoing, me);
+    }
+    await setFriendState(me, mine);
+    await setFriendState(target, theirs);
+    return res.json({ ok: true });
   });
 }

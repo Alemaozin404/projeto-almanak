@@ -22,6 +22,7 @@ const KIND_ICONS: Record<string, string> = {
   essence: '💜',
   event: '🎊',
   quest: '🎯',
+  warn: '⚠️',
   default: 'ℹ️',
 };
 

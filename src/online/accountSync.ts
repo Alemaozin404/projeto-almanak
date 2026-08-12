@@ -12,6 +12,7 @@
  * - O push manual (botão na tela de Conta) usa a mesma função com force.
  */
 import { getSession, pushAccountSave, pullAccountSave, getAccountSlotPref } from './account';
+import { cloudPlayerId } from './cloudSave';
 import { onlineEnabled } from './api';
 import { RESTORE_MIN_NEWER_MS } from './autoCloud';
 import { GameConfig } from '../config/GameConfig';
@@ -128,7 +129,19 @@ export async function pushAccountSaveNow(
   // marca "sincronizando" na TopBar durante a chamada de rede (e grava o resultado)
   setSyncing(true);
   try {
-    const r = await pushAccountSave(session.token, text, engine.state.name || 'Jogador', slot);
+    // snapshot público do perfil junto do save (visível apenas para amigos)
+    const profile = {
+      name: engine.state.name || 'Jogador',
+      avatarIcon: engine.state.profile?.avatarIcon ?? 'av_default',
+      status: engine.state.profile?.status ?? 'online',
+      statusMessage: engine.state.profile?.statusMessage ?? '',
+      level: engine.state.level ?? 1,
+      prestige: engine.state.prestige?.count ?? 0,
+    };
+    const r = await pushAccountSave(session.token, text, engine.state.name || 'Jogador', slot, {
+      playerId: cloudPlayerId(engine.state),
+      profile,
+    });
     if (r.ok) {
       syncSnapshot = { ...syncSnapshot, lastSyncAt: Date.now(), lastError: null };
       notifySyncChanged();

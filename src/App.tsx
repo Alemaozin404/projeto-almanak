@@ -29,6 +29,7 @@ import { SeasonHub } from './ui/screens/SeasonHub';
 import { Pass } from './ui/screens/Pass';
 import { Admin } from './ui/screens/Admin';
 import { Account } from './ui/screens/Account';
+import { Friends } from './ui/screens/Friends';
 import { Settings } from './ui/screens/Settings';
 import { Debug } from './ui/screens/Debug';
 import { equippedSkin } from './content/skins';
@@ -38,6 +39,7 @@ import { syncRemoteContent, SYNC_INTERVAL_MS } from './liveops/RemoteContent';
 import { startHeartbeat } from './online/heartbeat';
 import { autoPushSave, autoSyncOnLoad } from './online/autoCloud';
 import { getSession, pullAccountSave } from './online/account';
+import { onlineEnabled } from './online/api';
 import { startAccountAutoSave, stopAccountAutoSave, checkAccountRestore, applyAccountRestore, pushAccountSaveNow, autoPushAccountSave, type AccountRestoreInfo } from './online/accountSync';
 import { autoPublishBestRuns } from './online/autoRank';
 import { audio } from './audio/audio';
@@ -192,6 +194,18 @@ export default function App() {
             kind: 'default',
             title: '👤 Conta sincronizada',
             desc: 'Seu save foi enviado para a conta — o progresso continua no site e no app.',
+          });
+          return;
+        }
+        // aviso de falha só com conta conectada, backend configurado e sync ativo:
+        // com esses três estados OK, qualquer falha é real (rede/servidor) — estados
+        // de configuração (sem conta, sem backend, sync desativado) não incomodam
+        const readyToSync = getSession() && onlineEnabled() && e.state.settings.cloudSyncEnabled !== false;
+        if (readyToSync && r.reason) {
+          bus.emit('notify', {
+            kind: 'warn',
+            title: '⚠️ Falha ao sincronizar a conta',
+            desc: `Seu save não foi enviado para a conta (${r.reason}). O próximo save automático vai tentar de novo.`,
           });
         }
       });
@@ -452,6 +466,7 @@ export default function App() {
             {screen === 'pass' && <Pass />}
             {screen === 'admin' && <Admin />}
             {screen === 'account' && <Account saveMgr={saveMgrRef.current!} engine={engine} onReload={() => onContinue(saveMgrRef.current!.getSlot())} />}
+            {screen === 'friends' && <Friends />}
             {screen === 'settings' && <Settings saveMgr={saveMgrRef.current!} onBackToMenu={detach} onReload={() => onContinue(saveMgrRef.current!.getSlot())} />}
             {screen === 'debug' && <Debug />}
           </main>

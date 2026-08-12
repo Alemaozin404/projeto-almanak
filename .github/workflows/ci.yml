@@ -35,8 +35,16 @@ jobs:
       - run: npm run lint
         name: Lint
 
+      # Suíte dedicada do sistema de contas (registro, login e RESTAURAÇÃO do
+      # save ao logar em outro dispositivo) — roda por nome em todo push/PR para
+      # sinalizar regressão nessa área de forma explícita e rápida, independente
+      # do glob padrão do vitest (o npm test completo continua rodando depois).
+      # glob account*.test.ts: futuros testes de conta entram aqui sem editar o CI
+      - run: npx vitest run tests/account*.test.ts
+        name: Testes da conta e restauração do save
+
       - run: npm test
-        name: Testes
+        name: Testes completos
 
       - run: git diff --exit-code server/content.json
         name: Conteúdo exportado em dia (sem diffs pendentes)

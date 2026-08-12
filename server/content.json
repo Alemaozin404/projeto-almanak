@@ -1,6 +1,59 @@
 {
-  "gameVersion": "1.3.1",
+  "gameVersion": "1.4.0",
   "updates": [
+    {
+      "version": "1.4.0",
+      "title": "AMIGOS + PERFIL PÚBLICO",
+      "date": "2026-08-12",
+      "description": "Novo sistema de Amigos: adicione outros jogadores por nome de usuário, aceite solicitações e veja quem está online agora — com presença ao vivo e perfil público (avatar, nível, prestígios e status) visível para os amigos. A sincronização da conta também ganhou avisos claros de falha e estado ao vivo.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "👥",
+          "items": [
+            "Amigos: adicione outros jogadores por nome de usuário e confirme solicitações (aceitar/recusar)",
+            "Presença AO VIVO na lista: bolinha 🟢 quando o amigo está online agora (sinal a cada 1 min) e horário do último visto",
+            "Perfil público do amigo: avatar, nível, prestígios, status e mensagem — visível só para amigos"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "Nova tela Amigos no menu: lista, solicitações recebidas e busca por nome",
+            "Modal de perfil do amigo com avatar, nível, prestígios e status/mensagem",
+            "Lista de amigos atualizada a cada 30s com último visto automático"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Falhas de sincronização da conta agora avisam o jogador (⚠️ “Falha ao sincronizar”) quando há conta conectada e backend configurado",
+            "Tela Conta com status ao vivo: enviando agora, último erro e última sincronização",
+            "Download manual do save da conta cria backup do save local antes de sobrescrever (paridade com a restauração automática)"
+          ]
+        },
+        {
+          "tag": "CORRIGIDO",
+          "icon": "🐛",
+          "items": [
+            "Confirmação mútua de amizade deixava uma solicitação órfã no lado receptor",
+            "Limite de 100 amigos agora vale também no aceite (não só no envio)",
+            "CI valida a restauração do save em todo push (testes de conta dedicados)"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "5000000",
+        "boxes": [
+          {
+            "boxId": "event",
+            "qty": 1
+          }
+        ]
+      }
+    },
     {
       "version": "1.3.1",
       "title": "STATUS DE SINCRONIZAÇÃO NA TOPBAR",

@@ -6,7 +6,7 @@ export type Screen =
   | 'home' | 'upgrades' | 'shop' | 'boxes' | 'pets' | 'inventory' | 'skills'
   | 'quests' | 'achievements' | 'prestige' | 'events' | 'collection'
   | 'profile' | 'stats' | 'ranking' | 'wardrobe' | 'updates' | 'season'
-  | 'pass' | 'wallet' | 'admin' | 'account'
+  | 'pass' | 'wallet' | 'admin' | 'account' | 'friends'
   | 'settings' | 'debug';
 
 export const NAV: { id: Screen; name: string; icon: string; hint: string }[] = [
@@ -31,6 +31,7 @@ export const NAV: { id: Screen; name: string; icon: string; hint: string }[] = [
   { id: 'season', name: 'Temporada', icon: '🌟', hint: 'Season Hub — passe e recompensas' },
   { id: 'pass', name: 'Passe Premium', icon: '🎟️', hint: 'Passe Premium — 100 níveis de recompensas' },
   { id: 'account', name: 'Conta', icon: '👤', hint: 'Conta — save automático no servidor' },
+  { id: 'friends', name: 'Amigos', icon: '👥', hint: 'Amigos — presença ao vivo e perfil' },
   { id: 'settings', name: 'Configurações', icon: '⚙️', hint: 'Opções do jogo' },
 ];
 

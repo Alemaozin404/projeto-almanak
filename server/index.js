@@ -531,6 +531,20 @@ export function createApp(env = process.env) {
           { at: Date.now(), gameVersion: typeof gameVersion === 'string' ? gameVersion.slice(0, 20) : '' },
           180, // TTL de 3 min — sem sinal, o registro de presença some sozinho
         );
+        // presença POR CONTA (para a lista de amigos): se o heartbeat carrega a
+        // sessão, registra o mesmo sinal sob o nome de usuário — o TTL de 3 min
+        // faz o amigo sumir do online sozinho quando para de jogar
+        const token = String(req.headers['x-account-token'] ?? '');
+        if (/^[0-9a-f]{64}$/.test(token)) {
+          const session = await kvGetJson(`account:session:${token}`);
+          if (session && typeof session.username === 'string') {
+            await kvSet(
+              `presence:name:${String(session.username).trim().toLowerCase()}`,
+              { playerId: Number(playerId), at: Date.now() },
+              180,
+            );
+          }
+        }
       } catch (err) {
         console.error('[heartbeat] falha ao registrar presença:', err);
       }

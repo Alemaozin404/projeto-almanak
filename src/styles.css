@@ -460,6 +460,7 @@ body {
 .toast-transcendence { border-left-color: var(--magenta); }
 .toast-event { border-left-color: var(--success); }
 .toast-title { border-left-color: var(--gold); }
+.toast-warn { border-left-color: var(--rose); }
 
 .toast-icon { font-size: 20px; }
 .toast-body strong { font-size: 13px; }
@@ -1284,9 +1285,106 @@ body {
 .account-sync-spin { display: inline-block; animation: accountSyncSpin 1s linear infinite; }
 @keyframes accountSyncSpin { to { transform: rotate(360deg); } }
 
+/* status de sincronização ao vivo na tela de Conta */
+.account-sync-live { display: flex; flex-direction: column; gap: 3px; }
+.account-sync-live p { display: flex; align-items: center; gap: 6px; margin: 0; }
+.account-sync-live-on { color: #ffc43d; }
+
 @media (max-width: 1100px) {
   .account-chip-count { display: none; }
 }
+
+/* ═══════════ AMIGOS (presença ao vivo + perfil) ═══════════ */
+
+.friend-add-row { display: flex; gap: 8px; margin-bottom: 6px; }
+.friend-add-row .settings-text-input {
+  flex: 1;
+  min-width: 0;
+  background: #0a1022;
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.friend-add-row .settings-text-input:focus { outline: none; border-color: var(--accent); }
+
+.friend-list { display: flex; flex-direction: column; gap: 6px; margin: 6px 0 12px; }
+
+.friend-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(9, 14, 30, 0.6);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  transition: all 0.15s ease;
+}
+
+.friend-row:hover { border-color: var(--border-strong); }
+
+.friend-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #2a3f7e, #0c1630);
+  border: 2px solid transparent;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
+  flex-shrink: 0;
+  transition: border-color 0.2s ease;
+}
+
+.friend-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.friend-main strong {
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.friend-main small { display: flex; align-items: center; gap: 6px; }
+
+.friend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(61, 220, 132, 0.4);
+}
+
+.friend-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* perfil do amigo (modal) */
+.friend-profile { display: flex; flex-direction: column; gap: 8px; }
+.friend-profile-head { display: flex; align-items: center; gap: 14px; }
+.friend-profile-head strong { font-size: 16px; display: block; }
+.friend-avatar-big {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #2a3f7e, #0c1630);
+  border: 2px solid var(--border-strong);
+  display: grid;
+  place-items: center;
+  font-size: 30px;
+  flex-shrink: 0;
+}
+.friend-presence {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(154, 165, 177, 0.15);
+  border: 1px solid rgba(154, 165, 177, 0.4);
+  color: #c3ccdd;
+  white-space: nowrap;
+}
+.friend-presence.friend-online { color: #04101f; border-color: transparent; }
 
 /* ── Acessibilidade ── */
 .app.rm * { animation: none !important; transition-duration: 0.01ms !important; }

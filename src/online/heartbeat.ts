@@ -16,6 +16,7 @@ import { GameConfig } from '../config/GameConfig';
 import { pixBackendUrl, pixOnlineEnabled } from '../wallet/mp';
 import { syncRemoteContent } from '../liveops/RemoteContent';
 import { setCloudStatus } from './status';
+import { getSession } from './account';
 
 /** Intervalo do sinal — 1 minuto. */
 export const HEARTBEAT_INTERVAL_MS = 60 * 1000;
@@ -47,11 +48,15 @@ export function resetHeartbeatState(): void {
 /** Envia um único sinal ao servidor. Falha → null (silencioso). */
 async function sendHeartbeat(playerId: number): Promise<HeartbeatDto | null> {
   try {
+    // com conta conectada, o sinal também registra a presença POR USUÁRIO — é
+    // assim que os amigos veem você como "online" na lista (TTL de 3 min)
+    const session = getSession();
     const res = await fetch(`${pixBackendUrl()}/api/heartbeat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-app-secret': GameConfig.wallet.appSharedSecret,
+        ...(session ? { 'x-account-token': session.token } : {}),
       },
       body: JSON.stringify({ playerId, gameVersion: GameConfig.version }),
     });
