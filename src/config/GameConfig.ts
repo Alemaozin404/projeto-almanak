@@ -3,14 +3,14 @@
  * Não espalhar constantes pelo projeto: economia, passe, offline, admin e debug vivem aqui.
  */
 export const GameConfig = {
-  version: '1.4.1',
+  version: '1.4.2',
 
   // ── Passe Premium global ──
   pass: {
     /** Preço do passe em R$ — o servidor cobra o MESMO valor (espelhado em server/index.js). */
     priceBRL: 9.9,
-    /** Preço do passe em CRÉDITOS 💳 — moeda universal (alternativa ao Pix). */
-    creditsPrice: 250,
+    /** Preço do passe em CRÉDITOS 💳 — moeda principal (≈ R$ 9,00, alinhado ao Pix de R$ 9,90). */
+    creditsPrice: 180,
     /**
      * Chave pública Ed25519 (32 bytes hex) dos recibos do passe — par gerado com
      * `npm run gen:receipt-keys`. O app SÓ conhece a pública; a privada vive no

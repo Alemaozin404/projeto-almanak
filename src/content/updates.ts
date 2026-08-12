@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.4.1';
+export const GAME_VERSION = '1.4.2';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,17 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.4.2',
+    title: 'CRÉDITOS — A MOEDA PRINCIPAL',
+    date: '2026-08-12',
+    description: 'Os Créditos 💳 viraram a moeda principal do jogo: ganharam categoria própria na Loja com vários preços e agora pagam caixas e consumíveis premium (além do Passe, avatares e eventos). As Fichas 🎰 ficaram bem mais baratas, já que são usadas só em eventos premium. E o Passe Premium passou a custar 180 créditos — valor equivalente ao Pix.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '💳', items: ['Créditos são a MOEDA PRINCIPAL: nova aba na Loja com 4 pacotes (100/300/800/2.000) via Pix', 'Caixas e consumíveis premium agora aceitam pagamento com Créditos (botão 💳 ao lado do 💎)', 'Fichas 🎰 muito mais baratas (100 por R$ 3,99) — moeda exclusiva de eventos premium'] },
+      { tag: 'NOVO', icon: '✨', items: ['Aba Créditos na Loja com conversão para Diamantes 💎 (1💳 = 1💎)', 'Carteira abre direto em Créditos'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Passe Premium: 250 → 180 créditos (≈ R$ 9,00 — alinhado ao preço Pix de R$ 9,90)', 'Pacotes de fichas: 100=R$ 3,99 · 300=R$ 9,99 · 800=R$ 24,99 · 2.000=R$ 59,99'] },
+    ],
+  },
   {
     version: '1.4.1',
     title: 'ECONOMIA REESTRUTURADA — MOEDAS SEPARADAS',
