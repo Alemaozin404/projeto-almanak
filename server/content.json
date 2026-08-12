@@ -1,6 +1,40 @@
 {
-  "gameVersion": "1.4.0",
+  "gameVersion": "1.4.1",
   "updates": [
+    {
+      "version": "1.4.1",
+      "title": "ECONOMIA REESTRUTURADA — MOEDAS SEPARADAS",
+      "date": "2026-08-12",
+      "description": "A economia foi reestruturada em três moedas pagas com papéis claros: Fichas 🎰 (moeda exclusiva de eventos premium, sem usar moedas grátis), Créditos 💳 (moeda universal: compra o Passe Premium, avatares pagos e entrada em eventos) e Diamantes 💎 (exclusivos — só via Pix ou conversão de créditos). A energia também ficou mais escassa: geradores mais caros e upgrades de CLIQUE agora são comprados com energia.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "💎",
+          "items": [
+            "Moedas separadas: Fichas 🎰 (eventos premium), Créditos 💳 (moeda universal) e Diamantes 💎 (exclusivos — via Pix ou conversão de créditos)",
+            "Conversão fichas→créditos REMOVIDA — os créditos agora têm pacotes próprios via Pix (100/300/800/2.000)"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "✨",
+          "items": [
+            "Passe Premium comprável com Créditos 💳 (250) além do Pix",
+            "XP do passe comprável com Diamantes 💎 (1💎 = 500 XP)",
+            "Avatares premium compráveis individualmente com Créditos (Netrunner, Estelar, moldura/efeito/badge)",
+            "Evento premium Baile VIP 💃 sempre ativo com loja paga em Fichas 🎰 e itens compráveis com Diamantes"
+          ]
+        },
+        {
+          "tag": "ALTERADO",
+          "icon": "⚙",
+          "items": [
+            "Energia escassa: geradores de energia mais caros e com produção reduzida",
+            "Upgrades de CLIQUE agora custam ENERGIA ⚡ (produção/economia seguem em moedas 🪙 e os premium em 💎)"
+          ]
+        }
+      ]
+    },
     {
       "version": "1.4.0",
       "title": "AMIGOS + PERFIL PÚBLICO",
