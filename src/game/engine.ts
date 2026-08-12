@@ -30,7 +30,7 @@ import { GameConfig } from '../config/GameConfig';
 import { GAME_PASS_LEVELS, passLevelFromXp, passNextLevel } from '../pass/GamePass';
 import { PASS_PRODUCT_ID, signPassReceipt, verifyPassReceipt } from '../security/passReceipt';
 import { packById } from '../shop/packs';
-import { fichaPackById, fichasToCredits, creditsToDiamonds, type PixOrderStatus } from '../wallet/pix';
+import { fichaPackById, creditPackById, creditsToDiamonds, type PixOrderStatus } from '../wallet/pix';
 
 /** Pacote comprável via Pix — o gateway online só valida o preço (packId) no servidor. */
 export interface PixPackLike {
@@ -38,6 +38,7 @@ export interface PixPackLike {
   name: string;
   priceBRL: number;
   fichas?: number;
+  credits?: number;
   gold?: string;
   diamonds?: number;
 }
@@ -1194,10 +1195,28 @@ export class GameEngine {
     if (!this.isEventActive(eventId)) return { ok: false, reason: 'Evento inativo' };
     const item = ev.shop.find((i) => i.id === itemId);
     if (!item) return { ok: false, reason: 'Item inexistente' };
-    const cost = D(item.cost);
     const st = this.eventState(ev);
-    if (D(st.tokens).lt(cost)) return { ok: false, reason: `${ev.currency.icon} ${ev.currency.name} insuficientes` };
-    st.tokens = D(st.tokens).minus(cost).toString();
+
+    // item com preço em diamantes (compra direta na loja premium)
+    if (item.diamondCost) {
+      const dCost = D(item.diamondCost);
+      if (this.getRes('crystals').lt(dCost)) return { ok: false, reason: '💎 Diamantes insuficientes' };
+      this.spend('crystals', dCost);
+    } else if (ev.entry === 'fichas') {
+      // evento premium: a loja é paga com Fichas 🎰 (sem usar moedas grátis)
+      const fCost = D(item.cost);
+      if (this.getRes('fichas').lt(fCost)) return { ok: false, reason: '🎰 Fichas insuficientes' };
+      this.spend('fichas', fCost);
+    } else if (ev.entry === 'credits') {
+      // entrada premium com Créditos 💳 (moeda universal)
+      const cCost = D(item.cost);
+      if (this.getRes('credits').lt(cCost)) return { ok: false, reason: '💳 Créditos insuficientes' };
+      this.spend('credits', cCost);
+    } else {
+      const cost = D(item.cost);
+      if (D(st.tokens).lt(cost)) return { ok: false, reason: `${ev.currency.icon} ${ev.currency.name} insuficientes` };
+      st.tokens = D(st.tokens).minus(cost).toString();
+    }
 
     // participação real em evento (desbloqueia a skin Gélido)
     s.flags.event_participations = (s.flags.event_participations ?? 0) + 1;
@@ -1407,6 +1426,25 @@ export class GameEngine {
     this.notify('profile');
   }
 
+  /** Compra um item de avatar premium com créditos 💳 (preço definido no catálogo). */
+  buyAvatarItem(catId: keyof typeof AVATAR_CATALOG, id: string): { ok: boolean; reason?: string } {
+    const s = this.state;
+    const cat = AVATAR_CATALOG[catId];
+    const item = cat.find((i) => i.id === id);
+    if (!item) return { ok: false, reason: 'Item inexistente' };
+    if (s.avatarItems.includes(id)) return { ok: false, reason: 'Item já possuído' };
+    const price = item.creditCost;
+    if (!price || price <= 0) return { ok: false, reason: 'Item não comprável com créditos' };
+    if (this.getRes('credits').lt(price)) return { ok: false, reason: '💳 Créditos insuficientes' };
+    this.spend('credits', D(price));
+    this.grantAvatarItem(id);
+    appendLog(s, 'wallet', `Avatar ${item.label} comprado com ${price} créditos`);
+    this.invalidate();
+    this.notify('profile');
+    bus.emit('notify', { kind: 'level', title: '🎨 Avatar desbloqueado!', desc: `${item.label} adquirido com créditos.` });
+    return { ok: true };
+  }
+
   setAvatarIcon(id: string): void {
     if (this.avatarItemAvailable(AVATAR_CATALOG.icons, id)) {
       this.state.profile.avatarIcon = id;
@@ -1479,6 +1517,22 @@ export class GameEngine {
     return passNextLevel(this.state.premiumPass.xp);
   }
 
+  /** Compra XP do passe com diamantes 💎 (1 diamante = xpPerDiamond XP). */
+  buyPassXp(xp: number): { ok: boolean; reason?: string; granted?: number } {
+    const s = this.state;
+    const qty = Math.floor(xp);
+    if (!Number.isFinite(qty) || qty <= 0) return { ok: false, reason: 'Quantidade inválida' };
+    const cost = Math.max(1, Math.ceil(qty / GameConfig.pass.xpPerDiamond));
+    if (this.getRes('crystals').lt(cost)) return { ok: false, reason: '💎 Diamantes insuficientes' };
+    this.spend('crystals', D(cost));
+    this.addPassXp(qty);
+    appendLog(s, 'pass', `XP do passe comprado: ${qty} XP por ${cost} 💎`);
+    this.invalidate();
+    this.notify('pass');
+    bus.emit('notify', { kind: 'level', title: '⚡ XP do passe!', desc: `+${qty} XP (${cost} 💎)` });
+    return { ok: true, granted: qty };
+  }
+
   /** Concede a posse do passe premium (usado pelo fluxo local e online). */
   private grantPremiumPass({ orderId, timestamp, signature }: { orderId: string; timestamp: number; signature: string }): void {
     const s = this.state;
@@ -1501,9 +1555,27 @@ export class GameEngine {
    * online (Mercado Pago via servidor, recibo assinado no backend quando aprovado)
    * ou local (simulado — recibo assinado com a chave local).
    */
-  async buyPremiumPass(): Promise<{ ok: boolean; reason?: string; pending?: boolean; orderId?: string; pixCode?: string; qrCodeBase64?: string }> {
+  async buyPremiumPass(opts?: { withCredits?: boolean }): Promise<{ ok: boolean; reason?: string; pending?: boolean; orderId?: string; pixCode?: string; qrCodeBase64?: string }> {
     const s = this.state;
     if (s.premiumPass.owned) return { ok: false, reason: 'Passe já adquirido' };
+    // compra com CRÉDITOS 💳 — moeda universal (alternativa ao Pix)
+    if (opts?.withCredits) {
+      const price = GameConfig.pass.creditsPrice;
+      if (this.getRes('credits').lt(price)) return { ok: false, reason: '💳 Créditos insuficientes' };
+      this.spend('credits', D(price));
+      const orderId = `pass-credits-${Date.now()}`;
+      const timestamp = Date.now();
+      this.grantPremiumPass({
+        orderId,
+        timestamp,
+        signature: signPassReceipt({ orderId, timestamp, playerId: s.createdAt }),
+      });
+      appendLog(s, 'pass', `Passe premium adquirido com créditos (${price} 💳)`);
+      this.invalidate();
+      this.notify('pass');
+      bus.emit('notify', { kind: 'level', title: '💎 Passe Premium ativo!', desc: 'Adquirido com créditos — trilha premium desbloqueada.' });
+      return { ok: true };
+    }
     const gw = resolvePixGateway();
     const res = await gw.purchase(PASS_PRODUCT_ID, { playerId: s.createdAt, amountBRL: GameConfig.pass.priceBRL });
     if (!res.ok || !res.orderId) return { ok: false, reason: res.reason ?? 'Pagamento recusado' };
@@ -1550,6 +1622,10 @@ export class GameEngine {
       this.addRes('fichas', D(pack.fichas));
       incStat(s, 'fichasBought', D(pack.fichas));
     }
+    if (pack.credits) {
+      this.addRes('credits', D(pack.credits));
+      incStat(s, 'creditsBought', D(pack.credits));
+    }
     if (pack.gold && D(pack.gold).gt(ZERO)) {
       this.addRes('gold', D(pack.gold));
       incStat(s, 'goldEarned', D(pack.gold));
@@ -1558,7 +1634,7 @@ export class GameEngine {
       this.addRes('crystals', D(pack.diamonds));
       incStat(s, 'crystalsEarned', D(pack.diamonds));
     }
-    appendLog(s, 'wallet', `Pix aprovado (pedido ${orderId}) — ${pack.id}: +${pack.fichas ?? 0} fichas, +${pack.gold ?? 0} moedas, +${pack.diamonds ?? 0} diamantes`);
+    appendLog(s, 'wallet', `Pix aprovado (pedido ${orderId}) — ${pack.id}: +${pack.fichas ?? 0} fichas, +${pack.credits ?? 0} créditos, +${pack.gold ?? 0} moedas, +${pack.diamonds ?? 0} diamantes`);
   }
 
   /** Compra de fichas via Pix. Local: concede na hora. Online: cria a cobrança e aguarda pagamento. */
@@ -1580,11 +1656,31 @@ export class GameEngine {
     return { ok: r.ok, reason: r.reason, fichas: r.fichas, orderId: r.orderId, pixCode: r.pixCode, qrCodeBase64: r.qrCodeBase64, pending: r.pending };
   }
 
+  /** Compra de créditos 💳 via Pix. Local: concede na hora. Online: cria a cobrança e aguarda pagamento. */
+  async buyCreditPack(packId: string, payerEmail?: string): Promise<{
+    ok: boolean;
+    reason?: string;
+    credits?: number;
+    orderId?: string;
+    pixCode?: string;
+    qrCodeBase64?: string;
+    pending?: boolean;
+  }> {
+    const pack = creditPackById(packId);
+    if (!pack) return { ok: false, reason: 'Pacote inexistente' };
+    const r = await this.buyPixPack(
+      { id: pack.id, name: pack.name, priceBRL: pack.priceBRL, credits: pack.credits },
+      payerEmail,
+    );
+    return { ok: r.ok, reason: r.reason, credits: r.credits, orderId: r.orderId, pixCode: r.pixCode, qrCodeBase64: r.qrCodeBase64, pending: r.pending };
+  }
+
   /** Compra de um pacote Pix customizado (fichas, moedas e/ou diamantes) via Pix. */
   async buyPixPack(pack: PixPackLike, payerEmail?: string): Promise<{
     ok: boolean;
     reason?: string;
     fichas?: number;
+    credits?: number;
     gold?: string;
     diamonds?: number;
     orderId?: string;
@@ -1609,6 +1705,7 @@ export class GameEngine {
         gold: res.content?.gold ?? pack.gold,
         diamonds: res.content?.diamonds ?? pack.diamonds,
         fichas: res.content?.fichas ?? pack.fichas,
+        credits: res.content?.credits ?? pack.credits,
         status: 'pending',
         at: Date.now(),
         pixCode: res.pixCode,
@@ -1625,15 +1722,16 @@ export class GameEngine {
     this.notify('buy');
     const parts = [
       pack.fichas ? `🎰 ${pack.fichas} fichas` : '',
+      pack.credits ? `💳 ${pack.credits} créditos` : '',
       pack.gold && D(pack.gold).gt(ZERO) ? `🪙 ${D(pack.gold).toFixed(0)} moedas` : '',
       pack.diamonds && pack.diamonds > 0 ? `💎 ${pack.diamonds} diamantes` : '',
     ].filter(Boolean);
     bus.emit('notify', { kind: 'level', title: `✅ ${pack.name} entregue!`, desc: `+${parts.join(' · ')}` });
-    return { ok: true, fichas: pack.fichas, gold: pack.gold, diamonds: pack.diamonds, orderId: res.orderId, pixCode: res.pixCode };
+    return { ok: true, fichas: pack.fichas, credits: pack.credits, gold: pack.gold, diamonds: pack.diamonds, orderId: res.orderId, pixCode: res.pixCode };
   }
 
   /** Consulta o status de um pedido Pix e concede o conteúdo quando aprovado (uma única vez). */
-  async checkPixOrder(orderId: string): Promise<{ status: PixOrderStatus; fichas?: number; gold?: string; diamonds?: number; done?: boolean }> {
+  async checkPixOrder(orderId: string): Promise<{ status: PixOrderStatus; fichas?: number; credits?: number; gold?: string; diamonds?: number; done?: boolean }> {
     const s = this.state;
     const order = s.pixOrders[orderId];
     if (!order) return { status: 'unknown' };
@@ -1678,10 +1776,10 @@ export class GameEngine {
       // (vindo da cobrança: servidor no modo online, catálogo no modo local).
       let pack: PixPackLike | null;
       const sc = r.content;
-      if (sc && (sc.gold !== undefined || sc.diamonds !== undefined || sc.fichas !== undefined)) {
-        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: sc.fichas, gold: sc.gold, diamonds: sc.diamonds };
-      } else if (order.gold !== undefined || order.diamonds !== undefined || order.fichas !== undefined) {
-        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: order.fichas, gold: order.gold, diamonds: order.diamonds };
+      if (sc && (sc.gold !== undefined || sc.diamonds !== undefined || sc.fichas !== undefined || sc.credits !== undefined)) {
+        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: sc.fichas, credits: sc.credits, gold: sc.gold, diamonds: sc.diamonds };
+      } else if (order.gold !== undefined || order.diamonds !== undefined || order.fichas !== undefined || order.credits !== undefined) {
+        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: order.fichas, credits: order.credits, gold: order.gold, diamonds: order.diamonds };
       } else {
         const f = fichaPackById(order.packId);
         pack = f ? { id: f.id, name: f.name, priceBRL: f.priceBRL, fichas: f.fichas } : null;
@@ -1690,6 +1788,7 @@ export class GameEngine {
         this.grantPixContents(pack, orderId);
         const parts = [
           pack.fichas ? `🎰 ${pack.fichas} fichas` : '',
+          pack.credits ? `💳 ${pack.credits} créditos` : '',
           pack.gold && D(pack.gold).gt(ZERO) ? `🪙 ${D(pack.gold).toFixed(0)} moedas` : '',
           pack.diamonds && pack.diamonds > 0 ? `💎 ${pack.diamonds} diamantes` : '',
         ].filter(Boolean);
@@ -1698,7 +1797,7 @@ export class GameEngine {
       order.status = 'done';
       this.invalidate();
       this.notify('wallet');
-      return { status: 'approved', fichas: pack?.fichas, gold: pack?.gold, diamonds: pack?.diamonds, done: true };
+      return { status: 'approved', fichas: pack?.fichas, credits: pack?.credits, gold: pack?.gold, diamonds: pack?.diamonds, done: true };
     }
     return { status: r.status };
   }
@@ -1708,26 +1807,6 @@ export class GameEngine {
     return Object.entries(this.state.pixOrders)
       .filter(([, o]) => o.status === 'pending')
       .map(([orderId, o]) => ({ orderId, packId: o.packId, at: o.at, pixCode: o.pixCode, amountBRL: o.amountBRL, label: o.label }));
-  }
-
-  /** Converte fichas em créditos (1 ficha = 1 crédito). Gasta apenas o conversível. */
-  convertFichasToCredits(amount: number): { ok: boolean; reason?: string; credits?: number } {
-    const s = this.state;
-    const qty = Math.floor(amount);
-    if (!Number.isFinite(qty) || qty <= 0) return { ok: false, reason: 'Quantidade inválida' };
-    const credits = fichasToCredits(qty);
-    if (credits <= 0) return { ok: false, reason: 'Valor não convertível' };
-    // gasta só as fichas efetivamente convertidas (sem perda silenciosa se a taxa mudar)
-    const spent = credits * GameConfig.wallet.fichasPerCredit;
-    const fichas = this.getRes('fichas');
-    if (fichas.lt(spent)) return { ok: false, reason: 'Fichas insuficientes' };
-    this.spend('fichas', D(spent));
-    this.addRes('credits', D(credits));
-    incStat(s, 'creditsConverted', D(credits));
-    appendLog(s, 'wallet', `Conversão: ${spent} fichas → ${credits} créditos`);
-    this.invalidate();
-    this.notify('wallet');
-    return { ok: true, credits };
   }
 
   /** Converte créditos em diamantes 💎 (1 crédito = 1 diamante). Gasta apenas o conversível. */

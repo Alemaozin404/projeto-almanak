@@ -27,6 +27,7 @@ export function Pass() {
   const s = engine.state;
   const p = s.premiumPass;
   const [confirmBuy, setConfirmBuy] = useState(false);
+  const [confirmCredits, setConfirmCredits] = useState(false);
   const [buying, setBuying] = useState(false);
   const [notice, setNotice] = useState('');
   const [modal, setModal] = useState<{ level: number; which: 'free' | 'premium' } | null>(null);
@@ -70,6 +71,17 @@ export function Pass() {
       amountBRL: pend.amountBRL ?? 0,
     });
   }, [engine, online]);
+
+  async function doBuyCredits() {
+    const r = await engine.buyPremiumPass({ withCredits: true });
+    if (r.ok) {
+      flash('💎 Passe Premium adquirido com créditos!');
+      audio.levelUp();
+    } else {
+      flash(`❌ ${r.reason ?? 'Falha'}`);
+    }
+    setConfirmCredits(false);
+  }
 
   async function doBuy() {
     setBuying(true);
@@ -120,7 +132,13 @@ export function Pass() {
             </p>
           </div>
           {!p.owned && (
-            <button className="btn btn-primary" onClick={() => setConfirmBuy(true)}>🎟️ Adquirir passe · {fmtBRL(GameConfig.pass.priceBRL)}</button>
+            <div className="pass-buy-buttons">
+              <button className="btn btn-primary" onClick={() => setConfirmBuy(true)}>🎟️ Adquirir via Pix · {fmtBRL(GameConfig.pass.priceBRL)}</button>
+              <button className="btn" onClick={() => setConfirmCredits(true)} disabled={engine.getRes('credits').lt(GameConfig.pass.creditsPrice)}>
+                💳 Com créditos · {GameConfig.pass.creditsPrice}
+              </button>
+              <span className="muted small">Você tem {engine.getRes('credits').toFixed(0)} 💳</span>
+            </div>
           )}
         </div>
 
@@ -137,6 +155,13 @@ export function Pass() {
           <p className="muted small">
             XP: {formatNumber(p.xp, 'short')} · Ganhe XP por cliques, missões e tempo jogado · Limite diário: {formatNumber(GameConfig.pass.dailyXpCap, 'short')}
           </p>
+          <div className="pass-xp-buy">
+            <span className="muted small">💎 Compre XP com diamantes (1💎 = {GameConfig.pass.xpPerDiamond} XP):</span>
+            <button className="btn btn-xs" disabled={engine.getRes('crystals').lt(1)} onClick={() => { const r = engine.buyPassXp(GameConfig.pass.xpPerDiamond); if (r.ok) audio.levelUp(); else flash(`❌ ${r.reason ?? 'Falha'}`); }}>
+              +{GameConfig.pass.xpPerDiamond} XP · 💎1
+            </button>
+            <span className="muted small">Você tem {engine.getRes('crystals').toFixed(0)} 💎</span>
+          </div>
         </div>
 
         <div className="pass-tracks">
@@ -183,6 +208,30 @@ export function Pass() {
 
         {notice && <div className="menu-toast">{notice}</div>}
       </Panel>
+
+      <ConfirmModal
+        open={confirmCredits}
+        onClose={() => setConfirmCredits(false)}
+        onConfirm={() => { void doBuyCredits(); }}
+        title="Adquirir Passe Premium com créditos"
+        desc={
+          <div>
+            <p className="muted">Desbloqueie:</p>
+            <ul className="update-popup-list">
+              <li>✓ 100 níveis de recompensas premium</li>
+              <li>✓ 5 skins exclusivas do passe</li>
+              <li>✓ Pet exclusivo Cronos (nível 100)</li>
+              <li>✓ Avatares, moldura, efeito e badge premium</li>
+              <li>✓ Títulos exclusivos</li>
+            </ul>
+            <p className="muted small">
+              💳 Você pagará <strong>{GameConfig.pass.creditsPrice} créditos</strong> (1 crédito = R$ 0,05 → valor de referência {fmtBRL(GameConfig.pass.creditsPrice * 0.05)}).
+              Você tem <strong>{engine.getRes('credits').toFixed(0)} 💳</strong>.
+            </p>
+          </div>
+        }
+        confirmLabel={`💳 Adquirir · ${GameConfig.pass.creditsPrice} créditos`}
+      />
 
       <ConfirmModal
         open={confirmBuy}

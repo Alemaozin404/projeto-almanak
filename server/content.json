@@ -2166,6 +2166,260 @@
       ]
     },
     {
+      "id": "vip",
+      "name": "Baile VIP",
+      "icon": "💃",
+      "desc": "EVENTO PREMIUM — exclusivo para Fichas 🎰. Sem moedas grátis: a loja é paga com fichas compradas via Pix (e alguns itens com diamantes 💎).",
+      "theme": "magico",
+      "always": true,
+      "entry": "fichas",
+      "currency": {
+        "id": "fichas",
+        "name": "Fichas",
+        "icon": "🎰"
+      },
+      "boxId": "event",
+      "bonus": {
+        "goldGain": "1.2",
+        "luck": "1.2"
+      },
+      "bonusText": "+20% ouro e +20% sorte durante o evento",
+      "skins": [],
+      "tags": [
+        "premium",
+        "vip",
+        "sempre"
+      ],
+      "shop": [
+        {
+          "id": "vip_title",
+          "name": "Título: Elite VIP",
+          "icon": "👑",
+          "desc": "Título exclusivo VIP.",
+          "cost": "200",
+          "type": "title",
+          "value": "vip_elite"
+        },
+        {
+          "id": "click_x2",
+          "name": "Champagne",
+          "icon": "🥂",
+          "desc": "Dobra o clique por 10 minutos.",
+          "cost": "150",
+          "type": "buff",
+          "value": "click_x2",
+          "durationMs": 600000,
+          "buffMult": 2
+        },
+        {
+          "id": "prod_x2",
+          "name": "Camarote",
+          "icon": "🎭",
+          "desc": "Dobra a produção por 15 minutos.",
+          "cost": "250",
+          "type": "buff",
+          "value": "prod_x2",
+          "durationMs": 900000,
+          "buffMult": 2
+        },
+        {
+          "id": "vip_chest",
+          "name": "Caixa VIP",
+          "icon": "🎁",
+          "desc": "1 Caixa do Evento.",
+          "cost": "300",
+          "type": "box",
+          "value": "event"
+        },
+        {
+          "id": "vip_perma",
+          "name": "Selo VIP",
+          "icon": "🪙",
+          "desc": "+15% ouro permanente.",
+          "cost": "900",
+          "type": "permanent",
+          "value": "vip_perma"
+        },
+        {
+          "id": "vip_magnata",
+          "name": "Título: Magnata",
+          "icon": "💎",
+          "desc": "Título de elite comprado direto com diamantes.",
+          "cost": "999999",
+          "diamondCost": "250",
+          "type": "title",
+          "value": "vip_magnata"
+        }
+      ],
+      "pass": {
+        "levels": [
+          {
+            "level": 1,
+            "xp": "0",
+            "free": {
+              "gold": "5000"
+            }
+          },
+          {
+            "level": 2,
+            "xp": "500",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 3,
+            "xp": "1200",
+            "free": {
+              "gold": "5000"
+            },
+            "premium": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 4,
+            "xp": "2000",
+            "free": {
+              "gold": "25000"
+            }
+          },
+          {
+            "level": 5,
+            "xp": "3000",
+            "free": {
+              "boxes": [
+                {
+                  "boxId": "basic",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 1
+                }
+              ]
+            }
+          },
+          {
+            "level": 6,
+            "xp": "4200",
+            "free": {
+              "gold": "10000"
+            }
+          },
+          {
+            "level": 7,
+            "xp": "5500",
+            "free": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 3
+                }
+              ]
+            },
+            "premium": {
+              "consumables": [
+                {
+                  "id": "pet_food",
+                  "qty": 6
+                }
+              ]
+            }
+          },
+          {
+            "level": 8,
+            "xp": "7000",
+            "free": {
+              "gold": "150000"
+            }
+          },
+          {
+            "level": 9,
+            "xp": "8600",
+            "free": {
+              "gold": "15000"
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 2
+                }
+              ]
+            }
+          },
+          {
+            "level": 10,
+            "xp": "10000",
+            "free": {
+              "skins": [
+                "fx_snow"
+              ]
+            },
+            "premium": {
+              "boxes": [
+                {
+                  "boxId": "event",
+                  "qty": 3
+                }
+              ],
+              "gold": "25000"
+            }
+          }
+        ]
+      },
+      "dailyRewards": [
+        {
+          "gold": "10000"
+        },
+        {
+          "eventTokens": 100
+        },
+        {
+          "boxes": [
+            {
+              "boxId": "event",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "consumables": [
+            {
+              "id": "pet_food",
+              "qty": 2
+            }
+          ]
+        },
+        {
+          "gold": "50000"
+        },
+        {
+          "boxes": [
+            {
+              "boxId": "event",
+              "qty": 1
+            }
+          ]
+        },
+        {
+          "skins": [
+            "fx_snow"
+          ]
+        }
+      ]
+    },
+    {
       "id": "demo",
       "name": "Festival Estelar",
       "icon": "🌟",

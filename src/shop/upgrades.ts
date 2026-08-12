@@ -3,7 +3,7 @@ import { pct, type PartialModifiers } from '../core/modifiers';
 import type { RarityId } from '../game/types';
 
 export type UpgradeCategory = 'click' | 'production' | 'economy' | 'prestige';
-export type UpgradeCurrency = 'gold' | 'crystals' | 'prestigeCoins' | 'ascensionCoins';
+export type UpgradeCurrency = 'gold' | 'crystals' | 'prestigeCoins' | 'ascensionCoins' | 'energy';
 
 export interface UpgradeDef {
   id: string;
@@ -48,49 +48,49 @@ const TEMPLATES: Template[] = [
   // ── Clique ─────────────────────────────────────────────
   {
     id: 'click_power', name: 'Poder do Clique', icon: '⚡', category: 'click',
-    baseCost: 50, currency: 'gold', costMult: 1.15, maxLevel: 200, unlockLevel: 1, rarity: 'common', tiers: 6,
+    baseCost: 50, currency: 'energy', costMult: 1.15, maxLevel: 200, unlockLevel: 1, rarity: 'common', tiers: 6,
     desc: 'Aumenta o poder de cada clique.',
     effect: (l) => pct({ clickPower: 10 * l }),
     effectDesc: (l) => `+${10 * l}% poder de clique`,
   },
   {
     id: 'click_power2', name: 'Mão de Ferro', icon: '👊', category: 'click',
-    baseCost: 2500, currency: 'gold', costMult: 1.18, maxLevel: 200, unlockLevel: 5, rarity: 'uncommon', tiers: 5,
+    baseCost: 2500, currency: 'energy', costMult: 1.18, maxLevel: 200, unlockLevel: 5, rarity: 'uncommon', tiers: 5,
     desc: 'Treinamento avançado de cliques.',
     effect: (l) => pct({ clickPower: 15 * l }),
     effectDesc: (l) => `+${15 * l}% poder de clique`,
   },
   {
     id: 'click_power3', name: 'Braço Mecânico', icon: '🦾', category: 'click',
-    baseCost: 100000, currency: 'gold', costMult: 1.2, maxLevel: 200, unlockLevel: 12, rarity: 'rare', tiers: 4,
+    baseCost: 100000, currency: 'energy', costMult: 1.2, maxLevel: 200, unlockLevel: 12, rarity: 'rare', tiers: 4,
     desc: 'Implante cibernético de força.',
     effect: (l) => pct({ clickPower: 25 * l }),
     effectDesc: (l) => `+${25 * l}% poder de clique`,
   },
   {
     id: 'crit_chance', name: 'Olho Crítico', icon: '🎯', category: 'click',
-    baseCost: 300, currency: 'gold', costMult: 1.25, maxLevel: 50, unlockLevel: 3, rarity: 'uncommon', tiers: 5,
+    baseCost: 300, currency: 'energy', costMult: 1.25, maxLevel: 50, unlockLevel: 3, rarity: 'uncommon', tiers: 5,
     desc: 'Aumenta a chance de acerto crítico.',
     effect: (l) => pct({ critChance: 1 * l }),
     effectDesc: (l) => `+${l}% chance crítica`,
   },
   {
     id: 'crit_damage', name: 'Lâmina Afiada', icon: '🗡️', category: 'click',
-    baseCost: 600, currency: 'gold', costMult: 1.22, maxLevel: 100, unlockLevel: 4, rarity: 'rare', tiers: 4,
+    baseCost: 600, currency: 'energy', costMult: 1.22, maxLevel: 100, unlockLevel: 4, rarity: 'rare', tiers: 4,
     desc: 'Multiplica o dano dos críticos.',
     effect: (l) => pct({ critDamage: 15 * l }),
     effectDesc: (l) => `+${15 * l}% dano crítico`,
   },
   {
     id: 'super_crit', name: 'Super Crítico', icon: '💥', category: 'click',
-    baseCost: 50000, currency: 'gold', costMult: 1.3, maxLevel: 30, unlockLevel: 15, rarity: 'epic', tiers: 3,
+    baseCost: 50000, currency: 'energy', costMult: 1.3, maxLevel: 30, unlockLevel: 15, rarity: 'epic', tiers: 3,
     desc: 'Chance de acerto super crítico (×10).',
     effect: (l) => pct({ superCritChance: 0.5 * l }),
     effectDesc: (l) => `+${0.5 * l}% chance de super crítico`,
   },
   {
     id: 'mega_crit', name: 'Mega Crítico', icon: '☄️', category: 'click',
-    baseCost: 5000000, currency: 'gold', costMult: 1.35, maxLevel: 25, unlockLevel: 30, rarity: 'legendary', tiers: 3,
+    baseCost: 5000000, currency: 'energy', costMult: 1.35, maxLevel: 25, unlockLevel: 30, rarity: 'legendary', tiers: 3,
     desc: 'Chance de acerto mega crítico (×100).',
     effect: (l) => pct({ megaCritChance: 0.15 * l }),
     effectDesc: (l) => `+${0.15 * l}% chance de mega crítico`,
@@ -125,14 +125,14 @@ const TEMPLATES: Template[] = [
   },
   {
     id: 'combo_duration', name: 'Estabilidade', icon: '⏱️', category: 'click',
-    baseCost: 800, currency: 'gold', costMult: 1.2, maxLevel: 100, unlockLevel: 3, rarity: 'uncommon', tiers: 4,
+    baseCost: 800, currency: 'energy', costMult: 1.2, maxLevel: 100, unlockLevel: 3, rarity: 'uncommon', tiers: 4,
     desc: 'Aumenta a duração do combo antes de expirar.',
     effect: (l) => ({ comboDuration: D(2 * l) } as PartialModifiers),
     effectDesc: (l) => `+${2 * l}s de duração do combo`,
   },
   {
     id: 'combo_cap', name: 'Fúria do Combo', icon: '🔥', category: 'click',
-    baseCost: 20000, currency: 'gold', costMult: 1.25, maxLevel: 100, unlockLevel: 10, rarity: 'rare', tiers: 4,
+    baseCost: 20000, currency: 'energy', costMult: 1.25, maxLevel: 100, unlockLevel: 10, rarity: 'rare', tiers: 4,
     desc: 'Aumenta o limite máximo do combo.',
     effect: (l) => ({ comboCap: D(5 * l) } as PartialModifiers),
     effectDesc: (l) => `+${5 * l} no limite do combo`,

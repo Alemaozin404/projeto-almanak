@@ -7,7 +7,7 @@ import { audio } from '../../audio/audio';
 
 function maxAffordable(
   engine: ReturnType<typeof useGame>['engine'],
-  currency: 'gold' | 'crystals' | 'prestigeCoins' | 'ascensionCoins',
+  currency: 'gold' | 'crystals' | 'prestigeCoins' | 'ascensionCoins' | 'energy',
   baseCost: string,
   costMult: number,
   level: number,
@@ -47,7 +47,7 @@ export function Upgrades() {
           const cost = engine.upgradeCost(def.id);
           const affordable = cost.gte(0) && engine.canAfford(def.currency, cost);
           const maxQ = maxAffordable(engine, def.currency, def.baseCost, def.costMult, lvl, def.maxLevel);
-          const currencyIcon = { gold: '🪙', crystals: '💎', prestigeCoins: '🪙', ascensionCoins: '👑' }[def.currency];
+          const currencyIcon = { gold: '🪙', crystals: '💎', prestigeCoins: '🪙', ascensionCoins: '👑', energy: '⚡' }[def.currency];
 
           return (
             <div key={def.id} className={`upgrade-card ${locked ? 'locked' : ''}`}>

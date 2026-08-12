@@ -33,6 +33,7 @@ export const STAT_DEFAULTS: Record<string, string> = {
   goldDrops: '0',
   energyPerSecMax: '0',
   fichasBought: '0',
+  creditsBought: '0',
   creditsConverted: '0',
   diamondsFromCredits: '0',
 };
@@ -82,6 +83,7 @@ export function statLabel(key: string): string {
     goldDrops: 'Drops de ouro',
     energyPerSecMax: 'Pico de energia/s',
     fichasBought: 'Fichas compradas',
+    creditsBought: 'Créditos comprados',
     creditsConverted: 'Créditos convertidos',
     diamondsFromCredits: 'Diamantes comprados com créditos',
   };

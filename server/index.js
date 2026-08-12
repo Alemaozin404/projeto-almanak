@@ -137,6 +137,14 @@ const FICHA_PACKS = {
   fichas_2000: { name: '2.000 Fichas', fichas: 2000, priceBRL: 105.0 },
 };
 
+/** Pacotes de CRÉDITOS 💳 — moeda universal (passe, avatares pagos, entrada em eventos). */
+const CREDIT_PACKS = {
+  credits_100: { name: '100 Créditos', credits: 100, priceBRL: 6.25 },
+  credits_300: { name: '300 Créditos', credits: 300, priceBRL: 17.5 },
+  credits_800: { name: '800 Créditos', credits: 800, priceBRL: 45.0 },
+  credits_2000: { name: '2.000 Créditos', credits: 2000, priceBRL: 105.0 },
+};
+
 /**
  * Pacotes da Loja (aba "Moedas") — mesmos preços/conteúdos de src/shop/packs.ts.
  * O preço cobrado é SEMPRE o daqui: o cliente não arbitra valor na cobrança.
@@ -177,6 +185,7 @@ async function saveCustomPacks(list) {
 /** Resolve um pacote: fichas → loja (moedas) → passe → teste → custom do admin. O cliente nunca envia preço. */
 async function resolvePack(packId) {
   if (FICHA_PACKS[packId]) return FICHA_PACKS[packId];
+  if (CREDIT_PACKS[packId]) return CREDIT_PACKS[packId];
   if (COIN_PACKS[packId]) return COIN_PACKS[packId];
   if (packId === 'premium_pass') return PASS_PACK;
   if (TEST_PACKS[packId]) return TEST_PACKS[packId];
@@ -193,6 +202,7 @@ async function resolvePack(packId) {
 function packContent(pack) {
   const c = {};
   if (Number.isFinite(pack.fichas) && pack.fichas > 0) c.fichas = pack.fichas;
+  if (Number.isFinite(pack.credits) && pack.credits > 0) c.credits = pack.credits;
   if (typeof pack.gold === 'string' && Number(pack.gold) > 0) c.gold = pack.gold;
   if (Number.isFinite(pack.diamonds) && pack.diamonds > 0) c.diamonds = pack.diamonds;
   return Object.keys(c).length > 0 ? c : undefined;

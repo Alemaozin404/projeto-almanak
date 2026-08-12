@@ -7,9 +7,11 @@ function setup(): GameEngine {
   const e = new GameEngine();
   e.state.prestige.energyThisCycle = D('1e9').toString();
   e.addRes('gold', D(1e9));
+  e.addRes('energy', D(1e6));
+  // upgrades de CLIQUE custam energia (escassa); geradores são caros
   e.buyUpgrade('click_power', 5);
   e.buyGenerator('generator_i', 3);
-  e.addRes('energy', D(1e6));
+  e.state.energy = '1000000'; // topa o saldo para o valor esperado pelos testes
   return e;
 }
 
@@ -117,7 +119,7 @@ describe('Progresso offline', () => {
   it('computa produção proporcional ao tempo', () => {
     const e = new GameEngine();
     e.addRes('gold', D(1e9));
-    e.buyGenerator('generator_i', 10); // 10/s
+    e.buyGenerator('generator_i', 10); // 10 geradores × 0,5/s = 5/s
     e.state.lastSeen = now() - 8 * 3600 * 1000;
     const res = e.computeOffline();
     expect(res).not.toBeNull();

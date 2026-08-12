@@ -20,6 +20,8 @@ export interface EventShopItem {
   icon: string;
   desc: string;
   cost: string; // na moeda do evento
+  /** Preço alternativo em DIAMANTES 💎 (compra direta sem a moeda do evento). */
+  diamondCost?: string;
   type: 'title' | 'box' | 'consumable' | 'buff' | 'permanent' | 'skin';
   value?: string;
   durationMs?: number;
@@ -58,6 +60,8 @@ export interface EventDef {
   lightning?: boolean; // evento relâmpago (minutos/horas)
   global?: boolean; // evento global (afeta o jogo inteiro)
   currency: { id: string; name: string; icon: string };
+  /** Evento PREMIUM: a loja é paga com Fichas 🎰 ou Créditos 💳 (sem moedas grátis). */
+  entry?: 'fichas' | 'credits';
   boxId: string;
   shop: EventShopItem[];
   bonus: PartialModifiers;
@@ -283,6 +287,40 @@ export let EVENTS: EventDef[] = [
     shop: [
       buff('Energia Relâmpago', '🌩️', 'Dobra o clique por 5 minutos.', '500', 'click_x2', 2, 300000),
       { id: 'lt_chest', name: 'Caixa Relâmpago', icon: '📦', desc: '1 Caixa do Evento.', cost: '1500', type: 'box', value: 'event' },
+    ],
+  },
+  {
+    id: 'vip',
+    name: 'Baile VIP',
+    icon: '💃',
+    desc: 'EVENTO PREMIUM — exclusivo para Fichas 🎰. Sem moedas grátis: a loja é paga com fichas compradas via Pix (e alguns itens com diamantes 💎).',
+    theme: 'magico',
+    always: true,
+    entry: 'fichas',
+    currency: { id: 'fichas', name: 'Fichas', icon: '🎰' },
+    boxId: 'event',
+    bonus: pct({ goldGain: 20, luck: 20 }),
+    bonusText: '+20% ouro e +20% sorte durante o evento',
+    skins: [],
+    tags: ['premium', 'vip', 'sempre'],
+    shop: [
+      { id: 'vip_title', name: 'Título: Elite VIP', icon: '👑', desc: 'Título exclusivo VIP.', cost: '200', type: 'title', value: 'vip_elite' },
+      buff('Champagne', '🥂', 'Dobra o clique por 10 minutos.', '150', 'click_x2', 2, 600000),
+      buff('Camarote', '🎭', 'Dobra a produção por 15 minutos.', '250', 'prod_x2', 2, 900000),
+      { id: 'vip_chest', name: 'Caixa VIP', icon: '🎁', desc: '1 Caixa do Evento.', cost: '300', type: 'box', value: 'event' },
+      { id: 'vip_perma', name: 'Selo VIP', icon: '🪙', desc: '+15% ouro permanente.', cost: '900', type: 'permanent', value: 'vip_perma' },
+      // compra direta com DIAMANTES 💎 — sem gastar fichas
+      { id: 'vip_magnata', name: 'Título: Magnata', icon: '💎', desc: 'Título de elite comprado direto com diamantes.', cost: '999999', diamondCost: '250', type: 'title', value: 'vip_magnata' },
+    ],
+    pass: defaultPass('vip', 'fx_snow'),
+    dailyRewards: [
+      { gold: '10000' },
+      { eventTokens: 100 },
+      { boxes: [{ boxId: 'event', qty: 1 }] },
+      { consumables: [{ id: 'pet_food', qty: 2 }] },
+      { gold: '50000' },
+      { boxes: [{ boxId: 'event', qty: 1 }] },
+      { skins: ['fx_snow'] },
     ],
   },
 ];

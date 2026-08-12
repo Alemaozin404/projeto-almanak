@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameEngine } from '../src/game/engine';
-import { FICHA_PACKS, fichaPackById, fichasToCredits, creditsToBRL, creditsToDiamonds, generatePixCopyPaste } from '../src/wallet/pix';
+import { FICHA_PACKS, CREDIT_PACKS, fichaPackById, creditPackById, creditsToBRL, creditsToDiamonds, generatePixCopyPaste } from '../src/wallet/pix';
 import { resolvePixGateway, pixBackendUrl, setPixBackendUrl, clearPixBackendUrl, testPixBackend, isPixBackendUrlValid } from '../src/wallet/mp';
 import { GameConfig } from '../src/config/GameConfig';
 import { D } from '../src/core/bignum';
@@ -43,10 +43,21 @@ describe('Carteira Ficha/Créditos', () => {
       expect(perReal).toBeGreaterThanOrEqual(lastFichasPerReal); // pacotes maiores: melhor custo-benefício
       lastPrice = p.priceBRL;
       lastFichasPerReal = perReal;
-      expect(fichasToCredits(p.fichas)).toBe(p.fichas); // 1:1
     }
     expect(fichaPackById('fichas_100')?.priceBRL).toBe(GameConfig.wallet.pricePer100Fichas);
     expect(fichaPackById('inexistente')).toBeUndefined();
+  });
+
+  it('catálogo de créditos tem preços crescentes e é moeda universal', () => {
+    expect(CREDIT_PACKS.length).toBeGreaterThanOrEqual(4);
+    let lastPrice = 0;
+    for (const p of CREDIT_PACKS) {
+      expect(p.priceBRL).toBeGreaterThan(lastPrice);
+      expect(p.credits).toBeGreaterThan(0);
+      lastPrice = p.priceBRL;
+    }
+    expect(creditPackById('credits_100')?.credits).toBe(100);
+    expect(creditPackById('inexistente')).toBeUndefined();
   });
 
   it('buyFichaPack concede fichas via gateway Pix e registra no log', async () => {
@@ -67,21 +78,23 @@ describe('Carteira Ficha/Créditos', () => {
     expect(e.state.fichas).toBe('0');
   });
 
-  it('conversão de fichas em créditos é 1:1 e valida saldo', () => {
+  it('buyCreditPack concede créditos via gateway Pix e registra no log', async () => {
+    withLocalMode();
     const e = new GameEngine();
-    e.addRes('fichas', D(150));
-    const r = e.convertFichasToCredits(100);
+    const r = await e.buyCreditPack('credits_100');
     expect(r.ok).toBe(true);
     expect(r.credits).toBe(100);
-    expect(e.state.fichas).toBe('50');
-    expect(e.state.credits).toBe('100');
-    // saldo insuficiente
-    const r2 = e.convertFichasToCredits(1000);
-    expect(r2.ok).toBe(false);
-    expect(e.state.credits).toBe('100');
-    // quantidade inválida
-    expect(e.convertFichasToCredits(0).ok).toBe(false);
-    expect(e.convertFichasToCredits(-5).ok).toBe(false);
+    expect(D(e.state.credits).toFixed(0)).toBe('100');
+    expect(e.state.fichas).toBe('0'); // fichas NÃO viram créditos (moedas separadas)
+  });
+
+  it('fichas não são mais convertíveis em créditos (viraram moeda de evento premium)', () => {
+    const e = new GameEngine();
+    e.addRes('fichas', D(500));
+    expect(e.state.credits).toBe('0');
+    expect(D(e.state.fichas).toFixed(0)).toBe('500');
+    // o método de conversão foi removido da reestruturação
+    expect((e as unknown as Record<string, unknown>).convertFichasToCredits).toBeUndefined();
   });
 
   it('créditos são convertidos em diamantes (1 crédito = 1 diamante) e gastos no jogo', () => {
@@ -100,6 +113,44 @@ describe('Carteira Ficha/Créditos', () => {
     // saldo insuficiente
     expect(e.convertCreditsToDiamonds(500).ok).toBe(false);
     expect(e.convertCreditsToDiamonds(0).ok).toBe(false);
+  });
+
+  it('passe premium pode ser comprado com créditos (moeda universal)', async () => {
+    const e = new GameEngine();
+    // saldo insuficiente
+    expect((await e.buyPremiumPass({ withCredits: true })).ok).toBe(false);
+    e.addRes('credits', D(GameConfig.pass.creditsPrice));
+    const r = await e.buyPremiumPass({ withCredits: true });
+    expect(r.ok).toBe(true);
+    expect(e.state.premiumPass.owned).toBe(true);
+    expect(e.state.credits).toBe('0');
+    // não compra duas vezes
+    expect((await e.buyPremiumPass({ withCredits: true })).ok).toBe(false);
+  });
+
+  it('avatares premium são compráveis individualmente com créditos', () => {
+    const e = new GameEngine();
+    // sem créditos: falha
+    expect(e.buyAvatarItem('icons', 'av_cyber').ok).toBe(false);
+    e.addRes('credits', D(150));
+    const r = e.buyAvatarItem('icons', 'av_cyber');
+    expect(r.ok).toBe(true);
+    expect(e.state.avatarItems).toContain('av_cyber');
+    expect(e.state.credits).toBe('0');
+    // item já possuído não compra de novo
+    expect(e.buyAvatarItem('icons', 'av_cyber').ok).toBe(false);
+    // item sem preço não é comprável
+    expect(e.buyAvatarItem('icons', 'av_hero').ok).toBe(false);
+  });
+
+  it('XP do passe é comprável com diamantes', () => {
+    const e = new GameEngine();
+    expect(e.buyPassXp(0).ok).toBe(false);
+    e.addRes('crystals', D(10));
+    const r = e.buyPassXp(GameConfig.pass.xpPerDiamond);
+    expect(r.ok).toBe(true);
+    expect(D(e.state.premiumPass.xp).gte(GameConfig.pass.xpPerDiamond)).toBe(true);
+    expect(e.state.crystals).not.toBe('10');
   });
 
   it('migração v6→v7 cria a carteira e limpa o bloco antigo de saque', () => {

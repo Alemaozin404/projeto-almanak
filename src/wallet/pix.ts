@@ -1,10 +1,14 @@
 /**
- * Carteira Ficha/Créditos — camada Pix.
+ * Carteira Ficha/Créditos/Diamantes — camada Pix.
  *
- * Fichas 🎰 são compradas com dinheiro real via Pix (100 fichas = R$ 6,25,
- * margem de 20% para o jogo); 1 ficha = 1 crédito 💳; 1 crédito = 1 Diamante 💎
- * (1 crédito equivale a R$ 0,05 de valor). Os diamantes são gastos no sistema
- * premium do jogo (caixas, consumíveis, upgrades).
+ * Papéis das moedas pagas (reestruturação da economia):
+ *  - Fichas 🎰 — moeda de troca EXCLUSIVA de eventos premium: comprada via Pix
+ *    e gasta na loja de eventos pagos (sem usar moedas grátis). Não converte
+ *    mais em créditos.
+ *  - Créditos 💳 — moeda universal: compra o Passe Premium, avatares pagos e
+ *    entrada em eventos. Converte em Diamantes 💎 (1 crédito = 1 diamante).
+ *  - Diamantes 💎 — obtidos exclusivamente via Pix ou convertendo créditos.
+ *    Gastos em itens da loja, XP do passe e itens de evento.
  *
  * A interface `PixGateway` separa a camada de pagamento — nada sensível fica
  * no cliente. O gateway ONLINE (src/wallet/mp.ts) fala com o backend, que
@@ -24,6 +28,18 @@ export interface FichaPackDef {
   featured?: boolean;
 }
 
+export interface CreditPackDef {
+  id: string;
+  name: string;
+  icon: string;
+  /** Quantidade de créditos entregues. */
+  credits: number;
+  /** Preço em reais (exibição). O gateway local confirma sem cobrar. */
+  priceBRL: number;
+  tag?: string;
+  featured?: boolean;
+}
+
 export function fmtBRL(n: number): string {
   return n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
@@ -31,11 +47,6 @@ export function fmtBRL(n: number): string {
 /** Créditos → valor em R$ (referência: 1 crédito = creditBRL). */
 export function creditsToBRL(credits: number): number {
   return credits * GameConfig.wallet.creditBRL;
-}
-
-/** Fichas → créditos (conversão 1:1 configurável). */
-export function fichasToCredits(fichas: number): number {
-  return Math.floor(fichas / GameConfig.wallet.fichasPerCredit);
 }
 
 /** Créditos → diamantes (1 crédito = 1 diamante). */
@@ -83,6 +94,47 @@ export function fichaPackById(id: string): FichaPackDef | undefined {
   return FICHA_PACKS.find((p) => p.id === id);
 }
 
+// ── pacotes de CRÉDITOS (moeda universal — passe, avatares, entrada em eventos) ──
+export const CREDIT_PACKS: CreditPackDef[] = [
+  {
+    id: 'credits_100',
+    name: '100 Créditos',
+    icon: '💳',
+    credits: 100,
+    priceBRL: 6.25,
+    tag: 'Entrada',
+  },
+  {
+    id: 'credits_300',
+    name: '300 Créditos',
+    icon: '💳',
+    credits: 300,
+    priceBRL: 17.5,
+    tag: 'Popular',
+    featured: true,
+  },
+  {
+    id: 'credits_800',
+    name: '800 Créditos',
+    icon: '💎',
+    credits: 800,
+    priceBRL: 45.0,
+    tag: 'Melhor custo-benefício',
+  },
+  {
+    id: 'credits_2000',
+    name: '2.000 Créditos',
+    icon: '👑',
+    credits: 2000,
+    priceBRL: 105.0,
+    tag: 'Máximo',
+  },
+];
+
+export function creditPackById(id: string): CreditPackDef | undefined {
+  return CREDIT_PACKS.find((p) => p.id === id);
+}
+
 // ── camada de pagamento Pix (separada; nada sensível no cliente) ──
 export interface PixPaymentResult {
   ok: boolean;
@@ -108,6 +160,7 @@ export type PixOrderStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' |
  */
 export interface PixContent {
   fichas?: number;
+  credits?: number;
   gold?: string;
   diamonds?: number;
 }

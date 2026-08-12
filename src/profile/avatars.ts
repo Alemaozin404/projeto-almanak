@@ -8,6 +8,8 @@ export interface AvatarItem {
   label: string;
   value: string; // emoji ou classe CSS
   premium?: boolean;
+  /** Preço em CRÉDITOS 💳 quando comprável individualmente (item pago, sem passe). */
+  creditCost?: number;
   /** Condição de progresso (opcional). */
   unlock?: (p: { prestige: number; ascension: number; levels: number; pets: number }) => boolean;
 }
@@ -31,8 +33,8 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     { id: 'av_king', label: 'Rei', value: '🤴', unlock: (p) => p.prestige >= 3 },
     { id: 'av_angel', label: 'Anjo', value: '😇', unlock: (p) => p.ascension >= 1 },
     { id: 'av_god', label: 'Divindade', value: '👑', unlock: (p) => p.ascension >= 2 },
-    { id: 'av_cyber', label: 'Netrunner', value: '🧑‍💻', premium: true },
-    { id: 'av_star', label: 'Estelar', value: '🌟', premium: true },
+    { id: 'av_cyber', label: 'Netrunner', value: '🧑‍💻', premium: true, creditCost: 150 },
+    { id: 'av_star', label: 'Estelar', value: '🌟', premium: true, creditCost: 250 },
   ],
   frames: [
     { id: 'fr_none', label: 'Nenhuma', value: '', unlock: none },
@@ -40,7 +42,7 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     { id: 'fr_neon', label: 'Neon', value: 'fr-neon', unlock: (p) => p.prestige >= 1 },
     { id: 'fr_royal', label: 'Real', value: 'fr-royal', unlock: (p) => p.prestige >= 5 },
     { id: 'fr_celestial', label: 'Celestial', value: 'fr-celestial', unlock: (p) => p.ascension >= 1 },
-    { id: 'fr_premium', label: 'Premium', value: 'fr-premium', premium: true },
+    { id: 'fr_premium', label: 'Premium', value: 'fr-premium', premium: true, creditCost: 120 },
   ],
   effects: [
     { id: 'fx_none', label: 'Nenhum', value: '', unlock: none },
@@ -48,7 +50,7 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     { id: 'fx_glow', label: 'Brilho', value: 'avfx-glow', unlock: (p) => p.prestige >= 2 },
     { id: 'fx_spin', label: 'Giro', value: 'avfx-spin', unlock: (p) => p.pets >= 10 },
     { id: 'fx_rainbow', label: 'Arco-íris', value: 'avfx-rainbow', unlock: (p) => p.ascension >= 1 },
-    { id: 'fx_premium', label: 'Aura Premium', value: 'avfx-premium', premium: true },
+    { id: 'fx_premium', label: 'Aura Premium', value: 'avfx-premium', premium: true, creditCost: 200 },
   ],
   badges: [
     { id: 'bd_none', label: 'Nenhum', value: '', unlock: none },
@@ -56,7 +58,7 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     { id: 'bd_veteran', label: 'Veterano', value: '⭐', unlock: (p) => p.prestige >= 1 },
     { id: 'bd_master', label: 'Mestre', value: '🏅', unlock: (p) => p.prestige >= 5 },
     { id: 'bd_legend', label: 'Lenda', value: '🌟', unlock: (p) => p.ascension >= 1 },
-    { id: 'bd_premium', label: 'Premium', value: '💎', premium: true },
+    { id: 'bd_premium', label: 'Premium', value: '💎', premium: true, creditCost: 100 },
   ],
 };
 

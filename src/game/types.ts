@@ -252,7 +252,7 @@ export interface GameState {
   eventTokens: string;
   /** Fichas 🎰 — compradas com dinheiro real via Pix (moeda da carteira). */
   fichas: string;
-  /** Créditos 💳 — convertidos de fichas (1 ficha = 1 crédito) e gastos em Diamantes 💎. */
+  /** Créditos 💳 — moeda universal (passe, avatares pagos, eventos) convertível em Diamantes 💎. */
   credits: string;
   /** Pedidos Pix pendentes/confirmados — permitem retomar o polling após reiniciar o jogo. */
   pixOrders: Record<
@@ -267,6 +267,8 @@ export interface GameState {
       diamonds?: number;
       /** Conteúdo a conceder quando aprovado: fichas. */
       fichas?: number;
+      /** Conteúdo a conceder quando aprovado: créditos. */
+      credits?: number;
       status: 'pending' | 'done';
       at: number;
       pixCode?: string;

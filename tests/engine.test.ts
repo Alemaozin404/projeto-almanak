@@ -72,8 +72,8 @@ describe('Automação', () => {
     e.addRes('gold', D(1e6));
     const r = e.buyGenerator('generator_i', 5);
     expect(r.ok).toBe(true);
-    // base 5/s × multiplicador de produção (eventos podem amplificar)
-    const expected = D(5).mul(e.bonuses().production);
+    // 5 geradores × 0,5/s (produção reduzida — energia é escassa) × multiplicador de produção
+    const expected = D('0.5').mul(5).mul(e.bonuses().production);
     expect(e.energyPerSec().minus(expected).abs().lt(D('0.001'))).toBe(true);
     e.tick(1000);
     expect(e.getRes('energy').gte(expected)).toBe(true);
@@ -128,7 +128,8 @@ describe('Nível e XP', () => {
 describe('Upgrades', () => {
   it('compra upgrade com efeito', () => {
     const e = fresh();
-    e.addRes('gold', D(1e6));
+    // upgrades de CLIQUE custam ENERGIA (escassa), não moedas
+    e.addRes('energy', D(1e6));
     const r = e.buyUpgrade('click_power', 10);
     expect(r.ok).toBe(true);
     expect(e.upgradeLevel('click_power')).toBe(10);
@@ -137,7 +138,7 @@ describe('Upgrades', () => {
 
   it('respeita nível máximo', () => {
     const e = fresh();
-    e.addRes('gold', D(1e30));
+    e.addRes('energy', D(1e30));
     const def = e.state; // noop
     void def;
     // compra até o máximo

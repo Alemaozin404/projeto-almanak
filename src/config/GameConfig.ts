@@ -9,6 +9,8 @@ export const GameConfig = {
   pass: {
     /** Preço do passe em R$ — o servidor cobra o MESMO valor (espelhado em server/index.js). */
     priceBRL: 9.9,
+    /** Preço do passe em CRÉDITOS 💳 — moeda universal (alternativa ao Pix). */
+    creditsPrice: 250,
     /**
      * Chave pública Ed25519 (32 bytes hex) dos recibos do passe — par gerado com
      * `npm run gen:receipt-keys`. O app SÓ conhece a pública; a privada vive no
@@ -20,6 +22,8 @@ export const GameConfig = {
     xpForLevel: (n: number): number => Math.round(250 * Math.pow(n, 1.65)),
     /** Limite diário de XP do passe (anti-progressão absurda). */
     dailyXpCap: 33000,
+    /** XP do passe comprado por 1 diamante 💎 (1 diamante = N XP). */
+    xpPerDiamond: 500,
     /** Fontes de XP por ação (pode ser escalado por bônus). */
     xpPerClick: 0.5,
     xpPerMinute: 8,
@@ -51,8 +55,6 @@ export const GameConfig = {
   wallet: {
     /** Preço de 100 fichas em R$. Margem de 20% para o jogo. */
     pricePer100Fichas: 6.25,
-    /** Conversão: 1 ficha = 1 crédito. */
-    fichasPerCredit: 1,
     /** Valor de referência de 1 crédito em R$ (exibição). */
     creditBRL: 0.05,
     /** Créditos por diamante — 1 crédito = 1 diamante. */

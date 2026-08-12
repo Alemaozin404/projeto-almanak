@@ -1944,6 +1944,13 @@ body {
 .avatar-option:hover:not(:disabled) { transform: translateY(-2px); }
 .avatar-option.active { border-color: var(--accent); box-shadow: 0 0 12px var(--accent-glow, rgba(var(--acc-rgb),0.4)); }
 .avatar-option.locked { opacity: 0.4; cursor: not-allowed; filter: grayscale(0.8); }
+.avatar-slot { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.avatar-buy-btn {
+  font-size: 10px; padding: 2px 7px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel2); color: #5dff8a;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.avatar-buy-btn:hover { transform: translateY(-1px); border-color: #5dff8a; }
 
 /* ── Status grid ── */
 .status-grid { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1955,7 +1962,12 @@ body {
   border: 1px solid rgba(255,107,255,0.3); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px;
 }
 .pass-hero-icon { font-size: 44px; }
+.pass-buy-buttons { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .pass-progress { margin-bottom: 14px; }
+.pass-xp-buy {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px;
+  padding: 8px 10px; border: 1px dashed var(--border); border-radius: 10px;
+}
 .pass-bar { height: 18px; }
 .pass-tracks { display: flex; flex-direction: column; gap: 4px; }
 .pass-track-head, .pass-row {

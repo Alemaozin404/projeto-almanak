@@ -27,6 +27,7 @@ export interface ActivePixOrder {
 export interface PixOrderResult {
   status: string;
   fichas?: number;
+  credits?: number;
   gold?: string;
   diamonds?: number;
 }
@@ -74,7 +75,7 @@ export function PixOrderModal({
     setOrderStatus(r.status);
     if (r.status === 'approved') {
       stopPolling();
-      handlersRef.current.onApproved?.({ status: r.status, fichas: r.fichas, gold: r.gold, diamonds: r.diamonds });
+      handlersRef.current.onApproved?.({ status: r.status, fichas: r.fichas, credits: r.credits, gold: r.gold, diamonds: r.diamonds });
       handlersRef.current.onClose();
     } else if (r.status === 'rejected' || r.status === 'cancelled') {
       stopPolling();

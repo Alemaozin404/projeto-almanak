@@ -142,14 +142,31 @@ function EventDetail({ ev }: { ev: EventDef }) {
         )}
         {ev.lightning && <span className="locked-text">⚡ EVENTO RELÂMPAGO</span>}
         {ev.global && <span className="locked-text">🌍 EVENTO GLOBAL</span>}
+        {ev.entry && <span className="locked-text">💎 EVENTO PREMIUM ({ev.entry === 'fichas' ? 'Fichas 🎰' : 'Créditos 💳'})</span>}
       </div>
 
       <div className="event-bonus"><span>Bônus ativo:</span> <strong>{ev.bonusText}</strong></div>
       {(status === 'live' || status === 'ending_soon') && (
         <div className="event-currency">
-          <span>{ev.currency.icon} {ev.currency.name}</span>
-          <strong>{fmt(D(st.tokens), 0)}</strong>
-          <small className="muted">+{fmt(D(1).plus(D(Math.max(0, engine.bonuses().luck.toNumber()))), 1)} por clique</small>
+          {ev.entry === 'fichas' ? (
+            <>
+              <span>🎰 Fichas</span>
+              <strong>{fmt(engine.getRes('fichas'), 0)}</strong>
+              <small className="muted">Moeda premium do evento — sem moedas grátis (compre na Carteira)</small>
+            </>
+          ) : ev.entry === 'credits' ? (
+            <>
+              <span>💳 Créditos</span>
+              <strong>{fmt(engine.getRes('credits'), 0)}</strong>
+              <small className="muted">Moeda premium do evento — sem moedas grátis (compre na Carteira)</small>
+            </>
+          ) : (
+            <>
+              <span>{ev.currency.icon} {ev.currency.name}</span>
+              <strong>{fmt(D(st.tokens), 0)}</strong>
+              <small className="muted">+{fmt(D(1).plus(D(Math.max(0, engine.bonuses().luck.toNumber()))), 1)} por clique</small>
+            </>
+          )}
         </div>
       )}
 
@@ -218,8 +235,13 @@ function EventDetail({ ev }: { ev: EventDef }) {
           <strong className="muted small">🛒 Loja do evento</strong>
           <div className="item-grid">
             {ev.shop.map((item) => {
-              const cost = D(item.cost);
-              const can = D(st.tokens).gte(cost);
+              const can = item.diamondCost
+                ? engine.canAfford('crystals', D(item.diamondCost))
+                : ev.entry === 'fichas'
+                  ? engine.canAfford('fichas', D(item.cost))
+                  : ev.entry === 'credits'
+                    ? engine.canAfford('credits', D(item.cost))
+                    : D(st.tokens).gte(D(item.cost));
               return (
                 <div key={item.id} className="item-card">
                   <div className="item-head">
@@ -228,7 +250,9 @@ function EventDetail({ ev }: { ev: EventDef }) {
                   </div>
                   <p className="muted small">{item.desc}</p>
                   <button className="btn btn-sm" disabled={!can} onClick={() => { if (engine.buyEventItem(ev.id, item.id).ok) audio.buy(); }}>
-                    {ev.currency.icon} {fmt(cost, 0)}
+                    {item.diamondCost
+                      ? `💎 ${fmt(D(item.diamondCost), 0)}`
+                      : `${ev.entry === 'fichas' ? '🎰' : ev.entry === 'credits' ? '💳' : ev.currency.icon} ${fmt(D(item.cost), 0)}`}
                   </button>
                 </div>
               );
@@ -267,7 +291,7 @@ function Calendar() {
           <span className="cal-icon">{ev.icon}</span>
           <div className="cal-info">
             <strong>{ev.name}</strong>
-            <small className="muted">{ev.startLabel ?? '—'} → {ev.endLabel ?? '—'}{ev.lightning ? ' · ⚡ relâmpago' : ''}</small>
+            <small className="muted">{ev.startLabel ?? '—'} → {ev.endLabel ?? '—'}{ev.lightning ? ' · ⚡ relâmpago' : ''}{ev.entry ? ' · 💎 premium' : ''}</small>
           </div>
           {status === 'upcoming' ? (
             <span className="muted small cal-count">{EventManager.formatRemaining(eventUntilStart(ev, nowMs))}</span>
