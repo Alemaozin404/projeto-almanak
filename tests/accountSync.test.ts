@@ -22,6 +22,7 @@ import { getSession, pushAccountSave, pullAccountSave, getAccountSlotPref } from
 import {
   ACCOUNT_SAVE_INTERVAL_MS,
   pushAccountSaveNow,
+  autoPushAccountSave,
   syncAccountOnLoad,
   checkAccountRestore,
   applyAccountRestore,
@@ -145,6 +146,48 @@ describe('accountSync — save automático da conta (1h)', () => {
     expect(pushAccountSave).not.toHaveBeenCalled();
   });
 
+  // ── autoPushAccountSave (push automático espelho da nuvem — mantém a conta fresca) ──
+
+  it('autoPushAccountSave: sem conta conectada → não envia nada', async () => {
+    const { engine, saveMgr } = setup();
+    const r = await autoPushAccountSave(engine, saveMgr);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toContain('Nenhuma conta');
+    expect(pushAccountSave).not.toHaveBeenCalled();
+  });
+
+  it('autoPushAccountSave: envia e respeita o throttle de 1 min', async () => {
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pushAccountSave).mockResolvedValue({ ok: true, savedAt: Date.now() });
+    const { engine, saveMgr } = setup();
+
+    const r1 = await autoPushAccountSave(engine, saveMgr);
+    expect(r1.ok).toBe(true);
+    expect(pushAccountSave).toHaveBeenCalledTimes(1);
+
+    // dentro do throttle → não envia de novo (ok:true, throttled)
+    const r2 = await autoPushAccountSave(engine, saveMgr);
+    expect(r2.ok).toBe(true);
+    expect(r2.reason).toBe('throttled');
+    expect(pushAccountSave).toHaveBeenCalledTimes(1);
+
+    // com force → ignora o throttle e envia (usado ao fechar o jogo)
+    const r3 = await autoPushAccountSave(engine, saveMgr, true);
+    expect(r3.ok).toBe(true);
+    expect(pushAccountSave).toHaveBeenCalledTimes(2);
+  });
+
+  it('autoPushAccountSave: falha do servidor não marca sincronização', async () => {
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pushAccountSave).mockResolvedValue({ ok: false, reason: 'Servidor recusou (429)' });
+    const { engine, saveMgr } = setup();
+
+    const r = await autoPushAccountSave(engine, saveMgr);
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe('Servidor recusou (429)');
+    expect(lastAccountSyncAt()).toBe(0);
+  });
+
   it('falha do servidor → propaga a razão sem derrubar o jogo', async () => {
     vi.mocked(getSession).mockReturnValue({ username: 'jogador', email: 'jogador@gmail.com', verified: true, token: TOKEN });
     vi.mocked(pushAccountSave).mockResolvedValue({ ok: false, reason: 'Servidor recusou (429)' });
@@ -238,10 +281,11 @@ describe('accountSync — save automático da conta (1h)', () => {
     expect(loaded!.engine.state.name).toBe('Versão Conta');
   });
 
-  it('syncAccountOnLoad: conta mais velha que o local → noop (não regride)', async () => {
+  it('syncAccountOnLoad: conta mais velha que o local → sobe o local (pushed, sem regredir)', async () => {
     const store: Record<string, string> = {};
     stubLocalStorage(store);
     vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pushAccountSave).mockResolvedValue({ ok: true, savedAt: Date.now() });
 
     const cloud = new GameEngine();
     cloud.state.name = 'Conta Antiga';
@@ -254,9 +298,30 @@ describe('accountSync — save automático da conta (1h)', () => {
     store['nc_slot1'] = craftSaveFile(local.state, Date.now());
 
     const { engine, saveMgr } = setup();
-    expect(await syncAccountOnLoad(saveMgr, engine)).toBe('noop');
+    expect(await syncAccountOnLoad(saveMgr, engine)).toBe('pushed');
     const loaded = await saveMgr.load('slot1');
-    expect(loaded!.engine.state.name).toBe('Local Novo');
+    expect(loaded!.engine.state.name).toBe('Local Novo'); // não regride o local
+  });
+
+  it('syncAccountOnLoad: local mais novo que a conta → sobe o local (pushed) para o outro dispositivo', async () => {
+    const store: Record<string, string> = {};
+    stubLocalStorage(store);
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    const cloud = new GameEngine();
+    cloud.state.name = 'Conta Antiga';
+    vi.mocked(pullAccountSave).mockResolvedValue({
+      ok: true,
+      info: { saveText: craftSaveFile(cloud.state, Date.now() - 3_600_000), name: 'Conta Antiga', savedAt: Date.now() - 3_600_000, slot: 'slot1' },
+    });
+    vi.mocked(pushAccountSave).mockResolvedValue({ ok: true, savedAt: Date.now() });
+    const local = new GameEngine();
+    local.state.name = 'Local Novo';
+    store['nc_slot1'] = craftSaveFile(local.state, Date.now());
+
+    const { engine, saveMgr } = setup();
+    const r = await syncAccountOnLoad(saveMgr, engine);
+    expect(r).toBe('pushed');
+    expect(pushAccountSave).toHaveBeenCalledTimes(1);
   });
 
   it('syncAccountOnLoad: sem save na conta (404) → sobe o local como primeiro backup (pushed)', async () => {
@@ -318,7 +383,7 @@ describe('accountSync — save automático da conta (1h)', () => {
     expect(loaded!.engine.state.name).toBe('Versão Local');
   });
 
-  it('checkAccountRestore: conta mais velha que o local → not-newer (não pede confirmação)', async () => {
+  it('checkAccountRestore: local significativamente mais novo → local-newer (sobe, não restaura)', async () => {
     const store: Record<string, string> = {};
     stubLocalStorage(store);
     vi.mocked(getSession).mockReturnValue(SESSION);
@@ -331,6 +396,24 @@ describe('accountSync — save automático da conta (1h)', () => {
     const local = new GameEngine();
     local.state.name = 'Local Novo';
     store['nc_slot1'] = craftSaveFile(local.state, Date.now());
+
+    const { engine, saveMgr } = setup();
+    expect(await checkAccountRestore(saveMgr, engine)).toEqual({ pending: false, reason: 'local-newer' });
+  });
+
+  it('checkAccountRestore: timestamps dentro da margem → not-newer (não faz nada)', async () => {
+    const store: Record<string, string> = {};
+    stubLocalStorage(store);
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    const cloud = new GameEngine();
+    cloud.state.name = 'Conta';
+    vi.mocked(pullAccountSave).mockResolvedValue({
+      ok: true,
+      info: { saveText: craftSaveFile(cloud.state, Date.now() - 45_000), name: 'Conta', savedAt: Date.now() - 45_000, slot: 'slot1' },
+    });
+    const local = new GameEngine();
+    local.state.name = 'Local';
+    store['nc_slot1'] = craftSaveFile(local.state, Date.now() - 10_000);
 
     const { engine, saveMgr } = setup();
     expect(await checkAccountRestore(saveMgr, engine)).toEqual({ pending: false, reason: 'not-newer' });

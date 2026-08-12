@@ -21,9 +21,13 @@ import type { GameEngine } from '../game/engine';
 let timer: ReturnType<typeof setInterval> | null = null;
 let lastSyncAt = 0;
 let nextSyncAt = 0;
+let lastAutoPushAt = 0;
 
 /** Intervalo entre envios automáticos (1 hora — configurável em GameConfig). */
 export const ACCOUNT_SAVE_INTERVAL_MS = Math.max(1, Number(GameConfig.account.autoSaveHours) || 1) * 60 * 60 * 1000;
+
+/** Intervalo mínimo entre pushes automáticos da conta (evita spam na API). */
+const AUTO_PUSH_THROTTLE_MS = 60 * 1000;
 
 /** Última sincronização bem-sucedida com a conta (timestamp). */
 export function lastAccountSyncAt(): number {
@@ -40,6 +44,7 @@ export function resetAccountSyncState(): void {
   stopAccountAutoSave();
   lastSyncAt = 0;
   nextSyncAt = 0;
+  lastAutoPushAt = 0;
 }
 
 /** Liga o auto-save horário da conta (chamado ao anexar o jogo). */
@@ -81,6 +86,23 @@ export async function pushAccountSaveNow(
   return r.ok ? { ok: true } : { ok: false, reason: r.reason };
 }
 
+/**
+ * Envia o save atual para a conta (automático, com throttle). É chamado a cada
+ * save local (auto-save, fechar o jogo, menu) — espelho do autoPushSave da nuvem,
+ * mantendo a conta sempre fresca (o timer de 1h vira só a rede de segurança).
+ * `force` ignora o throttle (usado ao fechar o jogo / sair / boot com local novo).
+ */
+export async function autoPushAccountSave(
+  engine: GameEngine,
+  saveMgr: SaveManager,
+  force = false,
+): Promise<{ ok: boolean; reason?: string }> {
+  const now = Date.now();
+  if (!force && now - lastAutoPushAt < AUTO_PUSH_THROTTLE_MS) return { ok: true, reason: 'throttled' };
+  lastAutoPushAt = now;
+  return pushAccountSaveNow(engine, saveMgr);
+}
+
 export type AccountSyncOnLoadResult =
   | 'no-session'
   | 'offline'
@@ -100,7 +122,7 @@ export interface AccountRestoreInfo {
 
 export type AccountRestoreCheck =
   | { pending: true; info: AccountRestoreInfo }
-  | { pending: false; reason: 'no-session' | 'offline' | 'disabled' | 'no-save' | 'network' | 'other-slot' | 'not-newer' };
+  | { pending: false; reason: 'no-session' | 'offline' | 'disabled' | 'no-save' | 'network' | 'other-slot' | 'not-newer' | 'local-newer' };
 
 /**
  * Verifica (SEM alterar nada) se há um save da conta a restaurar no slot atual:
@@ -131,8 +153,15 @@ export async function checkAccountRestore(saveMgr: SaveManager, engine: GameEngi
   const local = metas.find((m) => m.slot === slot);
   const localAt = local?.savedAt ?? 0;
 
-  if (!(info.savedAt > localAt + RESTORE_MIN_NEWER_MS)) return { pending: false, reason: 'not-newer' };
-  return { pending: true, info: { slot, name: info.name, savedAt: info.savedAt, localSavedAt: localAt, saveText: info.saveText } };
+  if (info.savedAt > localAt + RESTORE_MIN_NEWER_MS) {
+    // conta significativamente mais nova → candidato a restauração
+    return { pending: true, info: { slot, name: info.name, savedAt: info.savedAt, localSavedAt: localAt, saveText: info.saveText } };
+  }
+  if (localAt > info.savedAt + RESTORE_MIN_NEWER_MS) {
+    // local significativamente mais novo → a CONTA deve ser atualizada (não restaura)
+    return { pending: false, reason: 'local-newer' };
+  }
+  return { pending: false, reason: 'not-newer' };
 }
 
 /**
@@ -160,6 +189,11 @@ export async function syncAccountOnLoad(saveMgr: SaveManager, engine: GameEngine
       case 'disabled': return 'disabled';
       case 'no-save': {
         // SÓ sobe o local como primeiro backup quando o servidor diz que não há save
+        const r = await pushAccountSaveNow(engine, saveMgr);
+        return r.ok ? 'pushed' : 'noop';
+      }
+      case 'local-newer': {
+        // local mais novo → sobe para a conta (o outro dispositivo restaura depois)
         const r = await pushAccountSaveNow(engine, saveMgr);
         return r.ok ? 'pushed' : 'noop';
       }

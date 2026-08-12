@@ -356,10 +356,15 @@ export async function pushAccountSave(
   slot: string,
 ): Promise<AccountResult<{ savedAt?: number }>> {
   try {
+    const body = JSON.stringify({ saveText, name: name.slice(0, 40), savedAt: Date.now(), slot: slot.slice(0, 10) });
     const res = await apiFetch('/api/account/save', {
       method: 'PUT',
       headers: { 'x-account-token': token },
-      body: JSON.stringify({ saveText, name: name.slice(0, 40), savedAt: Date.now(), slot: slot.slice(0, 10) }),
+      body,
+      // keepalive só para corpos pequenos (limite do navegador: 64KB): permite que o
+      // push final ao FECHAR a aba do site complete mesmo com a página sendo destruída
+      // (a conta fica fresca para o app — sync bidirecional app ↔ site)
+      ...(new Blob([body]).size <= 64 * 1024 ? { keepalive: true } : {}),
     });
     const data = await apiJson<{ ok?: boolean; savedAt?: number; reason?: string }>(res);
     if (!res.ok || data?.ok !== true) return { ok: false, reason: data?.reason ?? `Servidor recusou (${res.status})` };

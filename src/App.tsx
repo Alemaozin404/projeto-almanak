@@ -38,7 +38,7 @@ import { syncRemoteContent, SYNC_INTERVAL_MS } from './liveops/RemoteContent';
 import { startHeartbeat } from './online/heartbeat';
 import { autoPushSave, autoSyncOnLoad } from './online/autoCloud';
 import { getSession, pullAccountSave } from './online/account';
-import { startAccountAutoSave, stopAccountAutoSave, checkAccountRestore, applyAccountRestore, pushAccountSaveNow, type AccountRestoreInfo } from './online/accountSync';
+import { startAccountAutoSave, stopAccountAutoSave, checkAccountRestore, applyAccountRestore, pushAccountSaveNow, autoPushAccountSave, type AccountRestoreInfo } from './online/accountSync';
 import { autoPublishBestRuns } from './online/autoRank';
 import { audio } from './audio/audio';
 import { applyTheme } from './ui/theme';
@@ -123,9 +123,12 @@ export default function App() {
       if (document.visibilityState === 'hidden' && e.state.settings?.gameplay?.pauseIdle) return;
       e.tick(dt);
     }, 100);
-    // auto-save local + push do save para a nuvem a cada save (online por padrão)
+    // auto-save local + push do save para a nuvem e para a CONTA a cada save
+    // (a conta mantém o progresso fresco entre app e site — o timer de 1h vira
+    // apenas a rede de segurança)
     saveMgrRef.current!.startAutoSave(e, e.state.settings.autoSaveMinutes, (eng) => {
       void autoPushSave(eng, saveMgrRef.current!);
+      void autoPushAccountSave(eng, saveMgrRef.current!);
     });
     // save automático da CONTA no servidor a cada 1 hora (quando conectado)
     startAccountAutoSave(e, saveMgrRef.current!);
@@ -180,7 +183,10 @@ export default function App() {
     const e = engineRef.current;
     if (e) {
       void saveMgrRef.current!.save(e).then((ok) => {
-        if (ok) void autoPushSave(e, saveMgrRef.current!, true);
+        if (ok) {
+          void autoPushSave(e, saveMgrRef.current!, true);
+          void autoPushAccountSave(e, saveMgrRef.current!, true);
+        }
       });
     }
     cleanupRef.current?.();
@@ -212,21 +218,27 @@ export default function App() {
 
   // ── salvar ao fechar / ocultar ───────────────────────────
   useEffect(() => {
-    const save = () => {
+    const save = (forceAccount = false) => {
       const e = engineRef.current;
       if (e) {
         void saveMgrRef.current!.save(e).then((ok) => {
-          if (ok) void autoPushSave(e, saveMgrRef.current!);
+          if (ok) {
+            void autoPushSave(e, saveMgrRef.current!);
+            void autoPushAccountSave(e, saveMgrRef.current!, forceAccount);
+          }
         });
       }
     };
     const onHide = () => {
       if (document.visibilityState === 'hidden') save();
     };
-    window.addEventListener('beforeunload', save);
+    // fechar o app/site é a ÚLTIMA chance de sincronizar a conta — ignora o
+    // throttle para o outro dispositivo (app ↔ site) receber o progresso
+    const onUnload = () => save(true);
+    window.addEventListener('beforeunload', onUnload);
     document.addEventListener('visibilitychange', onHide);
     return () => {
-      window.removeEventListener('beforeunload', save);
+      window.removeEventListener('beforeunload', onUnload);
       document.removeEventListener('visibilitychange', onHide);
     };
   }, []);
@@ -307,8 +319,9 @@ export default function App() {
         setPendingAccountRestore(check.info);
         return;
       }
-      if (check.reason === 'no-save') {
-        // conta nova sem save → sobe o local como primeiro backup (silencioso)
+      if (check.reason === 'no-save' || check.reason === 'local-newer') {
+        // conta sem save (primeiro backup) OU local mais novo → sobe o local
+        // (silencioso): o outro dispositivo (app ↔ site) restaura no próximo boot
         await pushAccountSaveNow(e, saveMgrRef.current!);
       }
     });
@@ -480,7 +493,7 @@ export default function App() {
 
         <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu" width={380}>
           <div className="menu-inline">
-            <button className="btn" onClick={() => { void saveMgrRef.current!.save(engine).then((ok) => { flashMenu(ok ? '✅ Save salvo!' : '❌ Falha ao salvar'); if (ok) void autoPushSave(engine, saveMgrRef.current!); }); }}>💾 Salvar agora</button>
+            <button className="btn" onClick={() => { void saveMgrRef.current!.save(engine).then((ok) => { flashMenu(ok ? '✅ Save salvo!' : '❌ Falha ao salvar'); if (ok) { void autoPushSave(engine, saveMgrRef.current!); void autoPushAccountSave(engine, saveMgrRef.current!, true); } }); }}>💾 Salvar agora</button>
             <button className="btn" onClick={() => { void saveMgrRef.current!.exportToFile(engine).then((r) => flashMenu(r.ok ? '✅ Save exportado!' : r.reason ?? '❌ Falha')); }}>📤 Exportar save</button>
             <button className="btn" onClick={() => { void saveMgrRef.current!.createBackup(engine).then((b) => flashMenu(b ? `✅ Backup: ${b}` : '❌ Falha')); }}>🛡️ Criar backup</button>
             <button className="btn" onClick={() => { void saveMgrRef.current!.openDataDir(); }}>📁 Pasta de dados</button>

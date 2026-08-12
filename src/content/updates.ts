@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.2.9';
+export const GAME_VERSION = '1.3.0';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,18 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.3.0',
+    title: 'SYNC APP ↔ SITE — MESMO SAVE EM QUALQUER LUGAR',
+    date: '2026-08-12',
+    description: 'O save agora sincroniza de verdade entre o app e o site via conta: jogou 5 minutos no site com a sua conta, fechou e abriu no app? O progresso (pets, moedas, tudo) está lá. A conta é atualizada a cada save local — não só a cada 1 hora — e o boot sobe ou restaura automaticamente conforme o lado mais novo.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '🔄', items: ['Sincronização bidirecional app ↔ site: o save da conta é atualizado a cada save local (antes era só a cada 1 hora)', 'Fechar o app ou o site envia o progresso na hora (push final com keepalive — a aba pode fechar sem perder nada)', 'No boot: se a conta estiver mais nova, restaura (com confirmação); se o local estiver mais novo, sobe para a conta'] },
+      { tag: 'NOVO', icon: '✨', items: ['Botão "Salvar agora" do menu também sincroniza a conta', 'Voltar ao menu principal / sair do jogo envia o save para a conta'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Login com jogo aberto: jogo local mais novo atualiza a conta silenciosamente (o outro dispositivo recebe no próximo boot)', 'Push automático com throttle de 1 min — a conta fica sempre fresca sem sobrecarregar o servidor'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.2.9',
     title: 'SISTEMA DE CONTAS',

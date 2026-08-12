@@ -195,8 +195,9 @@ export function Account({ saveMgr, engine, onReload }: Props) {
       setPendingAutoRestore(check.info);
       return;
     }
-    if (check.reason === 'no-save') {
-      // conta nova sem save → sobe o local como primeiro backup (silencioso)
+    if (check.reason === 'no-save' || check.reason === 'local-newer') {
+      // conta sem save (primeiro backup) OU jogo local mais novo → atualiza a
+      // conta (silencioso): o outro dispositivo (app ↔ site) restaura no boot
       await pushAccountSaveNow(engine, saveMgr);
     }
   }
