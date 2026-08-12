@@ -5,6 +5,8 @@ export interface ConsumableDef {
   desc: string;
   cost: string;
   currency: 'gold' | 'crystals';
+  /** Preço alternativo em CRÉDITOS 💳 (moeda principal) — quando definido, o item pode ser comprado com créditos. */
+  creditCost?: number;
   durationMs: number; // 0 = efeito instantâneo
   buffId?: string; // efeito de duração
   buffMult?: number; // multiplicador do buff
@@ -59,17 +61,17 @@ export const CONSUMABLE_DEFS: ConsumableDef[] = [
   {
     id: 'diamond_click', name: 'Elixir de Diamante', icon: '💎',
     desc: 'Triplica o poder de clique por 10 minutos.',
-    cost: '400', currency: 'crystals', durationMs: 600000, buffId: 'click_x2', buffMult: 3, instant: 'box', unlockLevel: 15,
+    cost: '400', currency: 'crystals', creditCost: 60, durationMs: 600000, buffId: 'click_x2', buffMult: 3, instant: 'box', unlockLevel: 15,
   },
   {
     id: 'diamond_prod', name: 'Reator Portátil', icon: '🟣',
     desc: 'Triplica a produção de energia por 15 minutos.',
-    cost: '600', currency: 'crystals', durationMs: 900000, buffId: 'prod_x2', buffMult: 3, instant: 'box', unlockLevel: 20,
+    cost: '600', currency: 'crystals', creditCost: 90, durationMs: 900000, buffId: 'prod_x2', buffMult: 3, instant: 'box', unlockLevel: 20,
   },
   {
     id: 'diamond_gold', name: 'Manancial de Ouro', icon: '👑',
     desc: 'Triplica o ganho de moedas por 15 minutos.',
-    cost: '600', currency: 'crystals', durationMs: 900000, buffId: 'gold_x2', buffMult: 3, instant: 'box', unlockLevel: 20,
+    cost: '600', currency: 'crystals', creditCost: 90, durationMs: 900000, buffId: 'gold_x2', buffMult: 3, instant: 'box', unlockLevel: 20,
   },
 ];
 

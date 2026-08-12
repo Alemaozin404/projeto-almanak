@@ -5,18 +5,20 @@ import { EQUIP_SLOTS, EQUIPMENT_LIST, type EquipSlot } from '../../shop/equipmen
 import { CONSUMABLE_DEFS } from '../../shop/consumables';
 import { BOX_DEFS } from '../../shop/boxes';
 import { COIN_PACKS, packPriceLabel, type CoinPackDef } from '../../shop/packs';
+import { CREDIT_PACKS, fmtBRL, creditsToBRL, creditsToDiamonds, type CreditPackDef } from '../../wallet/pix';
 import { pixOnlineEnabled, testPixBackend } from '../../wallet/mp';
 import { PixOrderModal, type ActivePixOrder, type PixOrderResult } from '../PixOrderModal';
 import { D } from '../../core/bignum';
 import { audio } from '../../audio/audio';
 
-type ShopTab = 'equipment' | 'consumables' | 'boxes' | 'packs';
+type ShopTab = 'equipment' | 'consumables' | 'boxes' | 'credits' | 'packs';
 
 export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
   const { engine, fmt } = useGame();
   const [tab, setTab] = useState<ShopTab>('equipment');
   const [slotFilter, setSlotFilter] = useState<EquipSlot | 'all'>('all');
   const [confirmPack, setConfirmPack] = useState<CoinPackDef | null>(null);
+  const [confirmCreditPack, setConfirmCreditPack] = useState<CreditPackDef | null>(null);
   const [buying, setBuying] = useState(false);
   const [notice, setNotice] = useState('');
   const [activeOrder, setActiveOrder] = useState<ActivePixOrder | null>(null);
@@ -58,6 +60,25 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
       amountBRL: p.amountBRL ?? 0,
     });
   }, [engine, online]);
+
+  async function doBuyCreditPack() {
+    if (!confirmCreditPack) return;
+    setBuying(true);
+    const r = await engine.buyCreditPack(confirmCreditPack.id);
+    setBuying(false);
+    if (r.ok) {
+      if (r.pending) {
+        // cobrança real criada (Mercado Pago) — exibe o QR e inicia o polling
+        setActiveOrder({ orderId: r.orderId ?? '', packId: confirmCreditPack.id, label: confirmCreditPack.name, pixCode: r.pixCode ?? '', qrCodeBase64: r.qrCodeBase64, amountBRL: confirmCreditPack.priceBRL });
+      } else {
+        flash(`💳 ${confirmCreditPack.name} entregue! (+${fmt(r.credits ?? 0, 0)} créditos)`);
+        audio.buy();
+      }
+    } else {
+      flash(`❌ ${r.reason ?? 'Falha na compra'}`);
+    }
+    setConfirmCreditPack(null);
+  }
 
   async function doBuyPack() {
     if (!confirmPack) return;
@@ -106,6 +127,7 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
             { id: 'equipment', name: 'Equipamentos', icon: '⚔️' },
             { id: 'consumables', name: 'Consumíveis', icon: '🧪' },
             { id: 'boxes', name: 'Caixas', icon: '📦' },
+            { id: 'credits', name: 'Créditos', icon: '💳' },
             { id: 'packs', name: 'Moedas', icon: '💰' },
           ]}
           active={tab}
@@ -164,11 +186,12 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
       )}
 
       {tab === 'consumables' && (
-        <div className="item-grid">
-          {CONSUMABLE_DEFS.map((def) => {
+        <div className="item-grid">            {CONSUMABLE_DEFS.map((def) => {
             const count = engine.consumableCount(def.id);
             const cost = D(def.cost).mul(engine.costFactor());
             const can = engine.canAfford(def.currency, cost);
+            const creditCost = def.creditCost ? D(def.creditCost).mul(engine.costFactor()) : null;
+            const canCredits = creditCost ? engine.canAfford('credits', creditCost) : false;
             const locked = engine.state.level < def.unlockLevel;
             return (
               <div key={def.id} className="item-card">
@@ -189,6 +212,13 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
                         {def.currency === 'gold' ? '🪙' : '💎'} {fmt(cost, 0)}
                       </button>
                     </Tooltip>
+                    {creditCost && (
+                      <Tooltip text="Pague com Créditos 💳 (moeda principal)">
+                        <button className="btn btn-sm" disabled={!canCredits} onClick={() => { if (engine.buyConsumable(def.id, 1, 'credits').ok) audio.buy(); }}>
+                          💳 {fmt(creditCost, 0)}
+                        </button>
+                      </Tooltip>
+                    )}
                     <button className="btn btn-sm btn-primary" disabled={count <= 0} onClick={() => { if (engine.useConsumable(def.id).ok) audio.buy(); }}>
                       Usar
                     </button>
@@ -207,6 +237,8 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
               const owned = engine.boxCount(box.id);
               const cost = engine.boxBuyCost(box.id);
               const can = engine.canAfford(box.currency, cost);
+              const creditCost = box.creditCost ? D(box.creditCost).mul(engine.costFactor()) : null;
+              const canCredits = creditCost ? engine.canAfford('credits', creditCost) : false;
               const locked = engine.state.level < box.unlockLevel;
               return (
                 <div key={box.id} className="item-card box-card">
@@ -225,6 +257,13 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
                       <button className="btn btn-sm" disabled={!can} onClick={() => { if (engine.buyBox(box.id, 1).ok) audio.buy(); }}>
                         {box.currency === 'crystals' ? '💎' : box.currency === 'gold' ? '🪙' : '🎟️'} {fmt(cost, 0)}
                       </button>
+                      {creditCost && (
+                        <Tooltip text="Pague com Créditos 💳 (moeda principal)">
+                          <button className="btn btn-sm" disabled={!canCredits} onClick={() => { if (engine.buyBox(box.id, 1, 'credits').ok) audio.buy(); }}>
+                            💳 {fmt(creditCost, 0)}
+                          </button>
+                        </Tooltip>
+                      )}
                       {owned > 0 && (
                         <button className="btn btn-sm btn-primary" onClick={() => onOpenBoxes()}>Abrir</button>
                       )}
@@ -235,6 +274,49 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
             })}
           </div>
           <p className="muted small center">As caixas também podem ser abertas na tela Caixas 📦</p>
+        </>
+      )}
+
+      {tab === 'credits' && (
+        <>
+          {online && conn && (
+            <div className={`pix-conn-banner ${conn.ok ? 'ok' : 'err'}`}>
+              <strong>{conn.ok ? '🟢 Pagamentos reais ativos' : '🔴 Sem conexão com o servidor de pagamentos'}</strong>
+              <span className="muted small">{conn.label}</span>
+              <button className="btn btn-xs" onClick={() => void testPixBackend().then(applyConn)}>↻ Verificar</button>
+            </div>
+          )}
+          <p className="muted small">
+            💳 <strong>Créditos são a MOEDA PRINCIPAL</strong> do jogo: pagam o <strong>Passe Premium</strong>, <strong>avatares pagos</strong>,
+            <strong> caixas e consumíveis premium</strong> e entrada em eventos — além de serem convertidos em <strong>Diamantes 💎</strong> (1 crédito = 1 diamante).
+            Compre via <strong>Pix {online ? '💳 real (Mercado Pago)' : '(simulação local)'}</strong>.
+          </p>
+          <div className="item-grid">
+            {CREDIT_PACKS.map((p) => (
+              <div key={p.id} className={`item-card pack-card ${p.featured ? 'featured' : ''}`}>
+                {p.featured && <span className="pack-ribbon">🔥 MAIS VENDIDO</span>}
+                <div className="item-head">
+                  <span className="pack-icon">{p.icon}</span>
+                  <div className="item-title">
+                    <strong>{p.name}</strong>
+                    {p.tag && <span className="item-count">{p.tag}</span>}
+                  </div>
+                </div>
+                <div className="pack-contents">
+                  <div className="pack-row"><span>💳</span><strong>{fmt(p.credits, 0)}</strong><small>créditos ({fmtBRL(creditsToBRL(p.credits))})</small></div>
+                  <div className="pack-row"><span>💎</span><strong>{fmt(creditsToDiamonds(p.credits), 0)}</strong><small>diamantes na conversão</small></div>
+                </div>
+                <div className="item-actions">
+                  <button className={`btn btn-sm ${p.featured ? 'btn-primary' : ''}`} onClick={() => setConfirmCreditPack(p)}>
+                    Comprar via Pix · {fmtBRL(p.priceBRL)}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="muted small center">
+            💎 Também quer <strong>Diamantes</strong>? Compre nos pacotes da aba <strong>Moedas</strong> ou converta seus créditos na <strong>Carteira</strong> (1💳 = 1💎).
+          </p>
         </>
       )}
 
@@ -309,6 +391,36 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
               <button className="btn" disabled={buying} onClick={() => setConfirmPack(null)}>Cancelar</button>
               <button className="btn btn-primary" disabled={buying} onClick={() => void doBuyPack()}>
                 {buying ? 'Processando…' : `Pagar via Pix · ${packPriceLabel(confirmPack)}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* confirmação de compra de CRÉDITOS (moeda principal) */}
+      <Modal open={confirmCreditPack !== null} onClose={() => { if (!buying) setConfirmCreditPack(null); }} title="Confirmar compra de créditos" width={420}>
+        {confirmCreditPack && (
+          <div className="pack-confirm">
+            <div className="pack-confirm-head">
+              <span className="pack-icon">{confirmCreditPack.icon}</span>
+              <div>
+                <h4>{confirmCreditPack.name}</h4>
+                <p className="muted small">💳 Moeda principal — paga passe, avatares, caixas e eventos.</p>
+              </div>
+            </div>
+            <div className="pack-contents">
+              <div className="pack-row"><span>💳</span><strong>{fmt(confirmCreditPack.credits, 0)}</strong><small>créditos ({fmtBRL(creditsToBRL(confirmCreditPack.credits))})</small></div>
+              <div className="pack-row"><span>💎</span><strong>{fmt(creditsToDiamonds(confirmCreditPack.credits), 0)}</strong><small>diamantes na conversão</small></div>
+            </div>
+            <p className="muted small center">
+              Total: <strong>{fmtBRL(confirmCreditPack.priceBRL)}</strong>.{online
+                ? ' Você será direcionado ao Pix para pagar — QR Code real pelo Mercado Pago.'
+                : ' Compra simulada localmente — nada será cobrado.'}
+            </p>
+            <div className="modal-actions">
+              <button className="btn" disabled={buying} onClick={() => setConfirmCreditPack(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={buying} onClick={() => void doBuyCreditPack()}>
+                {buying ? 'Processando…' : `Pagar via Pix · ${fmtBRL(confirmCreditPack.priceBRL)}`}
               </button>
             </div>
           </div>

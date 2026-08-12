@@ -129,12 +129,13 @@ async function submitRank(entry) {
   return { position: position >= 0 ? position + 1 : null };
 }
 
-/** Pacotes de fichas — os PREÇOS são definidos AQUI (o cliente nunca define valor). */
+/** Pacotes de fichas — os PREÇOS são definidos AQUI (o cliente nunca define valor).
+ *  FICHAS SÃO BARATAS: moeda de troca usada apenas em eventos premium. */
 const FICHA_PACKS = {
-  fichas_100: { name: '100 Fichas', fichas: 100, priceBRL: 6.25 },
-  fichas_300: { name: '300 Fichas', fichas: 300, priceBRL: 17.5 },
-  fichas_800: { name: '800 Fichas', fichas: 800, priceBRL: 45.0 },
-  fichas_2000: { name: '2.000 Fichas', fichas: 2000, priceBRL: 105.0 },
+  fichas_100: { name: '100 Fichas', fichas: 100, priceBRL: 3.99 },
+  fichas_300: { name: '300 Fichas', fichas: 300, priceBRL: 9.99 },
+  fichas_800: { name: '800 Fichas', fichas: 800, priceBRL: 24.99 },
+  fichas_2000: { name: '2.000 Fichas', fichas: 2000, priceBRL: 59.99 },
 };
 
 /** Pacotes de CRÉDITOS 💳 — moeda universal (passe, avatares pagos, entrada em eventos). */

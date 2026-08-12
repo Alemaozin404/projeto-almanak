@@ -15,7 +15,8 @@ type Buyable = FichaPackDef | CreditPackDef | AdminPack;
 
 export function Wallet() {
   const { engine, fmt } = useGame();
-  const [tab, setTab] = useState<WalletTab>('fichas');
+  // Créditos 💳 são a MOEDA PRINCIPAL — vem primeiro e abre por padrão
+  const [tab, setTab] = useState<WalletTab>('credits');
   const [confirmPack, setConfirmPack] = useState<Buyable | null>(null);
   const [customPacks, setCustomPacks] = useState<AdminPack[]>([]);
   const [buying, setBuying] = useState(false);
@@ -164,8 +165,8 @@ export function Wallet() {
       >
         <TabBar
           tabs={[
-            { id: 'fichas', name: 'Fichas', icon: '🎰' },
             { id: 'credits', name: 'Créditos', icon: '💳' },
+            { id: 'fichas', name: 'Fichas', icon: '🎰' },
             { id: 'diamonds', name: 'Diamantes', icon: '💎' },
           ]}
           active={tab}

@@ -68,7 +68,7 @@ export const FICHA_PACKS: FichaPackDef[] = [
     name: '300 Fichas',
     icon: '🎟️',
     fichas: 300,
-    priceBRL: 17.5, // 18,75 → 17,50 (~6,7% bônus)
+    priceBRL: 9.99, // R$ 11,97 → R$ 9,99 (~17% bônus)
     tag: 'Popular',
     featured: true,
   },
@@ -77,7 +77,7 @@ export const FICHA_PACKS: FichaPackDef[] = [
     name: '800 Fichas',
     icon: '🎫',
     fichas: 800,
-    priceBRL: 45.0, // 50,00 → 45,00 (10% bônus)
+    priceBRL: 24.99, // R$ 31,92 → R$ 24,99 (~22% bônus)
     tag: 'Melhor custo-benefício',
   },
   {
@@ -85,7 +85,7 @@ export const FICHA_PACKS: FichaPackDef[] = [
     name: '2.000 Fichas',
     icon: '👑',
     fichas: 2000,
-    priceBRL: 105.0, // 125,00 → 105,00 (16% bônus)
+    priceBRL: 59.99, // R$ 79,80 → R$ 59,99 (~25% bônus)
     tag: 'Máximo',
   },
 ];

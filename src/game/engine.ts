@@ -507,11 +507,18 @@ export class GameEngine {
     return this.state.consumables[id] ?? 0;
   }
 
-  buyConsumable(id: string, qty = 1): { ok: boolean; reason?: string } {
+  buyConsumable(id: string, qty = 1, payWith: 'default' | 'credits' = 'default'): { ok: boolean; reason?: string } {
     const def = CONSUMABLE_MAP[id];
     if (!def) return { ok: false, reason: 'Item inexistente' };
-    const cost = D(def.cost).mul(qty).mul(this.costFactor());
-    if (!this.spend(def.currency, cost)) return { ok: false, reason: 'Fundos insuficientes' };
+    if (payWith === 'credits') {
+      // moeda PRINCIPAL: itens premium também podem ser pagos com Créditos 💳
+      if (!def.creditCost) return { ok: false, reason: 'Item não comprável com créditos' };
+      const cCost = D(def.creditCost).mul(qty).mul(this.costFactor());
+      if (!this.spend('credits', cCost)) return { ok: false, reason: '💳 Créditos insuficientes' };
+    } else {
+      const cost = D(def.cost).mul(qty).mul(this.costFactor());
+      if (!this.spend(def.currency, cost)) return { ok: false, reason: 'Fundos insuficientes' };
+    }
     this.state.consumables[id] = (this.state.consumables[id] ?? 0) + qty;
     this.notify('buy');
     return { ok: true };
@@ -737,13 +744,20 @@ export class GameEngine {
     return D(boxCostWithDiscount(box, discPct));
   }
 
-  buyBox(boxId: string, qty = 1): { ok: boolean; reason?: string } {
+  buyBox(boxId: string, qty = 1, payWith: 'default' | 'credits' = 'default'): { ok: boolean; reason?: string } {
     const s = this.state;
     const box = BOX_MAP[boxId];
     if (!box) return { ok: false, reason: 'Caixa inexistente' };
     if (s.level < box.unlockLevel) return { ok: false, reason: `Requer nível ${box.unlockLevel}` };
-    const price = this.boxBuyCost(boxId).mul(qty);
-    if (!this.spend(box.currency, price)) return { ok: false, reason: 'Fundos insuficientes' };
+    if (payWith === 'credits') {
+      // moeda PRINCIPAL: caixas premium também podem ser pagas com Créditos 💳
+      if (!box.creditCost) return { ok: false, reason: 'Caixa não comprável com créditos' };
+      const cCost = D(box.creditCost).mul(qty).mul(this.costFactor());
+      if (!this.spend('credits', cCost)) return { ok: false, reason: '💳 Créditos insuficientes' };
+    } else {
+      const price = this.boxBuyCost(boxId).mul(qty);
+      if (!this.spend(box.currency, price)) return { ok: false, reason: 'Fundos insuficientes' };
+    }
     s.boxes[boxId] = (s.boxes[boxId] ?? 0) + qty;
     this.notify('buy');
     return { ok: true };

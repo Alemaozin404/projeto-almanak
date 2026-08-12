@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameEngine } from '../src/game/engine';
 import { FICHA_PACKS, CREDIT_PACKS, fichaPackById, creditPackById, creditsToBRL, creditsToDiamonds, generatePixCopyPaste } from '../src/wallet/pix';
+import { BOX_DEFS } from '../src/shop/boxes';
+import { CONSUMABLE_DEFS } from '../src/shop/consumables';
 import { resolvePixGateway, pixBackendUrl, setPixBackendUrl, clearPixBackendUrl, testPixBackend, isPixBackendUrlValid } from '../src/wallet/mp';
 import { GameConfig } from '../src/config/GameConfig';
 import { D } from '../src/core/bignum';
@@ -143,6 +145,35 @@ describe('Carteira Ficha/Créditos', () => {
     expect(e.buyAvatarItem('icons', 'av_hero').ok).toBe(false);
   });
 
+  it('caixas premium podem ser pagas com CRÉDITOS (moeda principal)', () => {
+    const e = new GameEngine();
+    const box = BOX_DEFS.find((b) => b.id === 'basic')!;
+    expect(box.creditCost).toBeGreaterThan(0);
+    // sem créditos: falha
+    expect(e.buyBox('basic', 1, 'credits').ok).toBe(false);
+    e.addRes('credits', D(box.creditCost! + 10));
+    const r = e.buyBox('basic', 1, 'credits');
+    expect(r.ok).toBe(true);
+    expect(e.boxCount('basic')).toBe(1);
+    expect(D(e.state.credits).eq(box.creditCost! + 10 - box.creditCost!)).toBe(true);
+    // pagamento padrão continua em diamantes
+    e.addRes('crystals', D(100));
+    expect(e.buyBox('basic', 1).ok).toBe(true);
+    expect(e.state.crystals).not.toBe('100');
+  });
+
+  it('consumíveis premium podem ser pagos com CRÉDITOS', () => {
+    const e = new GameEngine();
+    const def = CONSUMABLE_DEFS.find((c) => c.id === 'diamond_click')!;
+    expect(def.creditCost).toBeGreaterThan(0);
+    expect(e.buyConsumable('diamond_click', 1, 'credits').ok).toBe(false);
+    e.addRes('credits', D(def.creditCost!));
+    const r = e.buyConsumable('diamond_click', 1, 'credits');
+    expect(r.ok).toBe(true);
+    expect(e.consumableCount('diamond_click')).toBe(1);
+    expect(e.state.credits).toBe('0');
+  });
+
   it('XP do passe é comprável com diamantes', () => {
     const e = new GameEngine();
     expect(e.buyPassXp(0).ok).toBe(false);
@@ -187,8 +218,16 @@ describe('Carteira Ficha/Créditos', () => {
     expect(code.length).toBeGreaterThan(100);
   });
 
-  it('cotação configurada: 100 fichas = R$ 6,25 e 1 crédito = 1 diamante = R$ 0,05', () => {
-    expect(GameConfig.wallet.pricePer100Fichas).toBe(6.25);
+  it('fichas são BARATAS (usadas só em eventos) — custam menos que créditos', () => {
+    const f = FICHA_PACKS[0];
+    const c = CREDIT_PACKS[0];
+    expect(f.fichas).toBe(c.credits);
+    // mesmo volume (100), fichas custam bem menos que créditos
+    expect(f.priceBRL).toBeLessThan(c.priceBRL);
+  });
+
+  it('cotação configurada: 100 fichas = R$ 3,99 e 1 crédito = 1 diamante = R$ 0,05', () => {
+    expect(GameConfig.wallet.pricePer100Fichas).toBe(3.99);
     expect(GameConfig.wallet.creditBRL).toBe(0.05);
     expect(GameConfig.wallet.creditsPerDiamond).toBe(1);
     expect(creditsToDiamonds(100)).toBe(100);

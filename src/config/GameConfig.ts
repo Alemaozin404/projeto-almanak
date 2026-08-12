@@ -53,8 +53,8 @@ export const GameConfig = {
 
   // ── Carteira Ficha/Créditos ──
   wallet: {
-    /** Preço de 100 fichas em R$. Margem de 20% para o jogo. */
-    pricePer100Fichas: 6.25,
+    /** Preço de 100 fichas em R$. FICHAS SÃO BARATAS: usadas só em eventos premium. */
+    pricePer100Fichas: 3.99,
     /** Valor de referência de 1 crédito em R$ (exibição). */
     creditBRL: 0.05,
     /** Créditos por diamante — 1 crédito = 1 diamante. */
