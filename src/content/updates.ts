@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.3.0';
+export const GAME_VERSION = '1.3.1';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,18 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.3.1',
+    title: 'STATUS DE SINCRONIZAÇÃO NA TOPBAR',
+    date: '2026-08-12',
+    description: 'A barra superior agora mostra quando o save está sendo enviado para a sua conta (↻ sincronizando… → ✅ sincronizado), com horário da última sincronização e aviso de erro. E ao voltar ao menu principal, o save é enviado para a conta na hora, com confirmação visual.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '🔄', items: ['Indicador de sincronização no chip da conta: “↻ sincronizando…” durante o envio e “✅ sincronizado” logo depois (com a hora da última sincronização no tooltip)', 'Ao voltar ao menu principal, o save é enviado para a conta IMEDIATAMENTE — mesmo se você fechar a aba do site em seguida, o envio conclui (e um aviso “👤 Conta sincronizada” confirma)'] },
+      { tag: 'NOVO', icon: '✨', items: ['Tooltip do chip da conta com estado atual, última sincronização e último erro (⚠️) se houver', 'Falhas de sincronização aparecem no indicador para você saber que o servidor não recebeu o save'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Voltar ao menu principal (ou às Configurações) agora dispara o envio da conta sem esperar o save em disco — mais confiável no site', 'Envios concorrentes (auto-save + manual + timer de 1h) exibem o estado correto no indicador'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.3.0',
     title: 'SYNC APP ↔ SITE — MESMO SAVE EM QUALQUER LUGAR',

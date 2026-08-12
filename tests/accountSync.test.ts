@@ -31,6 +31,9 @@ import {
   stopAccountAutoSave,
   lastAccountSyncAt,
   getNextAccountSyncAt,
+  getAccountSyncSnapshot,
+  subscribeAccountSync,
+  type AccountSyncSnapshot,
 } from '../src/online/accountSync';
 
 const TOKEN = 'a'.repeat(64);
@@ -186,6 +189,86 @@ describe('accountSync — save automático da conta (1h)', () => {
     expect(r.ok).toBe(false);
     expect(r.reason).toBe('Servidor recusou (429)');
     expect(lastAccountSyncAt()).toBe(0);
+  });
+
+  // ── estado de sincronização (snapshot para a TopBar) ──
+
+  it('snapshot inicial: sem envio em andamento, sem sincronização, sem erro', () => {
+    expect(getAccountSyncSnapshot()).toEqual({ syncing: false, lastSyncAt: 0, lastError: null });
+  });
+
+  it('durante o push: syncing true; ao concluir: syncing false + lastSyncAt atualizado', async () => {
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    let resolvePush!: (v: { ok: boolean; savedAt?: number; reason?: string }) => void;
+    vi.mocked(pushAccountSave).mockReturnValue(new Promise((res) => { resolvePush = res; }));
+    const { engine, saveMgr } = setup();
+
+    const p = pushAccountSaveNow(engine, saveMgr);
+    // a chamada de rede está em andamento → a TopBar mostra "sincronizando…"
+    expect(getAccountSyncSnapshot().syncing).toBe(true);
+
+    resolvePush({ ok: true, savedAt: Date.now() });
+    const r = await p;
+    expect(r.ok).toBe(true);
+    const snap = getAccountSyncSnapshot();
+    expect(snap.syncing).toBe(false);
+    expect(snap.lastSyncAt).toBeGreaterThan(0);
+    expect(snap.lastError).toBeNull();
+  });
+
+  it('falha de rede → lastError gravado e lastSyncAt mantido em 0', async () => {
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pushAccountSave).mockResolvedValue({ ok: false, reason: 'Servidor recusou (429)' });
+    const { engine, saveMgr } = setup();
+
+    const r = await pushAccountSaveNow(engine, saveMgr);
+    expect(r.ok).toBe(false);
+    const snap = getAccountSyncSnapshot();
+    expect(snap.syncing).toBe(false);
+    expect(snap.lastError).toBe('Servidor recusou (429)');
+    expect(snap.lastSyncAt).toBe(0);
+  });
+
+  it('sucesso após uma falha → limpa o lastError anterior', async () => {
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pushAccountSave)
+      .mockResolvedValueOnce({ ok: false, reason: 'Servidor recusou (429)' })
+      .mockResolvedValueOnce({ ok: true, savedAt: Date.now() });
+    const { engine, saveMgr } = setup();
+
+    await pushAccountSaveNow(engine, saveMgr);
+    expect(getAccountSyncSnapshot().lastError).toBe('Servidor recusou (429)');
+
+    await pushAccountSaveNow(engine, saveMgr);
+    const snap = getAccountSyncSnapshot();
+    expect(snap.lastError).toBeNull();
+    expect(snap.lastSyncAt).toBeGreaterThan(0);
+  });
+
+  it('falha de CONFIG (sem conta/backend) não marca syncing nem erro', async () => {
+    const { engine, saveMgr } = setup();
+    const r = await pushAccountSaveNow(engine, saveMgr);
+    expect(r.ok).toBe(false);
+    const snap = getAccountSyncSnapshot();
+    expect(snap.syncing).toBe(false);
+    expect(snap.lastError).toBeNull();
+  });
+
+  it('subscribeAccountSync: notifica quando o estado de sync muda (e cancela)', async () => {
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pushAccountSave).mockResolvedValue({ ok: true, savedAt: Date.now() });
+    const { engine, saveMgr } = setup();
+
+    const calls: AccountSyncSnapshot[] = [];
+    const unsub = subscribeAccountSync(() => calls.push(getAccountSyncSnapshot()));
+    await pushAccountSaveNow(engine, saveMgr);
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+    expect(calls.some((c) => c.syncing)).toBe(true);
+
+    const before = calls.length;
+    unsub();
+    await pushAccountSaveNow(engine, saveMgr);
+    expect(calls.length).toBe(before); // cancelado → não recebe mais
   });
 
   it('falha do servidor → propaga a razão sem derrubar o jogo', async () => {

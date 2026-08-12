@@ -7,7 +7,7 @@ import { D } from '../core/bignum';
 import { formatDuration } from '../core/notation';
 import { getCloudStatus, subscribeCloudStatus } from '../online/status';
 import { getSessionSnapshot, subscribeAccountSession } from '../online/account';
-import { getNextAccountSyncAt } from '../online/accountSync';
+import { getNextAccountSyncAt, getAccountSyncSnapshot, subscribeAccountSync } from '../online/accountSync';
 import { useNow } from './hooks';
 
 const CLOUD_LABEL: Record<string, { icon: string; text: string }> = {
@@ -27,10 +27,14 @@ export function TopBar({ onMenu, worldName, onAccountClick }: { onMenu: () => vo
 
   // conta conectada: reage a login/logout via store (mesmo padrão do status da nuvem)
   const account = useSyncExternalStore(subscribeAccountSession, getSessionSnapshot);
+  // estado do save da conta: sincronizando agora / última sincronização / último erro
+  const accountSync = useSyncExternalStore(subscribeAccountSync, getAccountSyncSnapshot);
   // relógio para o countdown (1s quando logado; 1min quando não — sem custo)
   const now = useNow(account ? 1000 : 60_000);
   const nextSyncAt = getNextAccountSyncAt();
   const remaining = Math.max(0, nextSyncAt - now);
+  // "✅ sincronizado" por alguns segundos após um envio bem-sucedido
+  const justSynced = !accountSync.syncing && accountSync.lastSyncAt > now - 30_000;
 
   return (
     <header className="topbar">
@@ -62,19 +66,29 @@ export function TopBar({ onMenu, worldName, onAccountClick }: { onMenu: () => vo
       </span>
       {account && (
         <button
-          className="account-chip"
+          className={`account-chip${accountSync.syncing ? ' syncing' : ''}`}
           onClick={onAccountClick}
           title={
-            nextSyncAt > 0
-              ? `Conta: ${account.username} · próximo save automático em ${formatDuration(Math.ceil(remaining / 1000))}`
-              : `Conta: ${account.username} · clique para gerenciar`
+            (accountSync.syncing
+              ? `Conta: ${account.username} · sincronizando o save…`
+              : justSynced
+                ? `Conta: ${account.username} · save sincronizado`
+                : nextSyncAt > 0
+                  ? `Conta: ${account.username} · próximo save automático em ${formatDuration(Math.ceil(remaining / 1000))}`
+                  : `Conta: ${account.username} · clique para gerenciar`) +
+            (accountSync.lastSyncAt > 0 ? `\nÚltima sincronização: ${new Date(accountSync.lastSyncAt).toLocaleTimeString('pt-BR')}` : '') +
+            (accountSync.lastError ? `\n⚠️ ${accountSync.lastError}` : '')
           }
         >
           <span className="account-chip-icon">👤</span>
           <span className="account-chip-name">{account.username}</span>
-          {nextSyncAt > 0 && (
+          {accountSync.syncing ? (
+            <span className="account-chip-count account-chip-sync"><span className="account-sync-spin">↻</span> sincronizando…</span>
+          ) : justSynced ? (
+            <span className="account-chip-count account-chip-done">✅ sincronizado</span>
+          ) : nextSyncAt > 0 ? (
             <span className="account-chip-count">save em {formatDuration(Math.ceil(remaining / 1000))}</span>
-          )}
+          ) : null}
         </button>
       )}
       <button className="icon-btn menu-btn" onClick={onMenu} title="Menu">☰</button>

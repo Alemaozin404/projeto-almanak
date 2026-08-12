@@ -19,7 +19,6 @@ import type { SaveManager, SaveSlot } from '../save/saveManager';
 import type { GameEngine } from '../game/engine';
 
 let timer: ReturnType<typeof setInterval> | null = null;
-let lastSyncAt = 0;
 let nextSyncAt = 0;
 let lastAutoPushAt = 0;
 
@@ -29,9 +28,52 @@ export const ACCOUNT_SAVE_INTERVAL_MS = Math.max(1, Number(GameConfig.account.au
 /** Intervalo mínimo entre pushes automáticos da conta (evita spam na API). */
 const AUTO_PUSH_THROTTLE_MS = 60 * 1000;
 
+// ── estado de sincronização (para a TopBar: enviando / sincronizado / erro) ──
+
+export interface AccountSyncSnapshot {
+  /** Há um envio do save da conta em andamento (rede). */
+  syncing: boolean;
+  /** Última sincronização bem-sucedida (timestamp; 0 = nunca). */
+  lastSyncAt: number;
+  /** Último erro de sincronização (null = sem erro recente). */
+  lastError: string | null;
+}
+
+const syncListeners = new Set<() => void>();
+let syncSnapshot: AccountSyncSnapshot = { syncing: false, lastSyncAt: 0, lastError: null };
+/** Envios em andamento — suporta pushes concorrentes (timer + manual + auto-save). */
+let inFlightSyncs = 0;
+
+function notifySyncChanged(): void {
+  syncListeners.forEach((fn) => fn());
+}
+
+/** Assina mudanças no estado de sincronização do save da conta (TopBar). */
+export function subscribeAccountSync(fn: () => void): () => void {
+  syncListeners.add(fn);
+  return () => {
+    syncListeners.delete(fn);
+  };
+}
+
+/** Snapshot com referência ESTÁVEL (para useSyncExternalStore). */
+export function getAccountSyncSnapshot(): AccountSyncSnapshot {
+  return syncSnapshot;
+}
+
+/** Conta envios em andamento; notifica só quando cruza 0 ↔ 1 (evita re-render em excesso). */
+function setSyncing(active: boolean): void {
+  inFlightSyncs = Math.max(0, inFlightSyncs + (active ? 1 : -1));
+  const next = inFlightSyncs > 0;
+  if (next !== syncSnapshot.syncing) {
+    syncSnapshot = { ...syncSnapshot, syncing: next };
+    notifySyncChanged();
+  }
+}
+
 /** Última sincronização bem-sucedida com a conta (timestamp). */
 export function lastAccountSyncAt(): number {
-  return lastSyncAt;
+  return syncSnapshot.lastSyncAt;
 }
 
 /** Próximo envio automático agendado (timestamp; 0 = sem timer ativo). */
@@ -42,7 +84,9 @@ export function getNextAccountSyncAt(): number {
 /** Zera o estado interno (testes — isolamento entre execuções). */
 export function resetAccountSyncState(): void {
   stopAccountAutoSave();
-  lastSyncAt = 0;
+  inFlightSyncs = 0;
+  syncSnapshot = { syncing: false, lastSyncAt: 0, lastError: null };
+  syncListeners.clear();
   nextSyncAt = 0;
   lastAutoPushAt = 0;
 }
@@ -81,9 +125,21 @@ export async function pushAccountSaveNow(
   const text = saveMgr.exportText(engine);
   // slot de vínculo: o escolhido pelo jogador na tela de Conta, senão o slot atual
   const slot = getAccountSlotPref() || saveMgr.getSlot();
-  const r = await pushAccountSave(session.token, text, engine.state.name || 'Jogador', slot);
-  if (r.ok) lastSyncAt = Date.now();
-  return r.ok ? { ok: true } : { ok: false, reason: r.reason };
+  // marca "sincronizando" na TopBar durante a chamada de rede (e grava o resultado)
+  setSyncing(true);
+  try {
+    const r = await pushAccountSave(session.token, text, engine.state.name || 'Jogador', slot);
+    if (r.ok) {
+      syncSnapshot = { ...syncSnapshot, lastSyncAt: Date.now(), lastError: null };
+      notifySyncChanged();
+      return { ok: true };
+    }
+    syncSnapshot = { ...syncSnapshot, lastError: r.reason ?? 'Falha ao sincronizar' };
+    notifySyncChanged();
+    return { ok: false, reason: r.reason };
+  } finally {
+    setSyncing(false);
+  }
 }
 
 /**

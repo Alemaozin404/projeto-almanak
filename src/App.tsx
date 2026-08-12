@@ -182,11 +182,21 @@ export default function App() {
   const detach = useCallback(() => {
     const e = engineRef.current;
     if (e) {
-      void saveMgrRef.current!.save(e).then((ok) => {
-        if (ok) {
-          void autoPushSave(e, saveMgrRef.current!, true);
-          void autoPushAccountSave(e, saveMgrRef.current!, true);
+      // volta ao menu = momento de sincronizar a CONTA: o push dispara IMEDIATAMENTE
+      // (o save da conta é exportado do estado em memória — não depende do save em
+      // disco). Se o jogador fechar a aba do site logo depois, o envio já está em
+      // voo e o keepalive garante a conclusão (app ↔ site sempre na mesma página).
+      void autoPushAccountSave(e, saveMgrRef.current!, true).then((r) => {
+        if (r.ok) {
+          bus.emit('notify', {
+            kind: 'default',
+            title: '👤 Conta sincronizada',
+            desc: 'Seu save foi enviado para a conta — o progresso continua no site e no app.',
+          });
         }
+      });
+      void saveMgrRef.current!.save(e).then((ok) => {
+        if (ok) void autoPushSave(e, saveMgrRef.current!, true);
       });
     }
     cleanupRef.current?.();

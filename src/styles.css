@@ -1277,6 +1277,12 @@ body {
 .account-chip-icon { font-size: 12px; }
 .account-chip-name { color: var(--success); font-weight: 700; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-chip-count { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* estado de sincronização do save da conta na TopBar */
+.account-chip.syncing { border-color: rgba(255, 196, 61, 0.55); box-shadow: 0 0 10px rgba(255, 196, 61, 0.2); }
+.account-chip-sync { color: #ffc43d; display: inline-flex; align-items: center; gap: 4px; }
+.account-chip-done { color: var(--success); }
+.account-sync-spin { display: inline-block; animation: accountSyncSpin 1s linear infinite; }
+@keyframes accountSyncSpin { to { transform: rotate(360deg); } }
 
 @media (max-width: 1100px) {
   .account-chip-count { display: none; }
