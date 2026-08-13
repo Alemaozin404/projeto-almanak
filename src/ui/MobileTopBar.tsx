@@ -4,13 +4,16 @@ import { NumText, Tooltip } from './kit';
 import { useGame } from './context';
 import { NAV, type Screen } from './sidebar';
 import { getCloudStatus, subscribeCloudStatus } from '../online/status';
+import { getSessionSnapshot, subscribeAccountSession } from '../online/account';
 import { hapticLight } from '../core/platform';
 
-/** Header do app no celular: nível + título da tela + menu + strip de recursos. */
-export function MobileTopBar({ screen, onMenu }: { screen: Screen; onMenu: () => void }) {
+/** Header do app no celular: nível + título da tela + conta + menu + strip de recursos. */
+export function MobileTopBar({ screen, onMenu, onAccountClick }: { screen: Screen; onMenu: () => void; onAccountClick?: () => void }) {
   const { engine } = useGame();
   const s = engine.state;
   const cloud = useSyncExternalStore(subscribeCloudStatus, getCloudStatus);
+  // conta ativa: mostra quem está jogando (ou modo convidado) — reage a login/logout
+  const account = useSyncExternalStore(subscribeAccountSession, getSessionSnapshot);
   const nav = NAV.find((n) => n.id === screen);
 
   return (
@@ -18,6 +21,17 @@ export function MobileTopBar({ screen, onMenu }: { screen: Screen; onMenu: () =>
       <div className="mtopbar-row">
         <span className="mtop-level" title={`Nível ${s.level}`}>{s.level}</span>
         <span className="mtop-title">{nav?.icon ?? ''} <b>{nav?.name ?? ''}</b></span>
+        <button
+          className={`mtop-account${account ? '' : ' guest'}`}
+          onClick={() => { hapticLight(); onAccountClick?.(); }}
+          title={account ? `Conta: ${account.username} — clique para gerenciar` : 'Modo sem conta (convidado) — clique para criar ou entrar em uma conta'}
+        >
+          {account ? (
+            <><span className="mtop-account-icon">👤</span><span className="mtop-account-name">{account.username}</span></>
+          ) : (
+            <><span className="mtop-account-icon">🎮</span><span className="mtop-account-name">Convidado</span></>
+          )}
+        </button>
         <button className="icon-btn mtop-menu" onClick={() => { hapticLight(); onMenu(); }} title="Menu">☰</button>
       </div>
       <div className="mtop-resources">

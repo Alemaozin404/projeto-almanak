@@ -40,6 +40,47 @@ describe('Save: corrupção', () => {
   });
 });
 
+describe('Save: isolamento por conta', () => {
+  it('cada conta tem seu próprio mundo — trocar de conta não mistura nem reseta', async () => {
+    const guest = new SaveManager();
+    // mundo guest (sem conta)
+    const g = new GameEngine();
+    g.state.name = 'Guest';
+    await guest.save(g);
+
+    // conta Willzinn
+    const willzinn = new SaveManager();
+    willzinn.setAccountScope('Willzinn');
+    const w = new GameEngine();
+    w.state.name = 'Willzinn';
+    w.addRes('gold', D('999999'));
+    await willzinn.save(w);
+
+    // conta CEO — deve começar ZERADA, sem nada do Willzinn
+    const ceo = new SaveManager();
+    ceo.setAccountScope('CEO');
+    const c = await ceo.load('slot1');
+    expect(c).toBeNull(); // mundo zerado (nunca jogou)
+    const c2 = new GameEngine();
+    c2.state.name = 'CEO';
+    await ceo.save(c2);
+
+    // voltando para Willzinn — o mundo DELE volta intacto
+    const willzinnBack = new SaveManager();
+    willzinnBack.setAccountScope('Willzinn');
+    const wBack = await willzinnBack.load('slot1');
+    expect(wBack).not.toBeNull();
+    expect(wBack!.engine.state.name).toBe('Willzinn');
+    expect(String(wBack!.engine.state.gold)).toBe('999999');
+
+    // e o guest continua intacto também
+    const guestBack = new SaveManager();
+    const gBack = await guestBack.load('slot1');
+    expect(gBack).not.toBeNull();
+    expect(gBack!.engine.state.name).toBe('Guest');
+  });
+});
+
 describe('Save: migração', () => {
   it('migra save v1 para a versão atual', () => {
     const v1: any = {

@@ -23,7 +23,8 @@ function backupsDir(): string {
   return dir;
 }
 
-const SLOT_RE = /^slot[1-3]$/;
+// slots locais (`slot1-3`) ou slots com escopo de conta (`acct_<user>_slot1-3`)
+const SLOT_RE = /^(?:slot[1-3]|acct_[a-z0-9_]{1,20}_slot[1-3])$/;
 
 function safeSlot(slot: string): string {
   if (!SLOT_RE.test(slot)) throw new Error('slot inválido');

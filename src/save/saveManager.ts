@@ -110,6 +110,8 @@ function fromBase64(s: string): string {
 export class SaveManager {
   private slot: SaveSlot = 'slot1';
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** Conta ativa (username em minúsculas) — null = modo sem conta (guest). */
+  private accountScope: string | null = null;
 
   setSlot(slot: SaveSlot): void {
     this.slot = slot;
@@ -117,6 +119,24 @@ export class SaveManager {
 
   getSlot(): SaveSlot {
     return this.slot;
+  }
+
+  /**
+   * Define o escopo da conta ativa. Cada conta tem seus PRÓPRIOS slots de save
+   * local (nc_acct_<user>_slotX) — trocar de conta = trocar de mundo, sem
+   * misturar progresso nem resetar nada. null = modo sem conta (nc_slotX).
+   */
+  setAccountScope(username: string | null): void {
+    this.accountScope = username ? username.trim().toLowerCase() : null;
+  }
+
+  getAccountScope(): string | null {
+    return this.accountScope;
+  }
+
+  /** Chave de storage de um slot, com o escopo da conta (se logado). */
+  private keyFor(slot: SaveSlot): string {
+    return this.accountScope ? `acct_${this.accountScope}_${slot}` : slot;
   }
 
   private encode(state: GameState): string {
@@ -145,7 +165,7 @@ export class SaveManager {
   async save(engine: GameEngine): Promise<boolean> {
     try {
       const text = this.encode(engine.state);
-      return await storage.set(this.slot, text);
+      return await storage.set(this.keyFor(this.slot), text);
     } catch (err) {
       console.error('Falha ao salvar:', err);
       return false;
@@ -155,7 +175,7 @@ export class SaveManager {
   async load(slot?: SaveSlot): Promise<{ engine: GameEngine; fixed: string[] } | null> {
     const target = slot ?? this.slot;
     try {
-      const text = await storage.get(target);
+      const text = await storage.get(this.keyFor(target));
       if (!text) return null;
       const file = this.decode(text);
       // migrações de versão
@@ -173,13 +193,13 @@ export class SaveManager {
   }
 
   async delete(slot: SaveSlot): Promise<boolean> {
-    return storage.del(slot);
+    return storage.del(this.keyFor(slot));
   }
 
   /** Lê o ranking local de um slot (para o leaderboard entre saves) — nunca lança. */
   async readRanking(slot: SaveSlot): Promise<{ name: string; ranking: RunRecord[] } | null> {
     try {
-      const text = await storage.get(slot);
+      const text = await storage.get(this.keyFor(slot));
       if (!text) return null;
       const file = this.decode(text);
       const migrated = migrateSave(file.data);
@@ -195,7 +215,7 @@ export class SaveManager {
     const metas: SlotMeta[] = [];
     for (const slot of SAVE_SLOTS) {
       try {
-        const text = await storage.get(slot);
+        const text = await storage.get(this.keyFor(slot));
         if (!text) {
           metas.push({ slot, exists: false, name: '—', level: 1, playTime: 0, prestige: 0, savedAt: null });
           continue;
@@ -250,7 +270,7 @@ export class SaveManager {
       const migrated = migrateSave(file.data);
       const { state, result } = validateState(migrated);
       state.schemaVersion = SAVE_VERSION;
-      await storage.set(slot, this.encode(state));
+      await storage.set(this.keyFor(slot), this.encode(state));
       return { ok: true, fixed: result.fixed };
     } catch (err) {
       return { ok: false, reason: err instanceof Error ? err.message : 'Importação falhou' };
@@ -287,7 +307,7 @@ export class SaveManager {
   async createBackup(engine: GameEngine): Promise<string | null> {
     // garante que o save atual está gravado antes do backup
     await this.save(engine);
-    return storage.backupCreate(this.slot);
+    return storage.backupCreate(this.keyFor(this.slot));
   }
 
   async listBackups(): Promise<string[]> {
@@ -295,7 +315,7 @@ export class SaveManager {
   }
 
   async restoreBackup(name: string): Promise<boolean> {
-    return storage.backupRestore(name, this.slot);
+    return storage.backupRestore(name, this.keyFor(this.slot));
   }
 
   async deleteBackup(name: string): Promise<boolean> {

@@ -1281,6 +1281,15 @@ body {
 .account-chip-icon { font-size: 12px; }
 .account-chip-name { color: var(--success); font-weight: 700; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-chip-count { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* modo sem conta (convidado) na TopBar — sempre visível para saber quem está jogando */
+.account-chip.guest {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--border-strong);
+  opacity: 0.85;
+}
+.account-chip.guest:hover { border-color: var(--muted); box-shadow: none; }
+.account-chip.guest .account-chip-name { color: var(--muted); font-weight: 600; }
+
 /* estado de sincronização do save da conta na TopBar */
 .account-chip.syncing { border-color: rgba(255, 196, 61, 0.55); box-shadow: 0 0 10px rgba(255, 196, 61, 0.2); }
 .account-chip-sync { color: #ffc43d; display: inline-flex; align-items: center; gap: 4px; }
@@ -3385,6 +3394,31 @@ button, a, .nav-item, .mnav-btn { touch-action: manipulation; -webkit-tap-highli
   }
   .mtop-title b { color: var(--text); }
   .mtop-menu { width: 36px; height: 36px; flex-shrink: 0; }
+
+  /* indicador da conta ativa no header mobile (nome da conta ou Convidado) */
+  .mtop-account {
+    display: flex; align-items: center; gap: 4px;
+    max-width: 110px;
+    background: rgba(61, 220, 132, 0.08);
+    border: 1px solid rgba(61, 220, 132, 0.4);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+    flex-shrink: 0;
+  }
+  .mtop-account.guest {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--border-strong);
+  }
+  .mtop-account-icon { font-size: 11px; }
+  .mtop-account-name {
+    color: var(--success); font-weight: 700;
+    max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .mtop-account.guest .mtop-account-name { color: var(--muted); font-weight: 600; }
 
   .mtop-resources {
     display: flex; gap: 6px; margin-top: 6px;

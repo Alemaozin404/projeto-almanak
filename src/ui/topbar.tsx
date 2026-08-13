@@ -64,7 +64,7 @@ export function TopBar({ onMenu, worldName, onAccountClick }: { onMenu: () => vo
         <span className="cloud-dot" />
         <span className="cloud-text">{cloudMeta.text}</span>
       </span>
-      {account && (
+      {account ? (
         <button
           className={`account-chip${accountSync.syncing ? ' syncing' : ''}`}
           onClick={onAccountClick}
@@ -89,6 +89,15 @@ export function TopBar({ onMenu, worldName, onAccountClick }: { onMenu: () => vo
           ) : nextSyncAt > 0 ? (
             <span className="account-chip-count">save em {formatDuration(Math.ceil(remaining / 1000))}</span>
           ) : null}
+        </button>
+      ) : (
+        <button
+          className="account-chip guest"
+          onClick={onAccountClick}
+          title="Modo sem conta (convidado) — seu mundo fica só neste dispositivo. Clique para criar ou entrar em uma conta."
+        >
+          <span className="account-chip-icon">🎮</span>
+          <span className="account-chip-name">Convidado</span>
         </button>
       )}
       <button className="icon-btn menu-btn" onClick={onMenu} title="Menu">☰</button>

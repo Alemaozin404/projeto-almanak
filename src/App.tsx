@@ -104,7 +104,13 @@ export default function App() {
   }, []);
 
   const saveMgrRef = useRef<SaveManager | null>(null);
-  if (!saveMgrRef.current) saveMgrRef.current = new SaveManager();
+  if (!saveMgrRef.current) {
+    saveMgrRef.current = new SaveManager();
+    // escopo inicial: cada conta tem seu PRÓPRIO mundo local (slots particionados
+    // por username). Sem conta = modo guest (nc_slotX); logado = nc_acct_<user>_slotX.
+    const bootSession = getSession();
+    if (bootSession) saveMgrRef.current.setAccountScope(bootSession.username);
+  }
   const engineRef = useRef<GameEngine | null>(null);
   const cleanupRef = useRef<(() => void) | null>(null);
   // heartbeat oculto: sinal ao servidor a cada 1 min (presença + atualização rápida)
@@ -112,6 +118,10 @@ export default function App() {
 
   // ── anexar/desanexar engine ──────────────────────────────
   const attach = useCallback((e: GameEngine, fixed?: string[]) => {
+    // limpa a engine ANTERIOR antes de anexar a nova (troca de conta/save):
+    // para o auto-save/timers antigos para não gravarem no escopo errado
+    cleanupRef.current?.();
+    cleanupRef.current = null;
     engineRef.current = e;
     audio.init(() => e.state.settings);
     audio.updateVolumes();
@@ -547,7 +557,7 @@ export default function App() {
         <Sidebar screen={screen} onNavigate={setScreen} />
         <MobileNav screen={screen} onNavigate={setScreen} />
         <div className="main">
-          <MobileTopBar screen={screen} onMenu={() => setMenuOpen(true)} />
+          <MobileTopBar screen={screen} onMenu={() => setMenuOpen(true)} onAccountClick={() => setScreen('account')} />
           <TopBar onMenu={() => setMenuOpen(true)} worldName={engine.worldName()} onAccountClick={() => setScreen('account')} />
           <main className="content">
             {screen === 'home' && <Home onNavigate={setScreen} />}
@@ -571,7 +581,7 @@ export default function App() {
             {screen === 'season' && <SeasonHub />}
             {screen === 'pass' && <Pass />}
             {screen === 'admin' && <Admin />}
-            {screen === 'account' && <Account saveMgr={saveMgrRef.current!} engine={engine} onReload={() => onContinue(saveMgrRef.current!.getSlot())} />}
+            {screen === 'account' && <Account saveMgr={saveMgrRef.current!} engine={engine} onReload={() => onContinue(saveMgrRef.current!.getSlot())} onBackToMenu={detach} />}
             {screen === 'friends' && <Friends />}
             {screen === 'settings' && <Settings saveMgr={saveMgrRef.current!} onBackToMenu={detach} onReload={() => onContinue(saveMgrRef.current!.getSlot())} />}
             {screen === 'debug' && <Debug />}

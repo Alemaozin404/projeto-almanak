@@ -1,6 +1,48 @@
 {
-  "gameVersion": "1.8.0",
+  "gameVersion": "1.9.0",
   "updates": [
+    {
+      "version": "1.9.0",
+      "title": "MUNDOS POR CONTA",
+      "date": "2026-08-13",
+      "description": "Cada conta agora tem seu próprio mundo: ao trocar de conta (ou sair para o modo convidado), o jogo carrega exatamente o progresso daquela conta — nada é misturado, nada é resetado. O indicador no topo da tela mostra sempre quem está jogando, e o mundo de cada conta continua intacto ao voltar.",
+      "sections": [
+        {
+          "tag": "DESTAQUE",
+          "icon": "🔒",
+          "items": [
+            "Cada conta tem o PRÓPRIO mundo: Willzinn e CEO jogam separados, sem misturar progresso",
+            "Trocar de conta troca o mundo na hora — o da conta antiga fica guardado e volta intacto",
+            "Sair para o modo convidado mantém o mundo local de sempre"
+          ]
+        },
+        {
+          "tag": "NOVO",
+          "icon": "👤",
+          "items": [
+            "Indicador da conta ativa no topo da tela: nome da conta (verde) ou “Convidado” (neutro) — no PC e no celular",
+            "Clicar no indicador abre a tela de Conta direto"
+          ]
+        },
+        {
+          "tag": "CORRIGIDO",
+          "icon": "🛠",
+          "items": [
+            "Save local compartilhado entre contas: ao trocar de conta, o mundo não mudava — agora cada conta tem slots próprios",
+            "Ao trocar de conta, o mundo da conta anterior era empurrado para a nova — agora cada conta começa do zero se nunca jogou"
+          ]
+        }
+      ],
+      "reward": {
+        "gold": "2500000",
+        "boxes": [
+          {
+            "boxId": "rare",
+            "qty": 2
+          }
+        ]
+      }
+    },
     {
       "version": "1.8.0",
       "title": "PASSE PREMIUM DE VERDADE",

@@ -31,6 +31,8 @@ interface Props {
   saveMgr: SaveManager;
   engine: GameEngine | null;
   onReload?: () => void;
+  /** Volta ao menu principal (usado quando a conta nova não tem save e não veio do guest). */
+  onBackToMenu?: () => void;
 }
 
 type View = 'login' | 'register' | 'recover' | 'verify';
@@ -42,7 +44,7 @@ function formatWhen(ts: number): string {
   return new Date(ts).toLocaleString('pt-BR');
 }
 
-export function Account({ saveMgr, engine, onReload }: Props) {
+export function Account({ saveMgr, engine, onReload, onBackToMenu }: Props) {
   const [view, setView] = useState<View>('login');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
@@ -156,7 +158,11 @@ export function Account({ saveMgr, engine, onReload }: Props) {
         setPassword2('');
         flash('ok', 'Conta confirmada! 💛 E-mail de agradecimento enviado. Bem-vindo(a), ' + l.username + '!');
         setView('login');
-        void autoRestoreOnLogin();
+        // só migra o save guest quando NÃO havia outra conta conectada antes
+        // (primeira conta criada para guardar o progresso) — vindo de outra
+        // conta, o mundo novo começa do zero
+        const hadSession = !!getSession();
+        void autoRestoreOnLogin(!hadSession);
         return;
       }
       flash('ok', 'Conta confirmada! 💛 E-mail de agradecimento enviado. Agora entre com sua senha.');
@@ -180,22 +186,45 @@ export function Account({ saveMgr, engine, onReload }: Props) {
   }
 
   /**
-   * Após logar com um jogo aberto: verifica se há um save da conta mais novo
-   * que o local no slot atual e, se houver, PEDE CONFIRMAÇÃO antes de restaurar
-   * (o save local é sobrescrito — backup é criado na aplicação).
+   * Após logar: recarrega o jogo com o MUNDO DA CONTA logada. Cada conta tem
+   * seus próprios slots locais (SaveManager com escopo por username) — então:
+   *   1. se a conta já tem save local nesta máquina → carrega ele;
+   *   2. senão, se tem save no servidor → restaura (outro dispositivo);
+   *   3. senão → mundo ZERADO (conta nova): migra o save guest apenas se o
+   *      jogador veio do modo sem conta (primeira conta criada para guardar o
+   *      progresso); vindo de OUTRA conta, começa do zero (nada é herdado).
    */
-  async function autoRestoreOnLogin() {
+  async function autoRestoreOnLogin(fromGuest: boolean) {
+    // sem jogo aberto (menu): o MainMenu lista os slots da conta — nada a fazer
     if (!engine || !onReload) return;
-    const check = await checkAccountRestore(saveMgr, engine);
-    if (check.pending) {
-      setPendingAutoRestore(check.info);
+    const slot = saveMgr.getSlot();
+    // 1. save local da conta nesta máquina (escopo já trocado em applyAccountSwitch)
+    const local = await saveMgr.load(slot);
+    if (local) {
+      onReload();
       return;
     }
-    if (check.reason === 'no-save' || check.reason === 'local-newer') {
-      // conta sem save (primeiro backup) OU jogo local mais novo → atualiza a
-      // conta (silencioso): o outro dispositivo (app ↔ site) restaura no boot
-      await pushAccountSaveNow(engine, saveMgr);
+    // 2. save da conta no servidor (máquina nova / outro dispositivo)
+    const session = getSession();
+    if (session) {
+      const cloud = await pullAccountSave(session.token);
+      if (cloud.ok && cloud.info) {
+        const imp = await saveMgr.importText(slot, cloud.info.saveText);
+        if (imp.ok) {
+          onReload();
+          return;
+        }
+      }
     }
+    // 3. conta nova sem nenhum save — só o guest (modo sem conta) migra para
+    //    ela, para quem criou a primeira conta não perder o progresso.
+    if (fromGuest) {
+      await pushAccountSaveNow(engine, saveMgr);
+      onReload();
+      return;
+    }
+    // vindo de OUTRA conta → mundo zerado: volta ao menu para criar um novo jogo
+    onBackToMenu?.();
   }
 
   async function handleConfirmAutoRestore() {
@@ -232,20 +261,44 @@ export function Account({ saveMgr, engine, onReload }: Props) {
       return;
     }
     const s: AccountSession = { username: r.username, email: r.email, verified: true, token: r.token };
+    // fromGuest = true só quando não havia outra conta conectada (modo sem
+    // conta) — ao trocar de conta (Willzinn → CEO), o mundo do CEO começa
+    // zerado e nada do Willzinn migra para ele
+    const hadSession = !!getSession();
+    await applyAccountSwitch(s, r, !hadSession);
+  }
+
+  /**
+   * Aplica a troca de conta: salva o mundo atual no escopo ANTIGO (guest ou
+   * outra conta), troca o escopo do SaveManager para a conta logada e recarrega
+   * o jogo — cada conta tem seu próprio mundo (slots locais particionados + save
+   * no servidor). Tudo do usuário (progresso, amigos, presentes) pertence à conta.
+   * `fromGuest` = não havia outra conta conectada antes (primeira conta).
+   */
+  async function applyAccountSwitch(s: AccountSession, info: { hasSave?: boolean; saveName?: string; saveSavedAt?: number; saveSlot?: string; username: string; email: string; verified: boolean }, fromGuest = false) {
+    // 1. persiste o mundo atual no escopo atual (guest ou outra conta) antes de trocar
+    if (engine) await saveMgr.save(engine);
+    // 2. troca a sessão e o escopo do save local
     setSession(s);
     setSessionState(s);
-    setInfo({ username: r.username, email: r.email, verified: true, hasSave: r.hasSave, saveName: r.saveName, saveSavedAt: r.saveSavedAt, saveSlot: r.saveSlot });
+    saveMgr.setAccountScope(s.username);
+    setInfo({ username: info.username || s.username, email: info.email || s.email, verified: info.verified === true, hasSave: info.hasSave === true, saveName: info.saveName ?? '', saveSavedAt: info.saveSavedAt ?? 0, saveSlot: info.saveSlot ?? '' });
     setPassword('');
     setPassword2('');
     setView('login');
-    flash('ok', 'Login realizado! Bem-vindo(a), ' + r.username + '!');
-    void autoRestoreOnLogin();
+    flash('ok', 'Login realizado! Bem-vindo(a), ' + s.username + '!');
+    // 3. recarrega o jogo com o mundo DA conta logada (slot particionado dela)
+    void autoRestoreOnLogin(fromGuest);
   }
 
   async function handleLogout() {
+    // 1. persiste o mundo da conta no escopo dela (para voltar depois)
+    if (engine) await saveMgr.save(engine);
     const s = getSession();
     if (s) await logoutAccount(s.token);
     clearSession();
+    // 2. volta para o modo sem conta (guest) — o mundo guest fica intacto
+    saveMgr.setAccountScope(null);
     setSessionState(null);
     setInfo(null);
     setPendingLogin(null);
@@ -260,7 +313,12 @@ export function Account({ saveMgr, engine, onReload }: Props) {
     setChangeNew('');
     setChangeNew2('');
     go('login');
-    flash('ok', 'Você saiu da conta.');
+    flash('ok', 'Você saiu da conta. O mundo da conta ficou guardado — volte quando quiser.');
+    // 3. recarrega com o mundo GUEST (slot local sem conta): se o guest não tem
+    //    save, volta ao menu para o jogador escolher novo jogo/importar
+    const guestHasSave = (await saveMgr.listSlots()).some((m) => m.exists);
+    if (engine && onReload && guestHasSave) onReload();
+    else onBackToMenu?.();
   }
 
   // ── recuperação de senha ───────────────────────────────────
