@@ -124,6 +124,8 @@ jobs:
           VERSION="${TAG_NAME#v}"          # v1.4.3 → 1.4.3
           CODE="$(echo "$VERSION" | tr -d '.')"  # 1.4.3 → 143
           cd android
+          # git no Windows não grava o bit de execução — garante aqui (defensivo)
+          chmod +x gradlew
           if [ "$KEYSTORE_PRESENT" = "true" ]; then
             ./gradlew assembleRelease -PversionName="$VERSION" -PversionCode="$CODE"
           else
