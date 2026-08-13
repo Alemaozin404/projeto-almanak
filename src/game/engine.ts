@@ -86,13 +86,13 @@ const RESOURCE_KEYS: ResourceKey[] = ['energy', 'gold', 'crystals', 'fragments',
 
 /** Recompensas do login diário (7 dias, ciclicas) — créditos 💳 progressivos para testar a economia. */
 const DAILY_LOGIN_REWARDS: EventRewardSpec[] = [
-  { credits: 20, gold: '2500' },
-  { credits: 30, gold: '5000' },
-  { credits: 40, boxes: [{ boxId: 'basic', qty: 1 }] },
-  { credits: 50, gold: '10000' },
-  { credits: 60, boxes: [{ boxId: 'basic', qty: 2 }] },
-  { credits: 80, boxes: [{ boxId: 'event', qty: 1 }] },
-  { credits: 150, boxes: [{ boxId: 'rare', qty: 1 }] },
+  { credits: 10, gold: '1000' },
+  { credits: 15, gold: '2000' },
+  { credits: 20, boxes: [{ boxId: 'basic', qty: 1 }] },
+  { credits: 25, gold: '4000' },
+  { credits: 30, boxes: [{ boxId: 'basic', qty: 2 }] },
+  { credits: 40, boxes: [{ boxId: 'event', qty: 1 }] },
+  { credits: 75, boxes: [{ boxId: 'rare', qty: 1 }] },
 ];
 
 /** Compensações administrativas (conteúdo local). */
@@ -260,9 +260,9 @@ export class GameEngine {
     }
 
     // prestígio / ascensão / transcendência (camadas permanentes)
-    const prestigeMult = 1 + s.prestige.count * 0.25;
-    const ascMult = 1 + (s.ascension.worldsUnlocked - 1);
-    const transMult = 1 + (s.flags.essenceSpentTotal ?? 0) * 0.05;
+    const prestigeMult = 1 + s.prestige.count * 0.1;
+    const ascMult = 1 + (s.ascension.worldsUnlocked - 1) * 0.75;
+    const transMult = 1 + (s.flags.essenceSpentTotal ?? 0) * 0.03;
     const layers = D(prestigeMult).mul(ascMult).mul(transMult);
     b = mergeModifiers(b, {
       clickPower: layers,
@@ -358,7 +358,7 @@ export class GameEngine {
       s.combo.count = Math.min(cap, s.combo.count + 1);
       s.combo.lastClick = nowMs;
       setStatMax(s, 'comboMax', D(s.combo.count));
-      comboMult = D(1).plus(D(s.combo.count).mul(0.01));
+      comboMult = D(1).plus(D(s.combo.count).mul(0.005));
     }
 
     let tier: CritTier = 'normal';
@@ -389,12 +389,12 @@ export class GameEngine {
 
     if (isManual) {
       incStat(s, 'clicks', D(1));
-      this.addXp(D(0.05).mul(b.xpGain));
+      this.addXp(D(0.02).mul(b.xpGain));
       // XP do Passe Premium global (tetado diariamente)
       this.addPassXp(GameConfig.pass.xpPerClick);
       // drop de ouro
       if (chance(b.dropChance.toNumber())) {
-        const gold = gain.mul(0.05).mul(b.goldGain).mul(GameConfig.economy.goldRewardScale);
+        const gold = gain.mul(0.02).mul(b.goldGain).mul(GameConfig.economy.goldRewardScale);
         if (gold.gt(ZERO)) {
           this.addRes('gold', gold);
           incStat(s, 'goldEarned', gold);
@@ -479,7 +479,7 @@ export class GameEngine {
     if (!this.spend(def.currency, cost)) return { ok: false, reason: 'Fundos insuficientes' };
     s.upgrades[id] = lvl + qtyMax;
     incStat(s, 'upgradesBought', D(qtyMax));
-    this.addXp(D(5).mul(qtyMax));
+    this.addXp(D(2).mul(qtyMax));
     this.invalidate();
     this.checkAchievements();
     this.notify('buy');
@@ -505,7 +505,7 @@ export class GameEngine {
     if (!this.spend(def.currency, cost)) return { ok: false, reason: 'Fundos insuficientes' };
     s.generators[id] = (s.generators[id] ?? 0) + qty;
     incStat(s, 'generatorsBought', D(qty));
-    this.addXp(D(10).mul(qty));
+    this.addXp(D(4).mul(qty));
     this.invalidate();
     this.checkAchievements();
     this.notify('buy');
@@ -1169,10 +1169,10 @@ export class GameEngine {
   /** Itens permanentes de essência (fim de jogo). */
   essenceBoosts(): { id: string; name: string; icon: string; desc: string; cost: (owned: number) => string }[] {
     return [
-      { id: 'ess_click', name: 'Toque Eterno', icon: '⚡', desc: '+10% clique permanente.', cost: (n) => dynamicPrice(10, n, 2).toFixed(0) },
-      { id: 'ess_prod', name: 'Fluxo Eterno', icon: '⚙️', desc: '+10% produção permanente.', cost: (n) => dynamicPrice(10, n, 2).toFixed(0) },
-      { id: 'ess_gold', name: 'Riqueza Eterna', icon: '🪙', desc: '+10% ouro permanente.', cost: (n) => dynamicPrice(10, n, 2).toFixed(0) },
-      { id: 'ess_crit', name: 'Visão Eterna', icon: '🎯', desc: '+1% chance crítica permanente.', cost: (n) => dynamicPrice(25, n, 2).toFixed(0) },
+      { id: 'ess_click', name: 'Toque Eterno', icon: '⚡', desc: '+10% clique permanente.', cost: (n) => dynamicPrice(25, n, 2).toFixed(0) },
+      { id: 'ess_prod', name: 'Fluxo Eterno', icon: '⚙️', desc: '+10% produção permanente.', cost: (n) => dynamicPrice(25, n, 2).toFixed(0) },
+      { id: 'ess_gold', name: 'Riqueza Eterna', icon: '🪙', desc: '+10% ouro permanente.', cost: (n) => dynamicPrice(25, n, 2).toFixed(0) },
+      { id: 'ess_crit', name: 'Visão Eterna', icon: '🎯', desc: '+1% chance crítica permanente.', cost: (n) => dynamicPrice(50, n, 2).toFixed(0) },
     ];
   }
 
@@ -2039,8 +2039,8 @@ export class GameEngine {
     const b = this.bonusesPersistent();
     const eps = this.energyPerSec(b);
     const gps = this.goldPerSec(b);
-    const energy = eps.mul(capped).mul(0.5);
-    const gold = gps.mul(capped).mul(0.5);
+    const energy = eps.mul(capped).mul(GameConfig.offline.efficiency);
+    const gold = gps.mul(capped).mul(GameConfig.offline.efficiency);
     if (energy.lte(ZERO) && gold.lte(ZERO)) return null;
     return { seconds: Math.floor(capped), energy, gold };
   }

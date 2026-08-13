@@ -22,44 +22,44 @@ export function dynamicPrice(base: Num, level: number, growth = 1.5): ReturnType
 
 /** XP necessário para ir do nível `level` ao `level+1`. */
 export function xpForLevel(level: number): ReturnType<typeof D> {
-  return D(160).mul(D(level).pow(2.05)).plus(D(200).mul(level)).plus(100).floor();
+  return D(420).mul(D(level).pow(2.25)).plus(D(400).mul(level)).plus(200).floor();
 }
 
 /** XP necessário para o pet ir do nível `level` ao próximo. */
 export function petXpForLevel(level: number): ReturnType<typeof D> {
-  return D(100).mul(D(1.35).pow(level)).mul(level + 1).floor();
+  return D(260).mul(D(1.45).pow(level)).mul(level + 1).floor();
 }
 
-export const PRESTIGE_MIN_ENERGY = D(1e6);
+export const PRESTIGE_MIN_ENERGY = D(1e9);
 
-/** Fragmentos obtidos ao prestigiar. Requer pelo menos 1M de energia no ciclo. */
+/** Fragmentos obtidos ao prestigiar. Requer pelo menos 1 bilhão de energia no ciclo. */
 export function prestigeFragments(energyThisCycle: Num, prestigeCount: number): ReturnType<typeof D> {
   const e = D(energyThisCycle);
   if (e.lt(PRESTIGE_MIN_ENERGY)) return D(0);
-  return e.div(PRESTIGE_MIN_ENERGY).pow(0.65).mul(1 + prestigeCount * 0.08).floor();
+  return e.div(PRESTIGE_MIN_ENERGY).pow(0.5).mul(1 + prestigeCount * 0.08).floor();
 }
 
 /** Moedas de prestígio ganhas junto com os fragmentos. */
 export function prestigeCoinsGain(fragments: ReturnType<typeof D>, prestigeCount: number): ReturnType<typeof D> {
-  return fragments.div(10).floor().plus(prestigeCount * 2 + 1);
+  return fragments.div(15).floor().plus(prestigeCount * 2 + 1);
 }
 
-export const ASCENSION_MIN_FRAGMENTS = D(25);
+export const ASCENSION_MIN_FRAGMENTS = D(60);
 
 /** Moedas de ascensão. Requer fragmentos no ciclo desde a última ascensão. */
 export function ascensionCoins(fragmentsThisCycle: Num, ascensionCount: number): ReturnType<typeof D> {
   const f = D(fragmentsThisCycle);
   if (f.lt(ASCENSION_MIN_FRAGMENTS)) return D(0);
-  return f.div(ASCENSION_MIN_FRAGMENTS).pow(0.6).mul(1 + ascensionCount * 0.1).floor();
+  return f.div(ASCENSION_MIN_FRAGMENTS).pow(0.5).mul(1 + ascensionCount * 0.1).floor();
 }
 
-export const TRANSCENDENCE_MIN_COINS = D(5);
+export const TRANSCENDENCE_MIN_COINS = D(12);
 
 /** Essência obtida ao transcender. Requer moedas de ascensão no ciclo. */
 export function transcendenceEssence(ascensionCoinsThisCycle: Num, transcendenceCount: number): ReturnType<typeof D> {
   const c = D(ascensionCoinsThisCycle);
   if (c.lt(TRANSCENDENCE_MIN_COINS)) return D(0);
-  return c.div(TRANSCENDENCE_MIN_COINS).pow(0.6).mul(1 + transcendenceCount * 0.15).floor();
+  return c.div(TRANSCENDENCE_MIN_COINS).pow(0.5).mul(1 + transcendenceCount * 0.15).floor();
 }
 
 /** Nível calculado a partir do XP total. */

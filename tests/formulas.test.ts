@@ -61,8 +61,8 @@ describe('Prestígio / Ascensão / Transcendência', () => {
   });
 
   it('prestígios anteriores aumentam o ganho', () => {
-    const f0 = prestigeFragments('1e9', 0);
-    const f5 = prestigeFragments('1e9', 5);
+    const f0 = prestigeFragments('1e12', 0);
+    const f5 = prestigeFragments('1e12', 5);
     expect(f5.gt(f0)).toBe(true);
   });
 
@@ -78,6 +78,6 @@ describe('Prestígio / Ascensão / Transcendência', () => {
 
   it('transcendência exige moedas no ciclo', () => {
     expect(transcendenceEssence(1, 0).toString()).toBe('0');
-    expect(transcendenceEssence(10, 0).gt(D(0))).toBe(true);
+    expect(transcendenceEssence(20, 0).gt(D(0))).toBe(true);
   });
 });

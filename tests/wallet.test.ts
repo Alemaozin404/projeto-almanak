@@ -227,7 +227,7 @@ describe('Carteira Ficha/Créditos', () => {
     e.addRes('fichas', D(50));
     e.addRes('credits', D(100));
     e.addRes('energy', D(1e9));
-    e.state.prestige.energyThisCycle = '1000000';
+    e.state.prestige.energyThisCycle = '1e9';
     e.prestige();
     expect(e.state.fichas).toBe('50');
     expect(e.state.credits).toBe('100');

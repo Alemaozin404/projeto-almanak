@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../src/game/engine';
 import { D } from '../src/core/bignum';
 import { now } from '../src/core/utils';
+import { GameConfig } from '../src/config/GameConfig';
 
 function setup(): GameEngine {
   const e = new GameEngine();
-  e.state.prestige.energyThisCycle = D('1e9').toString();
+  e.state.prestige.energyThisCycle = D('1e13').toString();
   e.addRes('gold', D(1e9));
   e.addRes('energy', D(1e6));
   // upgrades de CLIQUE custam energia (escassa); geradores são caros
@@ -43,7 +44,7 @@ describe('Prestígio', () => {
     const multBefore = e.bonuses().clickPower;
     expect(e.prestige()).not.toBeNull();
     const multAfter = e.bonuses().clickPower;
-    expect(multAfter.eq(multBefore.mul(1.25))).toBe(true);
+    expect(multAfter.eq(multBefore.mul(1.1))).toBe(true);
   });
 
   it('registra ciclos no ranking local', () => {
@@ -78,12 +79,12 @@ describe('Ascensão', () => {
     expect(D(e.state.ascensionCoins).gt(D(0))).toBe(true);
   });
 
-  it('mundo novo dobra a produção', () => {
+  it('mundo novo aumenta a produção', () => {
     const e = new GameEngine();
     const p0 = e.bonuses().production;
     e.state.ascension.fragmentsThisCycle = '100';
     e.ascend();
-    expect(e.bonuses().production.eq(p0.mul(2))).toBe(true);
+    expect(e.bonuses().production.eq(p0.mul(1.75))).toBe(true);
   });
 });
 
@@ -123,9 +124,9 @@ describe('Progresso offline', () => {
     e.state.lastSeen = now() - 8 * 3600 * 1000;
     const res = e.computeOffline();
     expect(res).not.toBeNull();
-    // 8h × produção/s × 0.5 (produção inclui multiplicadores de evento ativos)
+    // 8h × produção/s × eficiência offline (produção inclui multiplicadores de evento ativos)
     const eps = e.energyPerSec(e.bonusesPersistent());
-    const expected = eps.mul(8 * 3600).mul(0.5);
+    const expected = eps.mul(8 * 3600).mul(GameConfig.offline.efficiency);
     expect(res!.energy.minus(expected).abs().lt(D(1))).toBe(true);
     e.applyOffline(res!);
     expect(e.getRes('energy').gte(expected.mul(0.99))).toBe(true);
@@ -139,9 +140,9 @@ describe('Progresso offline', () => {
     e.state.lastSeen = now() - 100 * 3600 * 1000;
     const res = e.computeOffline();
     expect(res!.seconds).toBe(3600);
-    // 1h × produção/s × 0.5
+    // 1h × produção/s × eficiência offline
     const eps = e.energyPerSec(e.bonusesPersistent());
-    const expected = eps.mul(3600).mul(0.5);
+    const expected = eps.mul(3600).mul(GameConfig.offline.efficiency);
     expect(res!.energy.minus(expected).abs().lt(D(1))).toBe(true);
   });
 });

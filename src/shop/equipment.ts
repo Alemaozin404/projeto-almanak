@@ -153,5 +153,5 @@ export function equipmentLevel(count: number): number {
 }
 
 export function equipmentStatMultiplier(count: number): number {
-  return 1 + 0.1 * (equipmentLevel(count) - 1);
+  return 1 + 0.05 * (equipmentLevel(count) - 1);
 }

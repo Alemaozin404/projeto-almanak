@@ -21,12 +21,12 @@ export const GameConfig = {
     /** XP total para completar o nível `n` (curva progressiva). */
     xpForLevel: (n: number): number => Math.round(250 * Math.pow(n, 1.65)),
     /** Limite diário de XP do passe (anti-progressão absurda). */
-    dailyXpCap: 33000,
+    dailyXpCap: 20000,
     /** XP do passe comprado por 1 diamante 💎 (1 diamante = N XP). */
     xpPerDiamond: 500,
     /** Fontes de XP por ação (pode ser escalado por bônus). */
-    xpPerClick: 0.5,
-    xpPerMinute: 8,
+    xpPerClick: 0.25,
+    xpPerMinute: 4,
     xpPerQuest: 50,
     xpPerDailyQuest: 125,
     xpPerWeeklyQuest: 250,
@@ -35,9 +35,9 @@ export const GameConfig = {
 
   // ── Offline ──
   offline: {
-    defaultCapHours: 12,
+    defaultCapHours: 8,
     maxCapHours: 168,
-    efficiency: 0.5,
+    efficiency: 0.25,
   },
 
   // ── Combo / cliques ──
@@ -47,8 +47,8 @@ export const GameConfig = {
 
   // ── Economia de moedas ──
   economy: {
-    /** Fator global de recompensas em moedas 🪙 (0.25 = todas as fontes pagam 1/4 do valor original). */
-    goldRewardScale: 0.25,
+    /** Fator global de recompensas em moedas 🪙 (0.08 = todas as fontes pagam ~1/12 do valor original). */
+    goldRewardScale: 0.08,
   },
 
   // ── Carteira Ficha/Créditos ──

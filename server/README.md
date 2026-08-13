@@ -1,150 +1,384 @@
-# 🧾 Servidor Online — Núcleo Clicker (Vercel)
+# ⚡ PROJETO ALMANAK
 
-Backend do jogo: **Mercado Pago (Pix)** + **conteúdo online** + **save na nuvem** + **ranking global**.
-**O access token do Mercado Pago vive SOMENTE aqui** — nunca no app do jogador.
+### O seu progresso. A sua estratégia. O seu Almanak.
 
-## Como funciona
-
-```
-App (jogador)          Servidor (Vercel)         Mercado Pago / Upstash
-     │ POST /api/pix/charge   │ POST /v1/payments    │
-     │ (packId, playerId) ───►│ (access token aqui) ─►│
-     │◄─ qr_code + base64 ────│◄─ id + qr_code ──────│
-     │ (jogador paga no banco)│                       │
-     │                        │ POST webhook ◄───────│ (assinatura HMAC)
-     │ GET /api/pix/status ──►│ GET /v1/payments/:id │
-     │◄─ approved ────────────│◄─ approved ──────────│
-     │ concede fichas 🎰      │                       │
-     │                        │                       │
-     │ GET /api/content ─────►│ content.json ────────►│ (conteúdo do jogo)
-     │ PUT /api/save/:id ────►│ KV: save:<id> ───────►│ (Upstash Redis)
-     │ POST /api/rank ───────►│ KV: rank:<kind> ─────►│ (Upstash Redis)
-```
-
-## Deploy no Vercel (resumo)
-
-1. Importe o repositório em [vercel.com/new](https://vercel.com/new).
-2. **Root Directory** = `server` · Framework = **Other**.
-3. Variáveis de ambiente (Settings → Environment Variables):
-
-| Variável | Descrição |
-|---|---|
-| `MERCADO_PAGO_ACCESS_TOKEN` | Token de produção MP (`APP_USR-...`) — obrigatório p/ pagamentos |
-| `MERCADO_PAGO_WEBHOOK_SECRET` | Painel MP → Suas integrações → Webhooks |
-| `APP_SHARED_SECRET` | Deve bater com `GameConfig.wallet.appSharedSecret` do jogo |
-| `RECEIPT_PRIVATE_KEY` | Seed Ed25519 (64 hex) dos recibos do Passe — gere com `npm run gen:receipt-keys`; a pública vai no app (`GameConfig.pass.receiptPublicKey`) |
-| `GMAIL_USER` | Conta Gmail REMETENTE dos e-mails do sistema de contas (confirmação, agradecimento e recuperação) |
-| `GMAIL_APP_PASSWORD` | Senha de app do Gmail (conta Google → Segurança → 2 etapas → Senhas de app). Sem estas duas variáveis, os e-mails vão para o console em modo dev (`devCode` na resposta) |
-| `BASE_URL` | URL pública (ex.: `https://nucleo-clicker-server.vercel.app`) |
-| `UPSTASH_REDIS_REST_URL` | console.upstash.com → Database → REST API (opcional: nuvem/ranking) |
-| `UPSTASH_REDIS_REST_TOKEN` | idem |
-
-> Sem Upstash, saves/ranking usam um Map em memória (somem ao reiniciar o processo — ok p/ dev).
-
-> ⚠️ **Chaves do Passe Premium:** a seed que aparece nos testes (`202a7eff…`) e a pública
-> embutida no `GameConfig` são de **DESENVOLVIMENTO e são públicas no repositório**. Antes de
-> publicar, gere o SEU par com `npm run gen:receipt-keys`, coloque a seed em `RECEIPT_PRIVATE_KEY`
-> no servidor e a pública em `GameConfig.pass.receiptPublicKey` num **novo build do app**. O
-> servidor avisa no boot se a seed de dev estiver configurada.
-
-4. Teste: `curl https://seu-projeto.vercel.app/api/health` → `{ "ok": true, "mp": "configured", "kv": "configured" }`.
-
-## Rodando localmente
-
-```bash
-cd server
-npm install
-cp .env.example .env   # preencha (ou deixe vazio p/ modo memória)
-npm start              # ou: npm run dev
-```
-
-Teste rápido:
-```bash
-curl http://localhost:8787/api/health
-curl -X POST http://localhost:8787/api/pix/charge \
-  -H 'Content-Type: application/json' \
-  -H 'x-app-secret: nucleoclicker-pix-v1' \
-  -d '{"packId":"fichas_100","playerId":42}'
-```
-
-## Conteúdo online (`/api/content`)
-
-O servidor serve `server/content.json`, gerado a partir do jogo:
-
-```bash
-# na raiz do repositório (não em server/):
-npm run content:export
-```
-
-Depois commite o `server/content.json` e faça push — o Vercel redeploya e o jogo exibe o conteúdo novo. O JSON contém: `updates`, `news`, `banners`, `events`, `seasons`, `codes` e `maintenance` (janelas de manutenção online).
-
-## Endpoints
-
-| Método | Rota | Descrição |
-|---|---|---|
-| GET | `/api/health` | Status do servidor (MP + KV + versão) |
-| GET | `/api/content` | Conteúdo do jogo (público, cache 5 min) |
-| GET | `/api/meta` | Versão + janelas de manutenção (público) |
-| POST | `/api/pix/charge` | Cria cobrança Pix → `{ orderId, pixCode, qrCodeBase64, amountBRL }` |
-| GET | `/api/pix/status/:id` | Status do pagamento (`pending` / `approved` / …) |
-| POST | `/api/pix/webhook` | Notificação do Mercado Pago (assinatura HMAC) |
-| GET | `/api/packs` | Lista pacotes custom do Admin (exige `x-app-secret`) |
-| POST | `/api/packs` | Cria/atualiza pacote custom — preço validado AQUI (exige `x-app-secret`) |
-| DELETE | `/api/packs/:id` | Remove pacote custom (exige `x-app-secret`) |
-| PUT | `/api/save/:playerId` | Envia o save para a nuvem (exige `x-app-secret`) |
-| GET | `/api/save/:playerId` | Baixa o save da nuvem (exige `x-app-secret`) |
-| POST | `/api/rank` | Publica um ciclo no ranking (exige `x-app-secret`) |
-| GET | `/api/rank?kind=prestige` | Top 100 do ranking (público) |
-| POST | `/api/account/register` | Cria conta (usuário + e-mail Gmail + senha) → envia código de confirmação |
-| POST | `/api/account/verify` | Valida o código de confirmação → marca verificada → envia e-mail de agradecimento |
-| POST | `/api/account/resend` | Reenvia o código de confirmação |
-| POST | `/api/account/login` | Login → `{ token, username, email, verified, hasSave }` (sessão de 30 dias) |
-| POST | `/api/account/logout` | Encerra a sessão |
-| POST | `/api/account/change-password` | Troca a senha estando logado (exige `x-account-token` + senha atual; derruba as outras sessões) |
-| POST | `/api/account/recover` | Envia código de recuperação de senha (15 min) |
-| POST | `/api/account/reset` | Redefine a senha com o código de recuperação |
-| GET | `/api/account/me` | Dados da sessão atual (exige header `x-account-token`) |
-| GET | `/api/account/save` | Baixa o save da conta (exige `x-account-token`) |
-| GET | `/api/account/save?meta=1` | Só o cabeçalho do save (`savedAt`, `slot`, `name`) — poll leve do sync AO VIVO entre dispositivos |
-| GET | `/api/profile/:username` | Perfil público por deep link (`/?profile=<usuario>`) — sem sessão, só o snapshot (404 se nunca sincronizou) |
-| PUT | `/api/account/save` | Guarda o save da conta — o app envia após cada save local (~1 min) e ao sair (exige `x-account-token`) |
-| POST | `/api/account/link-slot` | Re-vincula o save da conta a outro slot (`slot1|slot2|slot3`) sem reenviar (exige `x-account-token`) |
-| POST | `/api/gifts/send` | Envia presente para um amigo (`credits`/`box`, cooldown 6h) — cai na inbox dele (exige `x-account-token`) |
-| POST | `/api/gifts/claim` | Resgata um presente da inbox — devolve a recompensa autoritativa (resgate único, exige `x-account-token`) |
-| POST | `/api/push/token` | Registra/remove o token FCM da conta (exige `x-account-token`; token vazio remove) |
-
-> **Ranking por plataforma**: o `POST /api/rank` aceita `platform` (`android` | `pc` | `web`,
-> padrão `web`) e o `GET /api/rank?platform=<all|android|pc|web>` filtra a lista.
+> 🖱️ **Clique. Evolua. Conquiste.**
 >
-> **Push (FCM)**: para notificações reais (presentes, eventos) o servidor precisa do
-> `FCM_SERVICE_ACCOUNT` (JSON do service account do Firebase, como secret) — sem ele,
-> os envios vão apenas para o console (modo dev).
+> Um clicker/idle com progressão, eventos, recompensas, ranking global, presentes, save na nuvem e conteúdo que pode mudar enquanto você joga.
 
-> **Pacotes de diamantes/moedas** (Admin → Vendas): o jogo publica pacotes em `/api/packs`
-> e cobra por `packId` em `/api/pix/charge` — o preço em R$ é sempre revalidado aqui
-> (entre R$ 0,01 e R$ 1.000) e o cliente nunca envia valor. O pacote embutido
-> `pix_test_1d` (R$ 0,01 → 1💎) permite o teste de ponta a ponta do Admin.
+🌐 **Jogue agora:** https://projeto-almanak.vercel.app
 
-## Sistema de contas
+---
 
-O jogo tem conta por **nome de usuário + e-mail Gmail + senha**. O servidor:
+## 🚀 O QUE É O PROJETO ALMANAK?
 
-- Armazena a senha apenas como **scrypt + sal** (Node nativo, comparação timing-safe).
-- Envia **3 tipos de e-mail** pela conta Gmail configurada: **código de confirmação** (registro), **agradecimento** (pós-confirmação) e **código de recuperação** (senha esquecida).
-- Mantém **sessões por token** (32 bytes hex, TTL 30 dias) — o app envia o token no header `x-account-token`.
-- Guarda o **save da conta** em `account:save:<usuário>`; o jogo o envia **automaticamente a cada 1 hora** quando conectado (botões manuais na tela Conta).
+O **Projeto Almanak** é muito mais do que simplesmente clicar em um botão.
 
-> Sem `GMAIL_USER`/`GMAIL_APP_PASSWORD` o servidor roda em **modo dev**: os e-mails vão para o console e as respostas incluem `devCode` para completar o fluxo.
+Você começa pequeno.
 
-## Segurança
+Cada clique gera progresso.
+Seu progresso gera recursos.
+Seus recursos permitem evoluir.
+E cada evolução abre novas possibilidades.
 
-- **Access token** nunca sai do servidor.
-- **Webhook** validado por assinatura HMAC-SHA256 (`x-signature` + `x-request-id`).
-- **Escrita de dados** exige o header `x-app-secret` (quando `APP_SHARED_SECRET` configurado).
-- **Preços** definidos no servidor (`FICHA_PACKS` + pacotes custom em `/api/packs`) — o cliente nunca escolhe o valor.
-- **Idempotency key** (UUID) em cada criação de pagamento.
-- **Ranking** guarda apenas o recorde; **save nuvem** só é devolvido a quem sabe o `playerId`.
-  ⚠️ O `playerId` é o `createdAt` do save (timestamp) e o `x-app-secret` fica embutido no app —
-  proteção leve, adequada a um jogo de nicho. Para um sistema com contas reais, troque por
-  UUID/credencial e adicione autenticação de verdade.
-- **Rate limiting** em memória (30 salvamentos/min · 60 publicações/min por jogador) contra rajadas.
+A partir daí, começa a verdadeira corrida:
+
+🏆 subir no ranking
+⚡ alcançar novos ciclos
+🎁 conseguir recompensas
+💰 administrar seus recursos
+📦 abrir caixas
+👥 interagir com outros jogadores
+🌎 acompanhar eventos e novidades
+☁️ manter seu progresso sincronizado em todos os dispositivos
+
+**Quanto mais você joga, mais longe consegue chegar.**
+
+---
+
+# 🖱️ COMO FUNCIONA?
+
+A base é simples:
+
+### 1️⃣ CLIQUE
+
+Interaja com o **Núcleo** e gere seus primeiros recursos.
+
+### 2️⃣ EVOLUA
+
+Use seus recursos para aumentar sua produção e acelerar seu progresso.
+
+### 3️⃣ PRESTIGIE
+
+Quando estiver preparado, reinicie seu ciclo para obter vantagens permanentes e avançar ainda mais.
+
+### 4️⃣ ASCENDA
+
+Supere seus limites e alcance novos níveis de progressão.
+
+### 5️⃣ TRANSCENDA
+
+Chegue aos estágios mais avançados e prove até onde você consegue levar seu progresso.
+
+### 6️⃣ ENTRE NO RANKING
+
+Seus melhores resultados podem ser publicados no **Ranking Global**.
+
+Compare seu desempenho com outros jogadores e tente chegar ao topo. 🏆
+
+---
+
+# 🌎 UM JOGO QUE CONTINUA VIVO
+
+O Projeto Almanak foi desenvolvido para não ficar parado.
+
+O jogo possui um sistema de **conteúdo remoto**, permitindo que novos conteúdos sejam disponibilizados sem precisar redistribuir o aplicativo inteiro.
+
+Isso significa que podem aparecer:
+
+🎉 **Eventos**
+
+🎟️ **Códigos promocionais**
+
+📰 **Notícias**
+
+🖼️ **Banners**
+
+📋 **Changelogs**
+
+⚠️ **Avisos de manutenção**
+
+🎁 **Novas recompensas**
+
+🔥 **Novas atividades**
+
+O jogo pode continuar recebendo novidades enquanto você joga.
+
+---
+
+# 🎁 CÓDIGOS
+
+Quer recompensas grátis?
+
+Fique de olho nesta seção.
+
+> ⚠️ **Os códigos abaixo devem ser utilizados exatamente como publicados no jogo. Códigos expirados ou removidos deixam de funcionar.**
+
+### 🟢 Códigos ativos
+
+| Código    | Recompensa                | Status    |
+| --------- | ------------------------- | --------- |
+| `ALMANAK` | 🎁 Recompensa promocional | 🟢 Ativo* |
+
+> *A disponibilidade do código depende da configuração atual do conteúdo do servidor.
+
+### 🔴 Códigos expirados
+
+Os códigos expirados serão movidos para cá para manter o histórico das promoções.
+
+---
+
+# 🎁 PRESENTES ENTRE AMIGOS
+
+O Almanak também possui um sistema de presentes.
+
+Você pode enviar recompensas para outros jogadores, incluindo:
+
+💳 Créditos
+📦 Caixas
+
+Os presentes são enviados para a caixa de entrada do jogador e podem ser resgatados dentro do jogo.
+
+⏱️ Existe um período de espera entre presentes para manter o sistema equilibrado.
+
+**Jogue com seus amigos. Ajude seus aliados. E continue evoluindo.**
+
+---
+
+# 🏆 RANKING GLOBAL
+
+Você acha que consegue chegar ao topo?
+
+O **Ranking Global** registra seus melhores ciclos de progressão.
+
+Compare seus resultados e descubra quem está realmente dominando o Almanak.
+
+### Plataformas
+
+📱 Android
+🖥️ PC
+🌐 Web
+
+Você pode acompanhar os jogadores independentemente da plataforma.
+
+**Seu recorde pode virar sua marca.**
+
+---
+
+# ☁️ SEU SAVE, EM QUALQUER LUGAR
+
+Seu progresso não precisa ficar preso a um único dispositivo.
+
+Com a sincronização online:
+
+🖥️ PC → ☁️ Nuvem
+📱 Android → ☁️ Nuvem
+🌐 Web → ☁️ Nuvem
+
+Entre na sua conta e continue de onde parou.
+
+O sistema também possui armazenamento local para ajudar a preservar seu progresso quando estiver offline.
+
+---
+
+# 📱 JOGUE NO CELULAR
+
+O Projeto Almanak também pode ser executado no Android.
+
+A experiência foi adaptada para dispositivos móveis com:
+
+📱 Interface mobile-first
+👆 Controles grandes
+🔔 Notificações
+📳 Feedback háptico
+↩️ Botão voltar integrado
+🔗 Compartilhamento de perfil
+💾 Exportação/importação de save
+🌐 Sincronização online
+
+O mesmo jogo.
+O mesmo progresso.
+Outro dispositivo.
+
+---
+
+# 💻 PC • 📱 ANDROID • 🌐 WEB
+
+### 🖥️ PC
+
+Experiência completa através do aplicativo Windows.
+
+### 📱 Android
+
+Jogue diretamente pelo celular.
+
+### 🌐 Web
+
+Não quer instalar nada?
+
+Abra o jogo pelo navegador e comece a jogar.
+
+**Uma conta. Um progresso. Várias plataformas.**
+
+---
+
+# 💳 SISTEMA DE CRÉDITOS
+
+O jogo possui uma carteira integrada para recursos premium.
+
+Quando configurado no ambiente de produção, o sistema utiliza **Pix através do Mercado Pago**.
+
+🔐 Pagamentos processados pelo servidor
+🔐 Webhooks protegidos
+🔐 Validação das transações
+🔐 Valores controlados pelo backend
+
+A economia foi construída para que as operações importantes não dependam apenas do cliente.
+
+---
+
+# 🔥 O QUE VEM POR AÍ?
+
+O Projeto Almanak ainda está em desenvolvimento.
+
+E isso é apenas o começo.
+
+### 🚧 PRÓXIMAS ATUALIZAÇÕES
+
+Alguns dos sistemas que podem receber expansão nas próximas versões:
+
+🎯 **Novos sistemas de progressão**
+
+🏆 **Novas categorias e temporadas de ranking**
+
+🎉 **Eventos temporários**
+
+🎁 **Novos tipos de caixas e recompensas**
+
+🎨 **Novas personalizações**
+
+👥 **Mais recursos sociais**
+
+📦 **Novos conteúdos desbloqueáveis**
+
+⚡ **Novos sistemas de evolução**
+
+📰 **Mais conteúdo dinâmico**
+
+📱 **Melhorias na experiência mobile**
+
+🖥️ **Melhorias no aplicativo Windows**
+
+🌎 **Expansão do conteúdo online**
+
+> 🔮 **O Almanak está em constante evolução.**
+>
+> Algumas funcionalidades futuras podem mudar durante o desenvolvimento.
+
+---
+
+# 📢 ATUALIZAÇÕES
+
+Acompanhe as novidades do projeto.
+
+As atualizações podem trazer:
+
+* 🆕 Novos sistemas
+* ⚙️ Balanceamentos
+* 🐛 Correções
+* 🎁 Novas recompensas
+* 🎉 Eventos
+* 🖼️ Novos banners
+* 🔥 Conteúdo especial
+
+O sistema de conteúdo remoto permite publicar novidades sem precisar necessariamente lançar uma nova versão completa do aplicativo.
+
+---
+
+# 🛡️ SEU PROGRESSO É IMPORTANTE
+
+O projeto possui mecanismos para proteger os dados do jogador, incluindo:
+
+🔐 Validação de saves
+🔐 Proteção das operações do servidor
+🔐 Validação de pagamentos
+🔐 Proteção do ranking
+☁️ Backup na nuvem
+💾 Backup local
+
+O objetivo é manter seu progresso seguro enquanto você evolui.
+
+---
+
+# 🎮 POR QUE JOGAR?
+
+Porque começar é fácil.
+
+Mas chegar ao topo...
+
+**é outra história.**
+
+Você pode jogar por alguns minutos.
+
+Ou pode tentar construir o maior progresso possível.
+
+Você decide o ritmo.
+
+Você decide quando evoluir.
+
+Você decide até onde quer chegar.
+
+### ⚡ COMEÇE AGORA.
+
+🌐 **Jogar:** https://projeto-almanak.vercel.app
+
+⭐ **Gostou do projeto? Deixe uma Star no GitHub.**
+
+🐛 Encontrou um problema? Abra uma Issue.
+
+💡 Tem uma ideia? Compartilhe.
+
+---
+
+# ❤️ APOIE O PROJETO
+
+Se você gostou do Projeto Almanak:
+
+⭐ Dê uma Star
+🔄 Compartilhe o projeto
+🐛 Relate bugs
+💡 Sugira funcionalidades
+🎮 Jogue e dê feedback
+
+Cada interação ajuda o projeto a crescer.
+
+---
+
+# 🧑‍💻 PARA DESENVOLVEDORES
+
+O Projeto Almanak utiliza uma arquitetura multiplataforma baseada em:
+
+* React
+* Vite
+* Electron
+* Capacitor
+* Android
+* Express
+* Vercel
+* Upstash Redis
+* GitHub Actions
+
+O repositório contém o código necessário para desenvolvimento, testes, deploy e geração das versões do projeto.
+
+A documentação técnica detalhada pode ser encontrada na estrutura do próprio repositório.
+
+---
+
+# 📜 LICENÇA
+
+Consulte os arquivos do repositório para informações sobre licença e utilização do projeto.
+
+---
+
+<div align="center">
+
+# ⚡ PROJETO ALMANAK
+
+### Clique. Evolua. Domine.
+
+**Seu progresso começa com um clique.**
+
+🎮 **Jogue agora:**
+https://projeto-almanak.vercel.app
+
+</div>

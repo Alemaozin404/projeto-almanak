@@ -177,12 +177,12 @@ function pctLabel(d: import('decimal.js').Decimal): string {
 
 /** Multiplicador de bônus do pet por nível. */
 export function petLevelMult(level: number): number {
-  return 1 + 0.1 * (level - 1);
+  return 1 + 0.05 * (level - 1);
 }
 
 /** Multiplicador por evolução. */
 export function petEvolveMult(evolves: number): number {
-  return Math.pow(2, evolves);
+  return Math.pow(1.5, evolves);
 }
 
 export function rarityMultOf(r: RarityId): number {

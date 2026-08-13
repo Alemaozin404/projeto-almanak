@@ -10,6 +10,7 @@ import { UpdateManager } from '../src/liveops/UpdateManager';
 import { ContentManager } from '../src/liveops/ContentManager';
 import { CODES } from '../src/content/codes';
 import { GAME_VERSION } from '../src/content/updates';
+import { GameConfig } from '../src/config/GameConfig';
 
 const T = (s: string) => new Date(s).getTime();
 
@@ -189,7 +190,8 @@ describe('Passe (eventos e temporadas)', () => {
     e.state.premiumPasses.push(trackId);
     const r = e.claimPassReward(trackId, levels, 3, 'premium'); // nível 3 tem recompensa premium
     expect(r.ok).toBe(true);
-    expect(e.getRes('gold').gte(D(2500))).toBe(true);
+    // ouro concedido = recompensa × escala global de moedas
+    expect(e.getRes('gold').gte(D(10000).mul(GameConfig.economy.goldRewardScale))).toBe(true);
   });
 
   it('temporada ativa existe em agosto/2026 e ganha XP por clique', () => {
@@ -207,7 +209,8 @@ describe('Códigos e login diário', () => {
     const e = new GameEngine();
     const r = e.redeemCode('welcome2');
     expect(r.ok).toBe(true);
-    expect(e.getRes('gold').gte(D(250000))).toBe(true);
+    // ouro concedido = recompensa × escala global de moedas
+    expect(e.getRes('gold').gte(D(1000000).mul(GameConfig.economy.goldRewardScale))).toBe(true);
     expect(e.redeemCode('WELCOME2').ok).toBe(false);
     expect(e.redeemCode('INVALIDO').ok).toBe(false);
   });

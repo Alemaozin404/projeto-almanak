@@ -169,7 +169,7 @@ export function defaultSettings(): Settings {
     cloudSyncEnabled: true,
     showPopups: true,
     showNews: true,
-    offlineCapHours: 12,
+    offlineCapHours: 8,
     colorblindMode: false,
     debugMode: false,
     revealPremiumRewards: false,
