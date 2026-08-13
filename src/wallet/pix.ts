@@ -163,6 +163,16 @@ export interface PixContent {
   credits?: number;
   gold?: string;
   diamonds?: number;
+  /** XP do passe premium concedido. */
+  xp?: number;
+  /** Skins desbloqueadas (IDs do catálogo de skins). */
+  skins?: string[];
+  /** Caixas concedidas. */
+  boxes?: { boxId: string; qty: number }[];
+  /** Títulos exclusivos desbloqueados (IDs do catálogo de títulos). */
+  titles?: string[];
+  /** Badges de avatar exclusivas concedidas (IDs do catálogo de avatares). */
+  badges?: string[];
 }
 
 export interface PixGateway {

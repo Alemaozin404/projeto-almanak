@@ -11,6 +11,9 @@ import { activeSeason } from '../../content/seasons';
 import { GAME_PASS_LEVELS } from '../../pass/GamePass';
 import { EventManager } from '../../liveops/EventManager';
 import { SKINS } from '../../content/skins';
+import { BOX_DEFS } from '../../shop/boxes';
+import { TITLES } from '../../progression/titles';
+import { AVATAR_CATALOG } from '../../profile/avatars';
 import { audio } from '../../audio/audio';
 import { D } from '../../core/bignum';
 import { fmtBRL } from '../../shop/packs';
@@ -417,7 +420,25 @@ function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh:
   const [packs, setPacks] = useState<AdminPack[]>(() => loadPacks());
   const [serverPacks, setServerPacks] = useState<AdminPack[]>([]);
   const [editing, setEditing] = useState<AdminPack | null>(null);
-  const [form, setForm] = useState({ name: '', icon: '💎', priceBRL: '', gold: '', diamonds: '', tag: '', featured: false });
+  const [form, setForm] = useState<{
+    name: string;
+    icon: string;
+    priceBRL: string;
+    gold: string;
+    diamonds: string;
+    credits: string;
+    xp: string;
+    skins: string[];
+    boxes: { boxId: string; qty: number }[];
+    titles: string[];
+    badges: string[];
+    tag: string;
+    featured: boolean;
+  }>({ name: '', icon: '💎', priceBRL: '', gold: '', diamonds: '', credits: '', xp: '', skins: [], boxes: [], titles: [], badges: [], tag: '', featured: false });
+  const [skinPick, setSkinPick] = useState('');
+  const [boxPick, setBoxPick] = useState('');
+  const [titlePick, setTitlePick] = useState('');
+  const [badgePick, setBadgePick] = useState('');
   const [errors, setErrors] = useState<string[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [conn, setConn] = useState<{ ok: boolean; label: string } | null>(null);
@@ -470,13 +491,21 @@ function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh:
 
   function resetForm() {
     setEditing(null);
-    setForm({ name: '', icon: '💎', priceBRL: '', gold: '', diamonds: '', tag: '', featured: false });
+    setForm({ name: '', icon: '💎', priceBRL: '', gold: '', diamonds: '', credits: '', xp: '', skins: [], boxes: [], titles: [], badges: [], tag: '', featured: false });
+    setSkinPick('');
+    setBoxPick('');
+    setTitlePick('');
+    setBadgePick('');
     setErrors([]);
   }
 
   function startEdit(p: AdminPack) {
     setEditing(p);
-    setForm({ name: p.name, icon: p.icon, priceBRL: String(p.priceBRL), gold: p.gold, diamonds: String(p.diamonds), tag: p.tag ?? '', featured: p.featured ?? false });
+    setForm({ name: p.name, icon: p.icon, priceBRL: String(p.priceBRL), gold: p.gold, diamonds: String(p.diamonds), credits: p.credits ? String(p.credits) : '', xp: p.xp ? String(p.xp) : '', skins: [...(p.skins ?? [])], boxes: (p.boxes ?? []).map((b) => ({ ...b })), titles: [...(p.titles ?? [])], badges: [...(p.badges ?? [])], tag: p.tag ?? '', featured: p.featured ?? false });
+    setSkinPick('');
+    setBoxPick('');
+    setTitlePick('');
+    setBadgePick('');
     setErrors([]);
   }
 
@@ -488,6 +517,12 @@ function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh:
       priceBRL: Number(form.priceBRL),
       gold: String(Math.max(0, Math.floor(Number(form.gold) || 0))),
       diamonds: Math.max(0, Math.floor(Number(form.diamonds) || 0)),
+      credits: Math.max(0, Math.floor(Number(form.credits) || 0)),
+      xp: Math.max(0, Math.floor(Number(form.xp) || 0)),
+      skins: [...form.skins],
+      boxes: form.boxes.map((b) => ({ ...b })),
+      titles: [...form.titles],
+      badges: [...form.badges],
       tag: form.tag.trim() || undefined,
       featured: form.featured,
       enabled: editing?.enabled ?? true,
@@ -556,10 +591,12 @@ function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh:
         </button>
       </div>
 
-      <h4>💎 Pacotes de diamantes/moedas ({packs.length})</h4>
+      <h4>💎 Pacotes da loja ({packs.length})</h4>
       <p className="muted small">
-        Crie pacotes combinando 💎 diamantes e 🪙 moedas, ou <strong>venda separada</strong> (só diamante ou só coin).
-        Pacotes com <span className="content-status content-published">PUBLISHED</span> no servidor ficam disponíveis para os jogadores via Pix.
+        Crie pacotes <strong>mistos</strong> combinando 💎 diamantes, 🪙 moedas, 💳 créditos, ⚡ XP do passe, 🎨 skins, 📦 caixas,
+        🏆 títulos e 🔖 badges exclusivos (ou <strong>venda separada</strong>: só diamante, só coin, só crédito…). Os pacotes aparecem na
+        <strong> aba Diamantes da Carteira</strong> e, quando <span className="content-status content-published">PUBLISHED</span> no servidor,
+        ficam disponíveis para os jogadores via Pix.
       </p>
 
       <div className="history-list" style={{ marginTop: 8 }}>
@@ -571,7 +608,7 @@ function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh:
               <span className="pack-icon" style={{ fontSize: 18 }}>{p.icon}</span>
               <div>
                 <strong>{p.name}</strong>
-                <span className="muted small"> {fmtBRL(p.priceBRL)} · +{p.gold} 🪙 · +{p.diamonds} 💎{p.tag ? ` · ${p.tag}` : ''}</span>
+                <span className="muted small"> {fmtBRL(p.priceBRL)} · +{p.gold} 🪙 · +{p.diamonds} 💎{p.credits ? ` · +${p.credits} 💳` : ''}{p.xp ? ` · +${p.xp} ⚡` : ''}{p.skins?.length ? ` · ${p.skins.length} 🎨` : ''}{p.boxes?.length ? ` · ${p.boxes.reduce((a, b) => a + b.qty, 0)} 📦` : ''}{p.titles?.length ? ` · ${p.titles.length} 🏆` : ''}{p.badges?.length ? ` · ${p.badges.length} 🔖` : ''}{p.tag ? ` · ${p.tag}` : ''}</span>
                 <div className="muted small">
                   <button className="btn btn-xs" onClick={() => { togglePack(p.id); setPacks(loadPacks()); }}>{p.enabled ? '🟢 ativo' : '⏸ pausado'}</button>
                   <span className={`content-status ${onServer ? 'content-published' : 'content-draft'}`} style={{ marginLeft: 6 }}>{onServer ? 'PUBLISHED' : 'LOCAL'}</span>
@@ -602,16 +639,85 @@ function SalesTab({ onDone, refresh }: { onDone: (msg: string) => void; refresh:
         </div>
         <div className="admin-form-row">
           <label><span>Preço (R$)</span><input className="wardrobe-search" type="number" min={0.01} step="0.01" value={form.priceBRL} onChange={(e) => setForm({ ...form, priceBRL: e.target.value })} placeholder="0.01" /></label>
-          <label><span>Moedas 🪙</span><input className="wardrobe-search" type="number" min={0} value={form.gold} onChange={(e) => setForm({ ...form, gold: e.target.value })} placeholder="0 = só diamante" /></label>
-          <label><span>Diamantes 💎</span><input className="wardrobe-search" type="number" min={0} value={form.diamonds} onChange={(e) => setForm({ ...form, diamonds: e.target.value })} placeholder="0 = só coin" /></label>
+          <label><span>Moedas 🪙</span><input className="wardrobe-search" type="number" min={0} value={form.gold} onChange={(e) => setForm({ ...form, gold: e.target.value })} placeholder="0 = sem moedas" /></label>
+          <label><span>Diamantes 💎</span><input className="wardrobe-search" type="number" min={0} value={form.diamonds} onChange={(e) => setForm({ ...form, diamonds: e.target.value })} placeholder="0 = sem diamantes" /></label>
+          <label><span>Créditos 💳</span><input className="wardrobe-search" type="number" min={0} value={form.credits} onChange={(e) => setForm({ ...form, credits: e.target.value })} placeholder="0 = sem créditos" /></label>
+          <label><span>XP do passe ⚡</span><input className="wardrobe-search" type="number" min={0} value={form.xp} onChange={(e) => setForm({ ...form, xp: e.target.value })} placeholder="0 = sem XP" /></label>
           <label><span>Tag</span><input className="wardrobe-search" value={form.tag} onChange={(e) => setForm({ ...form, tag: e.target.value })} placeholder="Opcional" /></label>
         </div>
+        <div className="admin-form-row">
+          <label><span>Skins 🎨</span>
+            <select className="wardrobe-select" value={skinPick} onChange={(e) => { const v = e.target.value; if (v && !form.skins.includes(v)) setForm({ ...form, skins: [...form.skins, v] }); setSkinPick(''); }}>
+              <option value="">➕ Adicionar skin…</option>
+              {SKINS.filter((sk) => !form.skins.includes(sk.id)).map((sk) => <option key={sk.id} value={sk.id}>{sk.icon} {sk.name}</option>)}
+            </select>
+          </label>
+          <label><span>Caixas 📦</span>
+            <select className="wardrobe-select" value={boxPick} onChange={(e) => { const v = e.target.value; if (v && !form.boxes.some((b) => b.boxId === v)) setForm({ ...form, boxes: [...form.boxes, { boxId: v, qty: 1 }] }); setBoxPick(''); }}>
+              <option value="">➕ Adicionar caixa…</option>
+              {BOX_DEFS.filter((b) => !form.boxes.some((x) => x.boxId === b.id)).map((b) => <option key={b.id} value={b.id}>{b.icon} {b.name}</option>)}
+            </select>
+          </label>
+          <label><span>Títulos 🏆</span>
+            <select className="wardrobe-select" value={titlePick} onChange={(e) => { const v = e.target.value; if (v && !form.titles.includes(v)) setForm({ ...form, titles: [...form.titles, v] }); setTitlePick(''); }}>
+              <option value="">➕ Adicionar título…</option>
+              {TITLES.filter((t) => !form.titles.includes(t.id)).map((t) => <option key={t.id} value={t.id}>{t.icon} {t.name}</option>)}
+            </select>
+          </label>
+          <label><span>Badges 🔖</span>
+            <select className="wardrobe-select" value={badgePick} onChange={(e) => { const v = e.target.value; if (v && !form.badges.includes(v)) setForm({ ...form, badges: [...form.badges, v] }); setBadgePick(''); }}>
+              <option value="">➕ Adicionar badge…</option>
+              {AVATAR_CATALOG.badges.filter((b) => b.id !== 'bd_none' && !form.badges.includes(b.id)).map((b) => <option key={b.id} value={b.id}>{b.value} {b.label}</option>)}
+            </select>
+          </label>
+        </div>
+        {(form.skins.length > 0 || form.boxes.length > 0 || form.titles.length > 0 || form.badges.length > 0) && (
+          <div className="admin-form-row" style={{ flexWrap: 'wrap', gap: 6 }}>
+            {form.skins.map((sk) => {
+              const def = SKINS.find((s) => s.id === sk);
+              return (
+                <span key={sk} className="chip-btn">
+                  {def?.icon ?? '🎨'} {def?.name ?? sk}
+                  <button className="btn btn-xs ghost" style={{ marginLeft: 4 }} onClick={() => setForm({ ...form, skins: form.skins.filter((x) => x !== sk) })}>✕</button>
+                </span>
+              );
+            })}
+            {form.boxes.map((b) => {
+              const def = BOX_DEFS.find((x) => x.id === b.boxId);
+              return (
+                <span key={b.boxId} className="chip-btn">
+                  {def?.icon ?? '📦'} {def?.name ?? b.boxId} ×{b.qty}
+                  <button className="btn btn-xs ghost" style={{ marginLeft: 2 }} onClick={() => setForm({ ...form, boxes: form.boxes.map((x) => (x.boxId === b.boxId ? { ...x, qty: Math.max(1, x.qty - 1) } : x)).filter((x) => x.qty > 0) })}>−</button>
+                  <button className="btn btn-xs ghost" style={{ marginLeft: 2 }} onClick={() => setForm({ ...form, boxes: form.boxes.map((x) => (x.boxId === b.boxId ? { ...x, qty: Math.min(1000, x.qty + 1) } : x)) })}>+</button>
+                  <button className="btn btn-xs ghost" style={{ marginLeft: 2 }} onClick={() => setForm({ ...form, boxes: form.boxes.filter((x) => x.boxId !== b.boxId) })}>✕</button>
+                </span>
+              );
+            })}
+            {form.titles.map((t) => {
+              const def = TITLES.find((x) => x.id === t);
+              return (
+                <span key={t} className="chip-btn">
+                  {def?.icon ?? '🏆'} {def?.name ?? t}
+                  <button className="btn btn-xs ghost" style={{ marginLeft: 4 }} onClick={() => setForm({ ...form, titles: form.titles.filter((x) => x !== t) })}>✕</button>
+                </span>
+              );
+            })}
+            {form.badges.map((b) => {
+              const def = AVATAR_CATALOG.badges.find((x) => x.id === b);
+              return (
+                <span key={b} className="chip-btn">
+                  {def?.value ?? '🔖'} {def?.label ?? b}
+                  <button className="btn btn-xs ghost" style={{ marginLeft: 4 }} onClick={() => setForm({ ...form, badges: form.badges.filter((x) => x !== b) })}>✕</button>
+                </span>
+              );
+            })}
+          </div>
+        )}
         <div className="admin-form-row">
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input type="checkbox" checked={form.featured} onChange={(e) => setForm({ ...form, featured: e.target.checked })} /> Destaque 🔥
           </label>
-          <button className="btn btn-sm" onClick={() => setForm({ ...form, gold: '0' })}>Só diamante</button>
-          <button className="btn btn-sm" onClick={() => setForm({ ...form, diamonds: '0' })}>Só coin</button>
+          <button className="btn btn-sm" onClick={() => setForm({ ...form, gold: '0', diamonds: '0', credits: '', xp: '', skins: [], boxes: [], titles: [], badges: [] })}>Limpar conteúdo</button>
         </div>
         {errors.length > 0 && <p className="muted small" style={{ color: 'var(--danger)' }}>{errors.join(' · ')}</p>}
         <div className="modal-actions">

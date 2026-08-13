@@ -72,6 +72,62 @@ describe('Vendas do Admin — CRUD local', () => {
     expect(validatePack(samplePack({ gold: '5000', diamonds: 0 })).ok).toBe(true);
   });
 
+  it('validatePack aceita pacotes MISTOS (créditos, XP, skins, caixas, títulos e badges)', () => {
+    const mixed = samplePack({
+      gold: '0',
+      diamonds: 0,
+      credits: 500,
+      xp: 2000,
+      skins: ['plasma', 'num_gold'],
+      boxes: [{ boxId: 'rare', qty: 2 }],
+      titles: ['combo_omega'],
+      badges: ['bd_combo_omega'],
+    });
+    expect(validatePack(mixed).ok).toBe(true);
+    // só crédito
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, credits: 100 })).ok).toBe(true);
+    // só XP
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, xp: 500 })).ok).toBe(true);
+    // só skin
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, skins: ['plasma'] })).ok).toBe(true);
+    // só caixa
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, boxes: [{ boxId: 'basic', qty: 1 }] })).ok).toBe(true);
+    // só título
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, titles: ['combo_mythic'] })).ok).toBe(true);
+    // só badge
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, badges: ['bd_combo_mythic'] })).ok).toBe(true);
+    // sem NENHUM item → inválido
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, credits: 0, xp: 0, skins: [], boxes: [], titles: [], badges: [] })).ok).toBe(false);
+  });
+
+  it('validatePack rejeita conteúdo inválido (skin inexistente, caixa sem qty, quantidades negativas)', () => {
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, skins: ['skin_nao_existe!'] })).ok).toBe(false);
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, boxes: [{ boxId: 'rare', qty: 0 }] })).ok).toBe(false);
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, credits: -5 })).ok).toBe(false);
+    expect(validatePack(samplePack({ gold: '0', diamonds: 0, xp: -1 })).ok).toBe(false);
+  });
+
+  it('savePack persiste conteúdo misto (créditos, XP, skins, caixas, títulos e badges)', () => {
+    const p = samplePack({
+      gold: '25000',
+      diamonds: 700,
+      credits: 200,
+      xp: 1000,
+      skins: ['plasma'],
+      boxes: [{ boxId: 'rare', qty: 1 }],
+      titles: ['combo_omega'],
+      badges: ['bd_combo_omega'],
+    });
+    expect(savePack(p).ok).toBe(true);
+    const saved = loadPacks()[0];
+    expect(saved.credits).toBe(200);
+    expect(saved.xp).toBe(1000);
+    expect(saved.skins).toEqual(['plasma']);
+    expect(saved.boxes).toEqual([{ boxId: 'rare', qty: 1 }]);
+    expect(saved.titles).toEqual(['combo_omega']);
+    expect(saved.badges).toEqual(['bd_combo_omega']);
+  });
+
   it('deletePack e togglePack funcionam', () => {
     savePack(samplePack());
     expect(togglePack('diamond_100').ok).toBe(true);
@@ -171,6 +227,36 @@ describe('Vendas do Admin — função de teste Pix', () => {
     expect(pixTestEnabled()).toBe(false);
     store[GameConfig.wallet.backendUrlKey] = 'https://pix.example.com';
     expect(pixTestEnabled()).toBe(true);
+  });
+});
+
+describe('Engine — compra de pacote MISTO do admin via Pix', () => {
+  it('gateway local: buyPixPack concede créditos, XP, skins e caixas na hora', async () => {
+    store[GameConfig.wallet.backendUrlKey] = ''; // gateway local simulado
+    const e = new GameEngine();
+    const r = await e.buyPixPack({
+      id: 'combo_admin', name: 'Combo do Admin', priceBRL: 19.99,
+      gold: '25000', diamonds: 700, credits: 200, xp: 1000, skins: ['plasma'], boxes: [{ boxId: 'rare', qty: 1 }],
+    });
+    expect(r.ok).toBe(true);
+    expect(D(e.state.credits).toFixed(0)).toBe('200');
+    expect(D(e.state.crystals).toFixed(0)).toBe('700');
+    expect(D(e.state.gold).toFixed(0)).toBe('25000');
+    expect(e.state.skins.owned).toContain('plasma');
+    expect(e.state.boxes.rare).toBe(1);
+    expect(e.premiumPassLevel()).toBeGreaterThan(0);
+  });
+
+  it('gateway local: buyPixPack concede títulos e badges exclusivos na hora', async () => {
+    store[GameConfig.wallet.backendUrlKey] = ''; // gateway local simulado
+    const e = new GameEngine();
+    const r = await e.buyPixPack({
+      id: 'combo_premium_admin', name: 'Combo Premium', priceBRL: 99.99,
+      credits: 500, titles: ['combo_mythic'], badges: ['bd_combo_mythic'],
+    });
+    expect(r.ok).toBe(true);
+    expect(e.state.titles).toContain('combo_mythic');
+    expect(e.state.avatarItems).toContain('bd_combo_mythic');
   });
 });
 

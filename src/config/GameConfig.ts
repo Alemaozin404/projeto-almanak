@@ -3,7 +3,7 @@
  * Não espalhar constantes pelo projeto: economia, passe, offline, admin e debug vivem aqui.
  */
 export const GameConfig = {
-  version: '1.4.2',
+  version: '1.5.0',
 
   // ── Passe Premium global ──
   pass: {
@@ -73,6 +73,16 @@ export const GameConfig = {
     pixTestPackId: 'pix_test_1d',
     pixTestPriceBRL: 0.01,
     pixTestDiamonds: 1,
+  },
+
+  // ── App Android ──
+  android: {
+    /**
+     * URL direta do APK no GitHub Releases (última versão) — usada no QR Code
+     * de instalação em Configurações → Sistema (PC/web). O workflow de release
+     * anexa o APK ao Release; sem keystore o asset é `app-debug.apk` (padrão).
+     */
+    apkUrl: 'https://github.com/Alemaozin404/projeto-almanak/releases/latest/download/app-debug.apk',
   },
 
   // ── Conta (sistema de contas + save automático no servidor) ──

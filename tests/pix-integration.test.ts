@@ -242,6 +242,52 @@ describe('Integração Pix — cobrança → pagamento → webhook → fichas', 
     expect(D(e.state.crystals).toFixed(0)).toBe('1000');
   });
 
+  it('Combo: cobrança real → aprovação → créditos, diamantes, moedas, XP, skins e caixas entregues', async () => {
+    const e = new GameEngine();
+
+    // 1. COBRANÇA — a Loja compra um Combo via Pix (mesmo fluxo da Carteira)
+    const buy = await e.buyBundlePack('bundle_popular');
+    expect(buy.ok).toBe(true);
+    expect(buy.pending).toBe(true);
+    expect(buy.orderId).toBeTruthy();
+    expect(e.state.credits).toBe('0'); // nada concedido antes de pagar
+    expect(e.state.skins.owned).not.toContain('plasma');
+    expect(e.pendingPixOrders()).toHaveLength(1);
+
+    const orderId = buy.orderId!;
+    const mpId = Number(orderId);
+
+    // o preço é definido pelo SERVIDOR (bundle_popular = R$ 19,99), não pelo cliente
+    expect(fakeMp.payment(mpId)?.amount).toBe(19.99);
+
+    // 2. PAGAMENTO — jogador paga; MP aprova
+    fakeMp.approve(mpId);
+
+    // 3. POLLING — o app consulta e o servidor entrega o conteúdo AUTORITATIVO do catálogo
+    const st = await e.checkPixOrder(orderId);
+    expect(st.status).toBe('approved');
+    expect(st.credits).toBe(480);
+    expect(st.diamonds).toBe(700);
+    expect(st.gold).toBe('25000');
+    expect(st.xp).toBe(1000);
+    expect(st.skins).toContain('plasma');
+    expect(st.boxes).toEqual([{ boxId: 'rare', qty: 1 }]);
+    expect(D(e.state.credits).toFixed(0)).toBe('480');
+    expect(D(e.state.crystals).toFixed(0)).toBe('700');
+    expect(D(e.state.gold).toFixed(0)).toBe('25000');
+    expect(e.state.skins.owned).toContain('plasma');
+    expect(e.state.boxes.rare).toBe(1);
+    expect(e.premiumPassLevel()).toBeGreaterThan(0);
+    expect(e.state.pixOrders[orderId].status).toBe('done');
+    expect(e.pendingPixOrders()).toHaveLength(0);
+
+    // idempotente: novo check não dobra o conteúdo
+    const again = await e.checkPixOrder(orderId);
+    expect(again.done).toBe(true);
+    expect(D(e.state.credits).toFixed(0)).toBe('480');
+    expect(e.state.boxes.rare).toBe(1);
+  });
+
   it('Passe Premium: cobrança real → aprovação → recibo assinado no servidor', async () => {
     const e = new GameEngine();
 
@@ -305,6 +351,53 @@ describe('Integração Pix — cobrança → pagamento → webhook → fichas', 
     expect(body.status).toBe('approved');
     expect(body.receipt).toBeUndefined();
     expect(body.content).toEqual({ fichas: 100 });
+  });
+
+  it('Combo com TÍTULO e BADGE: cobrança real → aprovação → título e badge exclusivos concedidos', async () => {
+    const e = new GameEngine();
+    const buy = await e.buyBundlePack('bundle_mythic');
+    expect(buy.ok).toBe(true);
+    expect(buy.pending).toBe(true);
+    expect(buy.orderId).toBeTruthy();
+    expect(e.state.titles).not.toContain('combo_mythic');
+    expect(e.state.avatarItems).not.toContain('bd_combo_mythic');
+
+    const orderId = buy.orderId!;
+    fakeMp.approve(Number(orderId));
+
+    const st = await e.checkPixOrder(orderId);
+    expect(st.status).toBe('approved');
+    expect(st.titles).toContain('combo_mythic');
+    expect(st.badges).toContain('bd_combo_mythic');
+    expect(e.state.titles).toContain('combo_mythic');
+    expect(e.state.avatarItems).toContain('bd_combo_mythic');
+    expect(e.state.skins.owned).toContain('royal');
+
+    // idempotente: novo check não duplica
+    const again = await e.checkPixOrder(orderId);
+    expect(again.done).toBe(true);
+    expect(e.state.titles.filter((t) => t === 'combo_mythic')).toHaveLength(1);
+  });
+
+  it('conteúdo é AUTORITATIVO: /api/pix/charge devolve o conteúdo COMPLETO do Combo resolvido no servidor', async () => {
+    const r = await fetch(`${baseUrl}/api/pix/charge`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret },
+      body: JSON.stringify({ packId: 'bundle_popular', playerId: 4242 }),
+    });
+    const b = (await r.json()) as { content?: { credits?: number; diamonds?: number; gold?: string; xp?: number; skins?: string[]; boxes?: { boxId: string; qty: number }[] } };
+    expect(b.content).toEqual({ credits: 480, diamonds: 700, gold: '25000', xp: 1000, boxes: [{ boxId: 'rare', qty: 1 }], skins: ['plasma'] });
+
+    // combo com exclusivos → títulos/badges também vêm do catálogo do servidor
+    const r2 = await fetch(`${baseUrl}/api/pix/charge`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret },
+      body: JSON.stringify({ packId: 'bundle_omega', playerId: 4242 }),
+    });
+    const b2 = (await r2.json()) as { content?: { titles?: string[]; badges?: string[]; credits?: number } };
+    expect(b2.content?.titles).toEqual(['combo_omega']);
+    expect(b2.content?.badges).toEqual(['bd_combo_omega']);
+    expect(b2.content?.credits).toBe(9600); // +60% de desconto nos créditos
   });
 
   it('conteúdo é AUTORITATIVO: /api/pix/charge devolve fichas/moedas/diamantes resolvidos no servidor', async () => {

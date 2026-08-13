@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.4.2';
+export const GAME_VERSION = '1.5.0';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,18 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.5.0',
+    title: 'COMBOS NA LOJA + QR CODE DO APP ANDROID',
+    date: '2026-08-13',
+    description: 'A Loja ganhou a aba Combos 🧺 com 11 pacotes mistos — sempre com Créditos 💳 e recheados de diamantes, moedas, XP do passe, caixas, skins, títulos e badges exclusivos — e desconto progressivo nos créditos (+10% a +60%). No PC e no site, Configurações → Sistema agora gera um QR Code que instala o app Android direto no celular. E o Admin criou combos personalizados completos sem recompilar.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '🧺', items: ['Aba Combos na Loja: 11 pacotes mistos com Créditos 💳 + diamantes 💎, moedas 🪙, XP do passe ⚡, caixas 📦, skins 🎨, títulos 🏆 e badges 🔖', 'Desconto progressivo nos créditos dos Combos: +10% no Combo Iniciante até +60% no Combo Supremo (bônus visível no card)', 'QR Code do app Android em Configurações → Sistema: aponte a câmera do celular e o APK da última versão é baixado e instalado direto'] },
+      { tag: 'NOVO', icon: '✨', items: ['4 títulos exclusivos dos Combos (Mítico, Divino, Celestial e Supremo) com bônus de sorte/produção', '4 badges de avatar exclusivas dos Combos — equipáveis no Perfil', 'Admin → Vendas: combos mistos completos (créditos, XP, skins, caixas, títulos e badges) sem recompilar'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Créditos dos Combos recalibrados com desconto progressivo maior nos pacotes mais caros', 'Carteira e Loja exibem o conteúdo completo dos pacotes mistos, inclusive títulos e badges'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.4.2',
     title: 'CRÉDITOS — A MOEDA PRINCIPAL',

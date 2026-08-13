@@ -30,6 +30,11 @@ export interface PixOrderResult {
   credits?: number;
   gold?: string;
   diamonds?: number;
+  xp?: number;
+  skins?: string[];
+  boxes?: { boxId: string; qty: number }[];
+  titles?: string[];
+  badges?: string[];
 }
 
 const ORDER_STATUS_LABEL: Record<string, string> = {
@@ -75,7 +80,7 @@ export function PixOrderModal({
     setOrderStatus(r.status);
     if (r.status === 'approved') {
       stopPolling();
-      handlersRef.current.onApproved?.({ status: r.status, fichas: r.fichas, credits: r.credits, gold: r.gold, diamonds: r.diamonds });
+      handlersRef.current.onApproved?.({ status: r.status, fichas: r.fichas, credits: r.credits, gold: r.gold, diamonds: r.diamonds, xp: r.xp, skins: r.skins, boxes: r.boxes, titles: r.titles, badges: r.badges });
       handlersRef.current.onClose();
     } else if (r.status === 'rejected' || r.status === 'cancelled') {
       stopPolling();

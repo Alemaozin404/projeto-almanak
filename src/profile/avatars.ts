@@ -76,6 +76,11 @@ export const AVATAR_CATALOG: AvatarCatalog = {
     // ── exclusivos da Loja de Diamantes 💎 ──
     { id: 'bd_diamond', label: 'Diamante', value: '💠', diamondCost: 180 },
     { id: 'bd_tycoon', label: 'Magnata', value: '🤑', diamondCost: 280 },
+    // ── exclusivas dos Combos (Loja → Combos) — concedidas apenas pelo pacote, nunca compráveis ──
+    { id: 'bd_combo_mythic', label: 'Mítico dos Combos', value: '🪔' },
+    { id: 'bd_combo_divine', label: 'Divino dos Combos', value: '😇' },
+    { id: 'bd_combo_celestial', label: 'Celestial dos Combos', value: '✨' },
+    { id: 'bd_combo_omega', label: 'Supremo dos Combos', value: '👑' },
   ],
 };
 

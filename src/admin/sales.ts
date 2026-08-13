@@ -16,12 +16,24 @@ import type { CoinPackDef } from '../shop/packs';
 import { pixBackendUrl, pixOnlineEnabled } from '../wallet/mp';
 import { audit } from './audit';
 
-/** Pacote criado pelo admin — CoinPackDef + controle de visibilidade. */
+/** Pacote criado pelo admin — CoinPackDef + conteúdo misto + controle de visibilidade. */
 export interface AdminPack extends CoinPackDef {
   /** false = não aparece na loja. */
   enabled: boolean;
   /** Timestamp da última edição local. */
   updatedAt: number;
+  /** Créditos 💳 concedidos (pacotes mistos). */
+  credits?: number;
+  /** XP ⚡ do passe premium concedido (pacotes mistos). */
+  xp?: number;
+  /** Skins desbloqueadas (IDs do catálogo — pacotes mistos). */
+  skins?: string[];
+  /** Caixas 📦 concedidas (pacotes mistos). */
+  boxes?: { boxId: string; qty: number }[];
+  /** Títulos 🏆 exclusivos (IDs do catálogo — pacotes mistos). */
+  titles?: string[];
+  /** Badges de avatar exclusivas (IDs do catálogo — pacotes mistos). */
+  badges?: string[];
 }
 
 export interface PackValidation {
@@ -74,7 +86,8 @@ export function packIdFromName(name: string): string {
  * Validação de pacote. Regras:
  * - nome obrigatório;
  * - preço entre 0,01 e 1000 reais (o Pix real exige mínimo de 1 centavo);
- * - deve entregar PELO MENOS um item (fichas, moedas ou diamantes);
+ * - deve entregar PELO MENOS um item (fichas, moedas, diamantes, créditos,
+ *   XP, skins ou caixas);
  * - quantidades não negativas e limitadas (anti-abuso).
  */
 export function validatePack(p: Partial<AdminPack>): PackValidation {
@@ -88,7 +101,33 @@ export function validatePack(p: Partial<AdminPack>): PackValidation {
   const diamonds = Number(p.diamonds ?? 0);
   if (!Number.isFinite(gold) || gold < 0 || gold > 1e15) errors.push('Moedas inválidas');
   if (!Number.isFinite(diamonds) || diamonds < 0 || diamonds > 1e7) errors.push('Diamantes inválidos');
-  if (gold <= 0 && diamonds <= 0) errors.push('O pacote deve entregar moedas ou diamantes');
+  const credits = Number(p.credits ?? 0);
+  if (!Number.isFinite(credits) || credits < 0 || credits > 1e7) errors.push('Créditos inválidos');
+  const xp = Number(p.xp ?? 0);
+  if (!Number.isFinite(xp) || xp < 0 || xp > 1e6) errors.push('XP inválido');
+  const skins = Array.isArray(p.skins) ? p.skins : [];
+  if (skins.length > 20) errors.push('Máximo de 20 skins por pacote');
+  for (const sk of skins) {
+    if (typeof sk !== 'string' || !/^[a-z0-9_]{1,40}$/.test(sk)) errors.push(`Skin inválida: ${sk}`);
+  }
+  const boxes = Array.isArray(p.boxes) ? p.boxes : [];
+  if (boxes.length > 20) errors.push('Máximo de 20 caixas por pacote');
+  for (const b of boxes) {
+    if (!b || typeof b.boxId !== 'string' || b.boxId.length === 0 || b.boxId.length > 40) errors.push('Caixa inválida (id)');
+    if (!Number.isInteger(b?.qty) || (b?.qty ?? 0) < 1 || (b?.qty ?? 0) > 1000) errors.push('Quantidade de caixa inválida');
+  }
+  const titles = Array.isArray(p.titles) ? p.titles : [];
+  if (titles.length > 20) errors.push('Máximo de 20 títulos por pacote');
+  for (const t of titles) {
+    if (typeof t !== 'string' || !/^[a-z0-9_]{1,40}$/.test(t)) errors.push(`Título inválido: ${t}`);
+  }
+  const badges = Array.isArray(p.badges) ? p.badges : [];
+  if (badges.length > 20) errors.push('Máximo de 20 badges por pacote');
+  for (const b of badges) {
+    if (typeof b !== 'string' || !/^[a-z0-9_]{1,40}$/.test(b)) errors.push(`Badge inválida: ${b}`);
+  }
+  const hasContent = gold > 0 || diamonds > 0 || credits > 0 || xp > 0 || skins.length > 0 || boxes.length > 0 || titles.length > 0 || badges.length > 0;
+  if (!hasContent) errors.push('O pacote deve entregar pelo menos um item (moedas, diamantes, créditos, XP, skin, caixa, título ou badge)');
   if (gold > 0 && diamonds > 0 && !Number.isInteger(diamonds)) errors.push('Diamantes devem ser inteiros');
   return { ok: errors.length === 0, errors };
 }
@@ -102,7 +141,17 @@ export function savePack(p: AdminPack): { ok: boolean; errors: string[] } {
   if (idx >= 0) items[idx] = fresh;
   else items.push(fresh);
   savePacks(items);
-  audit({ actor: 'SUPER_ADMIN', action: 'CONTENT_SAVE', target: `pack:${p.id}`, detail: `${p.name} — R$ ${p.priceBRL} (${p.gold}🪙 / ${p.diamonds}💎)`, result: 'ok' });
+  const parts = [
+    Number(p.gold) > 0 ? `${p.gold}🪙` : '',
+    p.diamonds > 0 ? `${p.diamonds}💎` : '',
+    p.credits ? `${p.credits}💳` : '',
+    p.xp ? `${p.xp}⚡` : '',
+    p.skins?.length ? `${p.skins.length}🎨` : '',
+    p.boxes?.length ? `${p.boxes.reduce((a, b) => a + b.qty, 0)}📦` : '',
+    p.titles?.length ? `${p.titles.length}🏆` : '',
+    p.badges?.length ? `${p.badges.length}🔖` : '',
+  ].filter(Boolean).join(' + ');
+  audit({ actor: 'SUPER_ADMIN', action: 'CONTENT_SAVE', target: `pack:${p.id}`, detail: `${p.name} — R$ ${p.priceBRL} (${parts || 'sem conteúdo'})`, result: 'ok' });
   return { ok: true, errors: [] };
 }
 

@@ -15,6 +15,8 @@ import { debugEnabled } from '../../debug/debug';
 import { setScreenAwake } from '../../core/wakeLock';
 import { isNativeApp } from '../../core/platform';
 import { startPushRegistration, unregisterPushToken } from '../../core/push';
+import { GameConfig } from '../../config/GameConfig';
+import { toDataURL as qrToDataURL } from 'qrcode';
 
 interface Props {
   saveMgr: import('../../save/saveManager').SaveManager;
@@ -79,6 +81,8 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
   const [updState, setUpdState] = useState<'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'dev'>('idle');
   const [updPercent, setUpdPercent] = useState(0);
   const [updMsg, setUpdMsg] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [qrBusy, setQrBusy] = useState(false);
 
   // ── auto-update (Electron) ──
   useEffect(() => {
@@ -116,6 +120,24 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
   function flash(msg: string) {
     setSaveMsg(msg);
     setTimeout(() => setSaveMsg(''), 3000);
+  }
+
+  /** Gera o QR Code com o link do APK Android (GitHub Releases). */
+  async function generateAppQr() {
+    setQrBusy(true);
+    try {
+      const dataUrl = await qrToDataURL(GameConfig.android.apkUrl, {
+        width: 240,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+        color: { dark: '#0b1220', light: '#ffffff' },
+      });
+      setQrDataUrl(dataUrl);
+    } catch {
+      flash('❌ Falha ao gerar o QR Code');
+    } finally {
+      setQrBusy(false);
+    }
   }
 
   async function refreshBackups() {
@@ -583,6 +605,30 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
               )}
               {updMsg && <p className={`muted small ${updState === 'error' ? 'settings-err' : 'settings-ok'}`}>{updMsg}</p>}
             </div>
+            {!isNativeApp() && (
+              <div className="settings-col">
+                <h4>📱 App no celular</h4>
+                <p className="muted small">
+                  Instale o app Android no seu celular: gere o QR Code e aponte a câmera — o APK da última versão é baixado e instalado direto no aparelho (sideload, não é Play Store).
+                </p>
+                <div className="settings-actions">
+                  <button className="btn btn-sm btn-primary" onClick={() => void generateAppQr()} disabled={qrBusy}>
+                    {qrBusy ? 'Gerando…' : qrDataUrl ? '↺ Gerar QR Code novamente' : '📱 Gerar QR Code do app Android'}
+                  </button>
+                </div>
+                {qrDataUrl && (
+                  <>
+                    <div className="pix-qr-wrap">
+                      <img className="pix-qr-img" src={qrDataUrl} alt="QR Code do app Android" />
+                    </div>
+                    <p className="muted small center">
+                      Aponte a câmera do celular para baixar. Se o celular pedir, permita instalar de fontes desconhecidas.
+                    </p>
+                    <code className="pix-code" style={{ fontSize: 11 }}>{GameConfig.android.apkUrl}</code>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
 

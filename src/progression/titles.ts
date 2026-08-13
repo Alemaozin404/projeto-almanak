@@ -30,6 +30,11 @@ export const TITLES: TitleDef[] = [
   { id: 'pass_premium', name: 'Premium', icon: '💎', desc: 'Adquira o Passe Premium.', check: (s) => s.premiumPass?.owned === true, bonus: pct({ luck: 10 }) },
   { id: 'pass_omega', name: 'Omega', icon: '⏳', desc: 'Complete o nível 100 do Passe Premium.', check: (s) => s.premiumPass?.owned === true && s.premiumPass.xp >= GameConfig.pass.xpForLevel(100), bonus: pct({ production: 50, clickPower: 50, critChance: 5 }) },
   { id: 'cyber_genesis', name: 'Gênese Cyber', icon: '🌐', desc: 'Complete o passe da Temporada Cyber Genesis.', check: (s) => (s.passTracks?.season_season4?.claimedFree?.length ?? 0) >= 10, bonus: pct({ production: 15, goldGain: 15 }) },
+  // ── Títulos EXCLUSIVOS dos Combos (Loja → Combos) — concedidos apenas pelo pacote, nunca por progresso ──
+  { id: 'combo_mythic', name: 'Mítico dos Combos', icon: '🪔', desc: 'Adquira o Combo Mítico na Loja.', check: () => false, bonus: pct({ luck: 5 }) },
+  { id: 'combo_divine', name: 'Divino dos Combos', icon: '😇', desc: 'Adquira o Combo Divino na Loja.', check: () => false, bonus: pct({ luck: 8 }) },
+  { id: 'combo_celestial', name: 'Celestial dos Combos', icon: '✨', desc: 'Adquira o Combo Celestial na Loja.', check: () => false, bonus: pct({ luck: 10 }) },
+  { id: 'combo_omega', name: 'Supremo dos Combos', icon: '👑', desc: 'Adquira o Combo Supremo na Loja.', check: () => false, bonus: pct({ production: 10, luck: 10 }) },
 ];
 
 export const TITLE_MAP: Record<string, TitleDef> = Object.fromEntries(TITLES.map((t) => [t.id, t]));

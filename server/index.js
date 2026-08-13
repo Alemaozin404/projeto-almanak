@@ -161,6 +161,27 @@ const COIN_PACKS = {
   pack_ultra: { name: 'Pacote Supremo', priceBRL: 199.99, gold: '8000000', diamonds: 45000 },
 };
 
+/**
+ * Combos (Loja → aba "Combos") — pacotes MISTOS (créditos + diamantes/moedas/
+ * XP/skins/caixas). Mesmos ids/preços/conteúdos de src/shop/packs.ts
+ * (BUNDLE_PACKS). O preço cobrado é SEMPRE o daqui e o conteúdo da entrega
+ * (packContent) é o autoritativo quando o pagamento aprova.
+ */
+const BUNDLE_PACKS = {
+  // Créditos com desconto PROGRESSIVO: +10% no menor → +60% no maior (espelha src/shop/packs.ts)
+  bundle_starter: { name: 'Combo Iniciante', priceBRL: 9.99, credits: 220, diamonds: 200, gold: '2000', xp: 250, boxes: [{ boxId: 'basic', qty: 1 }], skins: ['cursor_star'] },
+  bundle_support: { name: 'Combo Suporte', priceBRL: 14.99, credits: 345, diamonds: 400, gold: '10000', xp: 500, boxes: [{ boxId: 'basic', qty: 2 }] },
+  bundle_popular: { name: 'Combo Popular', priceBRL: 19.99, credits: 480, diamonds: 700, gold: '25000', xp: 1000, boxes: [{ boxId: 'rare', qty: 1 }], skins: ['plasma'] },
+  bundle_adventurer: { name: 'Combo Aventureiro', priceBRL: 24.99, credits: 625, diamonds: 1000, gold: '60000', xp: 2000, boxes: [{ boxId: 'rare', qty: 2 }], skins: ['frost'] },
+  bundle_hero: { name: 'Combo Herói', priceBRL: 34.99, credits: 910, diamonds: 1600, gold: '150000', xp: 4000, boxes: [{ boxId: 'epic', qty: 1 }], skins: ['fx_fire'] },
+  bundle_epic: { name: 'Combo Épico', priceBRL: 49.99, credits: 1350, diamonds: 2600, gold: '400000', xp: 8000, boxes: [{ boxId: 'epic', qty: 2 }], skins: ['aurora'] },
+  bundle_legend: { name: 'Combo Lendário', priceBRL: 74.99, credits: 2100, diamonds: 4200, gold: '1000000', xp: 15000, boxes: [{ boxId: 'legendary', qty: 1 }], skins: ['bg_nebula', 'num_gold'] },
+  bundle_mythic: { name: 'Combo Mítico', priceBRL: 99.99, credits: 2900, diamonds: 7000, gold: '3000000', xp: 25000, boxes: [{ boxId: 'legendary', qty: 2 }], skins: ['royal'], titles: ['combo_mythic'], badges: ['bd_combo_mythic'] },
+  bundle_divine: { name: 'Combo Divino', priceBRL: 149.99, credits: 4500, diamonds: 12000, gold: '8000000', xp: 30000, boxes: [{ boxId: 'mythic', qty: 1 }], skins: ['void', 'pf_celestial'], titles: ['combo_divine'], badges: ['bd_combo_divine'] },
+  bundle_celestial: { name: 'Combo Celestial', priceBRL: 199.99, credits: 6200, diamonds: 20000, gold: '20000000', xp: 30000, boxes: [{ boxId: 'mythic', qty: 2 }], skins: ['pet_angel'], titles: ['combo_celestial'], badges: ['bd_combo_celestial'] },
+  bundle_omega: { name: 'Combo Supremo', priceBRL: 299.99, credits: 9600, diamonds: 35000, gold: '50000000', xp: 30000, boxes: [{ boxId: 'celestial', qty: 1 }], skins: ['banner_gold', 'bg_void'], titles: ['combo_omega'], badges: ['bd_combo_omega'] },
+};
+
 /** Passe Premium — mesmo preço de GameConfig.pass.priceBRL (cobrança real via Pix). */
 const PASS_PACK = { name: 'Passe Premium', priceBRL: 9.9 };
 
@@ -185,11 +206,12 @@ async function saveCustomPacks(list) {
   await kvSet(PACKS_KV_KEY, list);
 }
 
-/** Resolve um pacote: fichas → loja (moedas) → passe → teste → custom do admin. O cliente nunca envia preço. */
+/** Resolve um pacote: fichas → loja (moedas) → combos → passe → teste → custom do admin. O cliente nunca envia preço. */
 async function resolvePack(packId) {
   if (FICHA_PACKS[packId]) return FICHA_PACKS[packId];
   if (CREDIT_PACKS[packId]) return CREDIT_PACKS[packId];
   if (COIN_PACKS[packId]) return COIN_PACKS[packId];
+  if (BUNDLE_PACKS[packId]) return BUNDLE_PACKS[packId];
   if (packId === 'premium_pass') return PASS_PACK;
   if (TEST_PACKS[packId]) return TEST_PACKS[packId];
   const custom = await getCustomPacks();
@@ -208,6 +230,27 @@ function packContent(pack) {
   if (Number.isFinite(pack.credits) && pack.credits > 0) c.credits = pack.credits;
   if (typeof pack.gold === 'string' && Number(pack.gold) > 0) c.gold = pack.gold;
   if (Number.isFinite(pack.diamonds) && pack.diamonds > 0) c.diamonds = pack.diamonds;
+  // Combos: XP do passe, skins, caixas, títulos e badges (valores validados/limitados)
+  if (Number.isFinite(pack.xp) && pack.xp > 0) c.xp = Math.min(1000000, Math.floor(pack.xp));
+  if (Array.isArray(pack.skins) && pack.skins.length > 0) {
+    const skins = pack.skins.filter((s) => typeof s === 'string' && /^[a-z0-9_]{1,40}$/.test(s)).slice(0, 20);
+    if (skins.length > 0) c.skins = skins;
+  }
+  if (Array.isArray(pack.boxes) && pack.boxes.length > 0) {
+    const boxes = pack.boxes
+      .map((b) => ({ boxId: String(b?.boxId ?? '').slice(0, 40), qty: Math.floor(Number(b?.qty) || 0) }))
+      .filter((b) => b.boxId && b.qty > 0)
+      .slice(0, 20);
+    if (boxes.length > 0) c.boxes = boxes;
+  }
+  if (Array.isArray(pack.titles) && pack.titles.length > 0) {
+    const titles = pack.titles.filter((t) => typeof t === 'string' && /^[a-z0-9_]{1,40}$/.test(t)).slice(0, 20);
+    if (titles.length > 0) c.titles = titles;
+  }
+  if (Array.isArray(pack.badges) && pack.badges.length > 0) {
+    const badges = pack.badges.filter((b) => typeof b === 'string' && /^[a-z0-9_]{1,40}$/.test(b)).slice(0, 20);
+    if (badges.length > 0) c.badges = badges;
+  }
   return Object.keys(c).length > 0 ? c : undefined;
 }
 
@@ -219,6 +262,23 @@ function sanitizePack(raw) {
   const priceBRL = Number(raw?.priceBRL);
   const gold = typeof raw?.gold === 'string' && /^\d{1,16}(\.\d+)?$/.test(raw.gold) ? raw.gold : '0';
   const diamonds = Number(raw?.diamonds);
+  const credits = Math.floor(Number(raw?.credits) || 0);
+  const xp = Math.floor(Number(raw?.xp) || 0);
+  const skins = Array.isArray(raw?.skins)
+    ? raw.skins.filter((s) => typeof s === 'string' && /^[a-z0-9_]{1,40}$/.test(s)).slice(0, 20)
+    : [];
+  const boxes = Array.isArray(raw?.boxes)
+    ? raw.boxes
+        .map((b) => ({ boxId: String(b?.boxId ?? '').slice(0, 40), qty: Math.floor(Number(b?.qty) || 0) }))
+        .filter((b) => b.boxId && b.qty >= 1 && b.qty <= 1000)
+        .slice(0, 20)
+    : [];
+  const titles = Array.isArray(raw?.titles)
+    ? raw.titles.filter((t) => typeof t === 'string' && /^[a-z0-9_]{1,40}$/.test(t)).slice(0, 20)
+    : [];
+  const badges = Array.isArray(raw?.badges)
+    ? raw.badges.filter((b) => typeof b === 'string' && /^[a-z0-9_]{1,40}$/.test(b)).slice(0, 20)
+    : [];
   const tag = typeof raw?.tag === 'string' ? raw.tag.slice(0, 30) : undefined;
   const featured = raw?.featured === true;
   const enabled = raw?.enabled !== false;
@@ -226,8 +286,18 @@ function sanitizePack(raw) {
   if (!name) return { ok: false, reason: 'Nome obrigatório' };
   if (!Number.isFinite(priceBRL) || priceBRL < 0.01 || priceBRL > 1000) return { ok: false, reason: 'Preço deve ser entre R$ 0,01 e R$ 1.000' };
   if (!Number.isInteger(diamonds) || diamonds < 0 || diamonds > 1e7) return { ok: false, reason: 'Diamantes inválidos' };
-  if (Number(gold) <= 0 && diamonds <= 0) return { ok: false, reason: 'O pacote deve entregar moedas ou diamantes' };
-  return { ok: true, pack: { id, name, icon, priceBRL, gold, diamonds, tag, featured, enabled } };
+  if (!Number.isInteger(credits) || credits < 0 || credits > 1e7) return { ok: false, reason: 'Créditos inválidos' };
+  if (!Number.isInteger(xp) || xp < 0 || xp > 1e6) return { ok: false, reason: 'XP inválido' };
+  const hasContent = Number(gold) > 0 || diamonds > 0 || credits > 0 || xp > 0 || skins.length > 0 || boxes.length > 0 || titles.length > 0 || badges.length > 0;
+  if (!hasContent) return { ok: false, reason: 'O pacote deve entregar pelo menos um item' };
+  const pack = { id, name, icon, priceBRL, gold, diamonds, tag, featured, enabled };
+  if (credits > 0) pack.credits = credits;
+  if (xp > 0) pack.xp = xp;
+  if (skins.length > 0) pack.skins = skins;
+  if (boxes.length > 0) pack.boxes = boxes;
+  if (titles.length > 0) pack.titles = titles;
+  if (badges.length > 0) pack.badges = badges;
+  return { ok: true, pack };
 }
 
 /**

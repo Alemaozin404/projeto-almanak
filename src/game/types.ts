@@ -278,6 +278,16 @@ export interface GameState {
       fichas?: number;
       /** Conteúdo a conceder quando aprovado: créditos. */
       credits?: number;
+      /** Conteúdo a conceder quando aprovado: XP do passe premium (Combos). */
+      xp?: number;
+      /** Conteúdo a conceder quando aprovado: skins (Combos). */
+      skins?: string[];
+      /** Conteúdo a conceder quando aprovado: caixas (Combos). */
+      boxes?: { boxId: string; qty: number }[];
+      /** Conteúdo a conceder quando aprovado: títulos exclusivos (Combos). */
+      titles?: string[];
+      /** Conteúdo a conceder quando aprovado: badges de avatar exclusivas (Combos). */
+      badges?: string[];
       status: 'pending' | 'done';
       at: number;
       pixCode?: string;

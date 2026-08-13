@@ -7,6 +7,8 @@ import { shopPacks, type AdminPack } from '../../admin/sales';
 import { PixOrderModal, type ActivePixOrder, type PixOrderResult } from '../PixOrderModal';
 import { D } from '../../core/bignum';
 import { audio } from '../../audio/audio';
+import { TITLE_MAP } from '../../progression/titles';
+import { AVATAR_CATALOG } from '../../profile/avatars';
 
 type WalletTab = 'fichas' | 'credits' | 'diamonds';
 
@@ -68,6 +70,11 @@ export function Wallet() {
       r.credits ? `${fmt(r.credits, 0)} créditos` : '',
       r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
       r.diamonds && r.diamonds > 0 ? `${fmt(r.diamonds, 0)} diamantes` : '',
+      r.xp && r.xp > 0 ? `${fmt(r.xp, 0)} XP` : '',
+      r.skins && r.skins.length > 0 ? `${r.skins.length} ${r.skins.length === 1 ? 'skin' : 'skins'}` : '',
+      r.boxes && r.boxes.length > 0 ? `${r.boxes.reduce((a, b) => a + b.qty, 0)} caixas` : '',
+      r.titles && r.titles.length > 0 ? `${r.titles.length} ${r.titles.length === 1 ? 'título' : 'títulos'}` : '',
+      r.badges && r.badges.length > 0 ? `${r.badges.length} ${r.badges.length === 1 ? 'badge' : 'badges'}` : '',
     ].filter(Boolean);
     flash(`✅ ${parts.join(' · ') || 'pedido'} adicionados!`);
     audio.buy();
@@ -95,7 +102,7 @@ export function Wallet() {
   }, [engine, online]);
 
   /** Converte o item em um pacote compatível com o engine (ficha, crédito ou custom). */
-  function toPixPack(p: Buyable): { id: string; name: string; priceBRL: number; fichas?: number; credits?: number; gold?: string; diamonds?: number } {
+  function toPixPack(p: Buyable): { id: string; name: string; priceBRL: number; fichas?: number; credits?: number; gold?: string; diamonds?: number; xp?: number; skins?: string[]; boxes?: { boxId: string; qty: number }[]; titles?: string[]; badges?: string[] } {
     if ('fichas' in p) {
       return { id: p.id, name: p.name, priceBRL: p.priceBRL, fichas: (p as FichaPackDef).fichas };
     }
@@ -103,7 +110,7 @@ export function Wallet() {
       return { id: p.id, name: p.name, priceBRL: p.priceBRL, credits: (p as CreditPackDef).credits };
     }
     const admin = p as AdminPack;
-    return { id: admin.id, name: admin.name, priceBRL: admin.priceBRL, gold: admin.gold, diamonds: admin.diamonds };
+    return { id: admin.id, name: admin.name, priceBRL: admin.priceBRL, gold: admin.gold, diamonds: admin.diamonds, credits: admin.credits, xp: admin.xp, skins: admin.skins, boxes: admin.boxes, titles: admin.titles, badges: admin.badges };
   }
 
   async function doBuy() {
@@ -121,6 +128,11 @@ export function Wallet() {
           r.credits ? `${fmt(r.credits, 0)} créditos` : '',
           r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
           r.diamonds ? `${fmt(r.diamonds, 0)} diamantes` : '',
+          r.xp ? `${fmt(r.xp, 0)} XP` : '',
+          r.skins && r.skins.length > 0 ? `${r.skins.length} ${r.skins.length === 1 ? 'skin' : 'skins'}` : '',
+          r.boxes && r.boxes.length > 0 ? `${r.boxes.reduce((a, b) => a + b.qty, 0)} caixas` : '',
+          r.titles && r.titles.length > 0 ? `${r.titles.length} ${r.titles.length === 1 ? 'título' : 'títulos'}` : '',
+          r.badges && r.badges.length > 0 ? `${r.badges.length} ${r.badges.length === 1 ? 'badge' : 'badges'}` : '',
         ].filter(Boolean);
         flash(`✅ ${confirmPack.name} comprado! (+${parts.join(' · ')})`);
         audio.buy();
@@ -299,6 +311,24 @@ export function Wallet() {
                       {p.diamonds > 0 && (
                         <div className="pack-row"><span>💎</span><strong>{fmt(p.diamonds, 0)}</strong><small>diamantes</small></div>
                       )}
+                      {p.credits && p.credits > 0 && (
+                        <div className="pack-row"><span>💳</span><strong>{fmt(p.credits, 0)}</strong><small>créditos</small></div>
+                      )}
+                      {p.xp && p.xp > 0 && (
+                        <div className="pack-row"><span>⚡</span><strong>{fmt(p.xp, 0)}</strong><small>XP do passe</small></div>
+                      )}
+                      {p.skins && p.skins.length > 0 && (
+                        <div className="pack-row"><span>🎨</span><strong>{p.skins.length}</strong><small>skin{p.skins.length > 1 ? 's' : ''}</small></div>
+                      )}
+                      {p.boxes && p.boxes.length > 0 && (
+                        <div className="pack-row"><span>📦</span><strong>{p.boxes.reduce((a, b) => a + b.qty, 0)}</strong><small>caixa{p.boxes.reduce((a, b) => a + b.qty, 0) > 1 ? 's' : ''}</small></div>
+                      )}
+                      {p.titles && p.titles.length > 0 && (
+                        <div className="pack-row"><span>🏆</span><strong>{p.titles.length}</strong><small>título{p.titles.length > 1 ? 's' : ''} exclusivo</small></div>
+                      )}
+                      {p.badges && p.badges.length > 0 && (
+                        <div className="pack-row"><span>🔖</span><strong>{p.badges.length}</strong><small>badge{p.badges.length > 1 ? 's' : ''} exclusiva</small></div>
+                      )}
                     </div>
                     <div className="item-actions">
                       <button className={`btn btn-sm ${p.featured ? 'btn-primary' : ''}`} onClick={() => setConfirmPack(p)}>
@@ -334,8 +364,27 @@ export function Wallet() {
                   {'fichas' in confirmPack
                     ? ` · ${fmt(confirmPack.fichas, 0)} fichas 🎰 (moeda de eventos premium)`
                     : 'credits' in confirmPack
-                      ? ` · ${fmt(confirmPack.credits, 0)} créditos 💳 = ${fmt(creditsToDiamonds(confirmPack.credits), 0)} diamantes na conversão`
-                      : ` · ${confirmPack.gold && Number(confirmPack.gold) > 0 ? `+${fmt(D(confirmPack.gold), 0)} moedas` : ''}${confirmPack.gold && Number(confirmPack.gold) > 0 && confirmPack.diamonds > 0 ? ' e ' : ''}${confirmPack.diamonds > 0 ? `+${fmt(confirmPack.diamonds, 0)} diamantes` : ''}`}
+                      ? ` · ${fmt(confirmPack.credits ?? 0, 0)} créditos 💳 = ${fmt(creditsToDiamonds(confirmPack.credits ?? 0), 0)} diamantes na conversão`
+                      : (() => {
+                        const a = confirmPack as AdminPack;
+                        const credits = a.credits ?? 0;
+                        const xp = a.xp ?? 0;
+                        const skins = a.skins ?? [];
+                        const boxes = a.boxes ?? [];
+                        const titles = a.titles ?? [];
+                        const badges = a.badges ?? [];
+                        const parts = [
+                          a.gold && Number(a.gold) > 0 ? `+${fmt(D(a.gold), 0)} moedas` : '',
+                          a.diamonds > 0 ? `+${fmt(a.diamonds, 0)} diamantes` : '',
+                          credits > 0 ? `+${fmt(credits, 0)} créditos` : '',
+                          xp > 0 ? `+${fmt(xp, 0)} XP` : '',
+                          skins.length > 0 ? `+${skins.length} ${skins.length === 1 ? 'skin' : 'skins'}` : '',
+                          boxes.length > 0 ? `+${boxes.reduce((s, b) => s + b.qty, 0)} caixas` : '',
+                          titles.length > 0 ? `+${titles.length} ${titles.length === 1 ? 'título' : 'títulos'}` : '',
+                          badges.length > 0 ? `+${badges.length} ${badges.length === 1 ? 'badge' : 'badges'}` : '',
+                        ].filter(Boolean);
+                        return ` · ${parts.join(' + ') || 'sem conteúdo'}`;
+                      })()}
                 </p>
               </div>
             </div>

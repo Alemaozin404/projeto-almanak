@@ -4,15 +4,18 @@ import { RarityBadge, Panel, TabBar, EmptyState, Tooltip, Modal } from '../kit';
 import { EQUIP_SLOTS, EQUIPMENT_LIST, type EquipSlot } from '../../shop/equipment';
 import { CONSUMABLE_DEFS } from '../../shop/consumables';
 import { BOX_DEFS } from '../../shop/boxes';
-import { COIN_PACKS, packPriceLabel, type CoinPackDef } from '../../shop/packs';
+import { COIN_PACKS, BUNDLE_PACKS, packPriceLabel, bundlePriceLabel, type CoinPackDef, type BundlePackDef } from '../../shop/packs';
 import { CREDIT_PACKS, fmtBRL, creditsToBRL, creditsToDiamonds, type CreditPackDef } from '../../wallet/pix';
 import { AVATAR_CATALOG } from '../../profile/avatars';
+import { BOX_MAP } from '../../shop/boxes';
+import { SKIN_MAP } from '../../content/skins';
+import { TITLE_MAP } from '../../progression/titles';
 import { pixOnlineEnabled, testPixBackend } from '../../wallet/mp';
 import { PixOrderModal, type ActivePixOrder, type PixOrderResult } from '../PixOrderModal';
 import { D } from '../../core/bignum';
 import { audio } from '../../audio/audio';
 
-type ShopTab = 'equipment' | 'consumables' | 'boxes' | 'credits' | 'diamonds' | 'packs';
+type ShopTab = 'equipment' | 'consumables' | 'boxes' | 'credits' | 'diamonds' | 'packs' | 'combos';
 
 /** Nomes das categorias de decoração de perfil (Loja de Diamantes). */
 const DECOR_LABEL: Record<keyof typeof AVATAR_CATALOG, string> = {
@@ -28,6 +31,7 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
   const [slotFilter, setSlotFilter] = useState<EquipSlot | 'all'>('all');
   const [confirmPack, setConfirmPack] = useState<CoinPackDef | null>(null);
   const [confirmCreditPack, setConfirmCreditPack] = useState<CreditPackDef | null>(null);
+  const [confirmBundle, setConfirmBundle] = useState<BundlePackDef | null>(null);
   const [buying, setBuying] = useState(false);
   const [notice, setNotice] = useState('');
   const [activeOrder, setActiveOrder] = useState<ActivePixOrder | null>(null);
@@ -112,12 +116,47 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
     setConfirmPack(null);
   }
 
+  async function doBuyBundle() {
+    if (!confirmBundle) return;
+    setBuying(true);
+    const r = await engine.buyBundlePack(confirmBundle.id);
+    setBuying(false);
+    if (r.ok) {
+      if (r.pending) {
+        // cobrança real criada (Mercado Pago) — exibe o QR e inicia o polling
+        setActiveOrder({ orderId: r.orderId ?? '', packId: confirmBundle.id, label: confirmBundle.name, pixCode: r.pixCode ?? '', qrCodeBase64: r.qrCodeBase64, amountBRL: confirmBundle.priceBRL });
+      } else {
+        const parts = [
+          r.credits ? `${fmt(r.credits, 0)} créditos` : '',
+          r.diamonds ? `${fmt(r.diamonds, 0)} diamantes` : '',
+          r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
+          r.xp ? `${fmt(r.xp, 0)} XP` : '',
+          r.skins && r.skins.length > 0 ? `${r.skins.length} ${r.skins.length === 1 ? 'skin' : 'skins'}` : '',
+          r.boxes && r.boxes.length > 0 ? `${r.boxes.reduce((a, b) => a + b.qty, 0)} caixas` : '',
+          r.titles && r.titles.length > 0 ? `${r.titles.length} ${r.titles.length === 1 ? 'título' : 'títulos'}` : '',
+          r.badges && r.badges.length > 0 ? `${r.badges.length} ${r.badges.length === 1 ? 'badge' : 'badges'}` : '',
+        ].filter(Boolean);
+        flash(`🧺 ${confirmBundle.name} entregue! (+${parts.join(' · ')})`);
+        audio.buy();
+      }
+    } else {
+      flash(`❌ ${r.reason ?? 'Falha na compra'}`);
+    }
+    setConfirmBundle(null);
+  }
+
   /** Pagamento aprovado pelo Mercado Pago — o engine já concedeu o conteúdo. */
   function handlePixApproved(r: PixOrderResult) {
     setActiveOrder(null);
     const parts = [
+      r.credits && r.credits > 0 ? `${fmt(r.credits, 0)} créditos` : '',
       r.gold && D(r.gold).gt(0) ? `${fmt(D(r.gold), 0)} moedas` : '',
       r.diamonds && r.diamonds > 0 ? `${fmt(r.diamonds, 0)} diamantes` : '',
+      r.xp && r.xp > 0 ? `${fmt(r.xp, 0)} XP` : '',
+      r.skins && r.skins.length > 0 ? `${r.skins.length} ${r.skins.length === 1 ? 'skin' : 'skins'}` : '',
+      r.boxes && r.boxes.length > 0 ? `${r.boxes.reduce((a, b) => a + b.qty, 0)} caixas` : '',
+      r.titles && r.titles.length > 0 ? `${r.titles.length} ${r.titles.length === 1 ? 'título' : 'títulos'}` : '',
+      r.badges && r.badges.length > 0 ? `${r.badges.length} ${r.badges.length === 1 ? 'badge' : 'badges'}` : '',
     ].filter(Boolean);
     flash(`✅ ${parts.join(' · ') || 'pedido'} adicionados!`);
     audio.buy();
@@ -139,6 +178,7 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
             { id: 'credits', name: 'Créditos', icon: '💳' },
             { id: 'diamonds', name: 'Diamantes', icon: '💎' },
             { id: 'packs', name: 'Moedas', icon: '💰' },
+            { id: 'combos', name: 'Combos', icon: '🧺' },
           ]}
           active={tab}
           onChange={setTab}
@@ -447,6 +487,70 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
         </>
       )}
 
+      {tab === 'combos' && (
+        <>
+          {online && conn && (
+            <div className={`pix-conn-banner ${conn.ok ? 'ok' : 'err'}`}>
+              <strong>{conn.ok ? '🟢 Pagamentos reais ativos' : '🔴 Sem conexão com o servidor de pagamentos'}</strong>
+              <span className="muted small">{conn.label}</span>
+              <button className="btn btn-xs" onClick={() => void testPixBackend().then(applyConn)}>↻ Verificar</button>
+            </div>
+          )}
+          <p className="muted small">
+            🧺 <strong>Combos</strong> são pacotes <strong>mistos</strong>: sempre incluem <strong>Créditos 💳</strong> (a moeda universal)
+            e vêm recheados com <strong>Diamantes 💎</strong>, <strong>Moedas 🪙</strong>, <strong>XP do Passe ⚡</strong>,
+            <strong> caixas 📦</strong> e <strong>skins exclusivas</strong>. Compra via <strong>Pix {online ? '💳 real (Mercado Pago)' : '(simulação local)'}</strong>.
+          </p>
+          <div className="item-grid">
+            {BUNDLE_PACKS.map((p) => {
+              // bônus de créditos sobre a taxa base (1 crédito = R$ 0,05 → 20 créditos/R$)
+              const creditBonus = Math.round((p.credits / (p.priceBRL * 20) - 1) * 100);
+              return (
+              <div key={p.id} className={`item-card pack-card ${p.featured ? 'featured' : ''}`}>
+                {p.featured && <span className="pack-ribbon">🔥 MAIS VENDIDO</span>}
+                <div className="item-head">
+                  <span className="pack-icon">{p.icon}</span>
+                  <div className="item-title">
+                    <strong>{p.name}</strong>
+                    {p.tag && <span className="item-count">{p.tag}</span>}
+                  </div>
+                </div>
+                <div className="pack-contents">
+                  <div className="pack-row"><span>💳</span><strong>{fmt(p.credits, 0)}</strong><small>{creditBonus > 0 ? `créditos (+${creditBonus}%)` : 'créditos'}</small></div>
+                  {p.diamonds && p.diamonds > 0 && <div className="pack-row"><span>💎</span><strong>{fmt(p.diamonds, 0)}</strong><small>diamantes</small></div>}
+                  {p.gold && D(p.gold).gt(0) && <div className="pack-row"><span>🪙</span><strong>{fmt(D(p.gold), 0)}</strong><small>moedas</small></div>}
+                  {p.xp && p.xp > 0 && <div className="pack-row"><span>⚡</span><strong>{fmt(p.xp, 0)}</strong><small>XP do passe</small></div>}
+                  {p.boxes?.map((b) => (
+                    <div className="pack-row" key={b.boxId}><span>{BOX_MAP[b.boxId]?.icon ?? '📦'}</span><strong>{b.qty > 1 ? `×${b.qty}` : '1'}</strong><small>{BOX_MAP[b.boxId]?.name ?? b.boxId}</small></div>
+                  ))}
+                  {p.skins?.map((sk) => (
+                    <div className="pack-row" key={sk}><span>{SKIN_MAP[sk]?.icon ?? '🎨'}</span><strong>Skin</strong><small>{SKIN_MAP[sk]?.name ?? sk}</small></div>
+                  ))}
+                  {p.titles?.map((t) => (
+                    <div className="pack-row" key={t}><span>{TITLE_MAP[t]?.icon ?? '🏆'}</span><strong>Título</strong><small>{TITLE_MAP[t]?.name ?? t}</small></div>
+                  ))}
+                  {p.badges?.map((b) => {
+                    const bd = AVATAR_CATALOG.badges.find((x) => x.id === b);
+                    return <div className="pack-row" key={b}><span>{bd?.value ?? '🔖'}</span><strong>Badge</strong><small>{bd?.label ?? b}</small></div>;
+                  })}
+                </div>
+                <div className="item-actions">
+                  <button className={`btn btn-sm ${p.featured ? 'btn-primary' : ''}`} onClick={() => setConfirmBundle(p)}>
+                    Comprar via Pix · {bundlePriceLabel(p)}
+                  </button>
+                </div>
+              </div>
+              );
+            })}
+          </div>
+          <p className="muted small center">
+            {online
+              ? '💳 Pagamento processado pelo Mercado Pago — o QR Code real aparece ao confirmar.'
+              : '⚠️ Pagamento simulado localmente (gateway de teste) — nenhum valor é cobrado. Configure o backend Pix para cobranças reais.'}
+          </p>
+        </>
+      )}
+
       {tab === 'equipment' && items.length === 0 && <EmptyState icon="🛡️" text="Nenhum equipamento encontrado." />}
 
       <Modal open={confirmPack !== null} onClose={() => { if (!buying) setConfirmPack(null); }} title="Confirmar compra" width={420}>
@@ -502,6 +606,51 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
               <button className="btn" disabled={buying} onClick={() => setConfirmCreditPack(null)}>Cancelar</button>
               <button className="btn btn-primary" disabled={buying} onClick={() => void doBuyCreditPack()}>
                 {buying ? 'Processando…' : `Pagar via Pix · ${fmtBRL(confirmCreditPack.priceBRL)}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* confirmação de compra de COMBO (pacote misto) */}
+      <Modal open={confirmBundle !== null} onClose={() => { if (!buying) setConfirmBundle(null); }} title="Confirmar Combo" width={420}>
+        {confirmBundle && (
+          <div className="pack-confirm">
+            <div className="pack-confirm-head">
+              <span className="pack-icon">{confirmBundle.icon}</span>
+              <div>
+                <h4>{confirmBundle.name}</h4>
+                <p className="muted small">🧺 Pacote misto — créditos + recompensas.</p>
+              </div>
+            </div>
+            <div className="pack-contents">
+              <div className="pack-row"><span>💳</span><strong>{fmt(confirmBundle.credits, 0)}</strong><small>{(() => { const bonus = Math.round((confirmBundle.credits / (confirmBundle.priceBRL * 20) - 1) * 100); return bonus > 0 ? `créditos (+${bonus}%)` : 'créditos'; })()}</small></div>
+              {confirmBundle.diamonds && confirmBundle.diamonds > 0 && <div className="pack-row"><span>💎</span><strong>{fmt(confirmBundle.diamonds, 0)}</strong><small>diamantes</small></div>}
+              {confirmBundle.gold && D(confirmBundle.gold).gt(0) && <div className="pack-row"><span>🪙</span><strong>{fmt(D(confirmBundle.gold), 0)}</strong><small>moedas</small></div>}
+              {confirmBundle.xp && confirmBundle.xp > 0 && <div className="pack-row"><span>⚡</span><strong>{fmt(confirmBundle.xp, 0)}</strong><small>XP do passe</small></div>}
+              {confirmBundle.boxes?.map((b) => (
+                <div className="pack-row" key={b.boxId}><span>{BOX_MAP[b.boxId]?.icon ?? '📦'}</span><strong>{b.qty > 1 ? `×${b.qty}` : '1'}</strong><small>{BOX_MAP[b.boxId]?.name ?? b.boxId}</small></div>
+              ))}
+              {confirmBundle.skins?.map((sk) => (
+                <div className="pack-row" key={sk}><span>{SKIN_MAP[sk]?.icon ?? '🎨'}</span><strong>Skin</strong><small>{SKIN_MAP[sk]?.name ?? sk}</small></div>
+              ))}
+              {confirmBundle.titles?.map((t) => (
+                <div className="pack-row" key={t}><span>{TITLE_MAP[t]?.icon ?? '🏆'}</span><strong>Título</strong><small>{TITLE_MAP[t]?.name ?? t}</small></div>
+              ))}
+              {confirmBundle.badges?.map((b) => {
+                const bd = AVATAR_CATALOG.badges.find((x) => x.id === b);
+                return <div className="pack-row" key={b}><span>{bd?.value ?? '🔖'}</span><strong>Badge</strong><small>{bd?.label ?? b}</small></div>;
+              })}
+            </div>
+            <p className="muted small center">
+              Total: <strong>{bundlePriceLabel(confirmBundle)}</strong>.{online
+                ? ' Você será direcionado ao Pix para pagar — QR Code real pelo Mercado Pago.'
+                : ' Compra simulada localmente — nada será cobrado.'}
+            </p>
+            <div className="modal-actions">
+              <button className="btn" disabled={buying} onClick={() => setConfirmBundle(null)}>Cancelar</button>
+              <button className="btn btn-primary" disabled={buying} onClick={() => void doBuyBundle()}>
+                {buying ? 'Processando…' : `Pagar via Pix · ${bundlePriceLabel(confirmBundle)}`}
               </button>
             </div>
           </div>

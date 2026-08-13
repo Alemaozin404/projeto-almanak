@@ -29,7 +29,7 @@ import { GAME_VERSION, updateByVersion } from '../content/updates';
 import { GameConfig } from '../config/GameConfig';
 import { GAME_PASS_LEVELS, passLevelFromXp, passNextLevel } from '../pass/GamePass';
 import { PASS_PRODUCT_ID, signPassReceipt, verifyPassReceipt } from '../security/passReceipt';
-import { packById } from '../shop/packs';
+import { packById, bundlePackById } from '../shop/packs';
 import { fichaPackById, creditPackById, creditsToDiamonds, type PixOrderStatus } from '../wallet/pix';
 
 /** Pacote comprável via Pix — o gateway online só valida o preço (packId) no servidor. */
@@ -41,6 +41,16 @@ export interface PixPackLike {
   credits?: number;
   gold?: string;
   diamonds?: number;
+  /** XP ⚡ do passe premium concedido (Combos). */
+  xp?: number;
+  /** Skins desbloqueadas (IDs do catálogo — Combos). */
+  skins?: string[];
+  /** Caixas 📦 concedidas (Combos). */
+  boxes?: { boxId: string; qty: number }[];
+  /** Títulos exclusivos desbloqueados (Combos). */
+  titles?: string[];
+  /** Badges de avatar exclusivas concedidas (Combos). */
+  badges?: string[];
 }
 import { resolvePixGateway } from '../wallet/mp';
 import { STATUS_PRESETS, type StatusPreset } from '../profile/status';
@@ -1662,7 +1672,13 @@ export class GameEngine {
       this.addRes('crystals', D(pack.diamonds));
       incStat(s, 'crystalsEarned', D(pack.diamonds));
     }
-    appendLog(s, 'wallet', `Pix aprovado (pedido ${orderId}) — ${pack.id}: +${pack.fichas ?? 0} fichas, +${pack.credits ?? 0} créditos, +${pack.gold ?? 0} moedas, +${pack.diamonds ?? 0} diamantes`);
+    // Combos: XP do passe premium, skins, caixas, títulos e badges exclusivos
+    if (pack.xp && pack.xp > 0) this.addPassXp(pack.xp);
+    if (pack.skins) for (const sk of pack.skins) this.grantSkin(sk);
+    if (pack.boxes) for (const bx of pack.boxes) s.boxes[bx.boxId] = (s.boxes[bx.boxId] ?? 0) + bx.qty;
+    if (pack.titles) for (const t of pack.titles) this.unlockTitle(t);
+    if (pack.badges) for (const b of pack.badges) this.grantAvatarItem(b);
+    appendLog(s, 'wallet', `Pix aprovado (pedido ${orderId}) — ${pack.id}: +${pack.fichas ?? 0} fichas, +${pack.credits ?? 0} créditos, +${pack.gold ?? 0} moedas, +${pack.diamonds ?? 0} diamantes, +${pack.xp ?? 0} XP, ${pack.skins?.length ?? 0} skins, ${pack.boxes?.reduce((a, b) => a + b.qty, 0) ?? 0} caixas, ${pack.titles?.length ?? 0} títulos, ${pack.badges?.length ?? 0} badges`);
   }
 
   /** Compra de fichas via Pix. Local: concede na hora. Online: cria a cobrança e aguarda pagamento. */
@@ -1703,6 +1719,44 @@ export class GameEngine {
     return { ok: r.ok, reason: r.reason, credits: r.credits, orderId: r.orderId, pixCode: r.pixCode, qrCodeBase64: r.qrCodeBase64, pending: r.pending };
   }
 
+  /** Compra um Combo (pacote misto: créditos + diamantes/moedas/XP/skins/caixas/títulos/badges) via Pix. */
+  async buyBundlePack(packId: string, payerEmail?: string): Promise<{
+    ok: boolean;
+    reason?: string;
+    credits?: number;
+    diamonds?: number;
+    gold?: string;
+    xp?: number;
+    skins?: string[];
+    boxes?: { boxId: string; qty: number }[];
+    titles?: string[];
+    badges?: string[];
+    orderId?: string;
+    pixCode?: string;
+    qrCodeBase64?: string;
+    pending?: boolean;
+  }> {
+    const pack = bundlePackById(packId);
+    if (!pack) return { ok: false, reason: 'Combo inexistente' };
+    const r = await this.buyPixPack(
+      {
+        id: pack.id,
+        name: pack.name,
+        priceBRL: pack.priceBRL,
+        credits: pack.credits,
+        gold: pack.gold,
+        diamonds: pack.diamonds,
+        xp: pack.xp,
+        skins: pack.skins,
+        boxes: pack.boxes,
+        titles: pack.titles,
+        badges: pack.badges,
+      },
+      payerEmail,
+    );
+    return { ok: r.ok, reason: r.reason, credits: r.credits, diamonds: r.diamonds, gold: r.gold, xp: r.xp, skins: r.skins, boxes: r.boxes, titles: r.titles, badges: r.badges, orderId: r.orderId, pixCode: r.pixCode, qrCodeBase64: r.qrCodeBase64, pending: r.pending };
+  }
+
   /** Compra de um pacote Pix customizado (fichas, moedas e/ou diamantes) via Pix. */
   async buyPixPack(pack: PixPackLike, payerEmail?: string): Promise<{
     ok: boolean;
@@ -1711,6 +1765,11 @@ export class GameEngine {
     credits?: number;
     gold?: string;
     diamonds?: number;
+    xp?: number;
+    skins?: string[];
+    boxes?: { boxId: string; qty: number }[];
+    titles?: string[];
+    badges?: string[];
     orderId?: string;
     pixCode?: string;
     qrCodeBase64?: string;
@@ -1734,6 +1793,11 @@ export class GameEngine {
         diamonds: res.content?.diamonds ?? pack.diamonds,
         fichas: res.content?.fichas ?? pack.fichas,
         credits: res.content?.credits ?? pack.credits,
+        xp: res.content?.xp ?? pack.xp,
+        skins: res.content?.skins ?? pack.skins,
+        boxes: res.content?.boxes ?? pack.boxes,
+        titles: res.content?.titles ?? pack.titles,
+        badges: res.content?.badges ?? pack.badges,
         status: 'pending',
         at: Date.now(),
         pixCode: res.pixCode,
@@ -1753,13 +1817,18 @@ export class GameEngine {
       pack.credits ? `💳 ${pack.credits} créditos` : '',
       pack.gold && D(pack.gold).gt(ZERO) ? `🪙 ${D(pack.gold).toFixed(0)} moedas` : '',
       pack.diamonds && pack.diamonds > 0 ? `💎 ${pack.diamonds} diamantes` : '',
+      pack.xp && pack.xp > 0 ? `⚡ ${pack.xp} XP` : '',
+      pack.skins && pack.skins.length > 0 ? `${pack.skins.length} ${pack.skins.length === 1 ? 'skin' : 'skins'}` : '',
+      pack.boxes && pack.boxes.length > 0 ? `${pack.boxes.reduce((a, b) => a + b.qty, 0)} ${pack.boxes.length === 1 ? 'caixa' : 'caixas'}` : '',
+      pack.titles && pack.titles.length > 0 ? `${pack.titles.length} ${pack.titles.length === 1 ? 'título' : 'títulos'}` : '',
+      pack.badges && pack.badges.length > 0 ? `${pack.badges.length} ${pack.badges.length === 1 ? 'badge' : 'badges'}` : '',
     ].filter(Boolean);
     bus.emit('notify', { kind: 'level', title: `✅ ${pack.name} entregue!`, desc: `+${parts.join(' · ')}` });
-    return { ok: true, fichas: pack.fichas, credits: pack.credits, gold: pack.gold, diamonds: pack.diamonds, orderId: res.orderId, pixCode: res.pixCode };
+    return { ok: true, fichas: pack.fichas, credits: pack.credits, gold: pack.gold, diamonds: pack.diamonds, xp: pack.xp, skins: pack.skins, boxes: pack.boxes, titles: pack.titles, badges: pack.badges, orderId: res.orderId, pixCode: res.pixCode };
   }
 
   /** Consulta o status de um pedido Pix e concede o conteúdo quando aprovado (uma única vez). */
-  async checkPixOrder(orderId: string): Promise<{ status: PixOrderStatus; fichas?: number; credits?: number; gold?: string; diamonds?: number; done?: boolean }> {
+  async checkPixOrder(orderId: string): Promise<{ status: PixOrderStatus; fichas?: number; credits?: number; gold?: string; diamonds?: number; xp?: number; skins?: string[]; boxes?: { boxId: string; qty: number }[]; titles?: string[]; badges?: string[]; done?: boolean }> {
     const s = this.state;
     const order = s.pixOrders[orderId];
     if (!order) return { status: 'unknown' };
@@ -1804,10 +1873,10 @@ export class GameEngine {
       // (vindo da cobrança: servidor no modo online, catálogo no modo local).
       let pack: PixPackLike | null;
       const sc = r.content;
-      if (sc && (sc.gold !== undefined || sc.diamonds !== undefined || sc.fichas !== undefined || sc.credits !== undefined)) {
-        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: sc.fichas, credits: sc.credits, gold: sc.gold, diamonds: sc.diamonds };
-      } else if (order.gold !== undefined || order.diamonds !== undefined || order.fichas !== undefined || order.credits !== undefined) {
-        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: order.fichas, credits: order.credits, gold: order.gold, diamonds: order.diamonds };
+      if (sc && (sc.gold !== undefined || sc.diamonds !== undefined || sc.fichas !== undefined || sc.credits !== undefined || sc.xp !== undefined || sc.skins !== undefined || sc.boxes !== undefined || sc.titles !== undefined || sc.badges !== undefined)) {
+        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: sc.fichas, credits: sc.credits, gold: sc.gold, diamonds: sc.diamonds, xp: sc.xp, skins: sc.skins, boxes: sc.boxes, titles: sc.titles, badges: sc.badges };
+      } else if (order.gold !== undefined || order.diamonds !== undefined || order.fichas !== undefined || order.credits !== undefined || order.xp !== undefined || order.skins !== undefined || order.boxes !== undefined || order.titles !== undefined || order.badges !== undefined) {
+        pack = { id: order.packId, name: order.label ?? order.packId, priceBRL: order.amountBRL ?? 0, fichas: order.fichas, credits: order.credits, gold: order.gold, diamonds: order.diamonds, xp: order.xp, skins: order.skins, boxes: order.boxes, titles: order.titles, badges: order.badges };
       } else {
         const f = fichaPackById(order.packId);
         pack = f ? { id: f.id, name: f.name, priceBRL: f.priceBRL, fichas: f.fichas } : null;
@@ -1819,13 +1888,18 @@ export class GameEngine {
           pack.credits ? `💳 ${pack.credits} créditos` : '',
           pack.gold && D(pack.gold).gt(ZERO) ? `🪙 ${D(pack.gold).toFixed(0)} moedas` : '',
           pack.diamonds && pack.diamonds > 0 ? `💎 ${pack.diamonds} diamantes` : '',
+          pack.xp && pack.xp > 0 ? `⚡ ${pack.xp} XP` : '',
+          pack.skins && pack.skins.length > 0 ? `${pack.skins.length} ${pack.skins.length === 1 ? 'skin' : 'skins'}` : '',
+          pack.boxes && pack.boxes.length > 0 ? `${pack.boxes.reduce((a, b) => a + b.qty, 0)} ${pack.boxes.length === 1 ? 'caixa' : 'caixas'}` : '',
+          pack.titles && pack.titles.length > 0 ? `${pack.titles.length} ${pack.titles.length === 1 ? 'título' : 'títulos'}` : '',
+          pack.badges && pack.badges.length > 0 ? `${pack.badges.length} ${pack.badges.length === 1 ? 'badge' : 'badges'}` : '',
         ].filter(Boolean);
         bus.emit('notify', { kind: 'level', title: `✅ ${pack.name} aprovado!`, desc: `Pagamento Pix confirmado — +${parts.join(' · ')}` });
       }
       order.status = 'done';
       this.invalidate();
       this.notify('wallet');
-      return { status: 'approved', fichas: pack?.fichas, credits: pack?.credits, gold: pack?.gold, diamonds: pack?.diamonds, done: true };
+      return { status: 'approved', fichas: pack?.fichas, credits: pack?.credits, gold: pack?.gold, diamonds: pack?.diamonds, xp: pack?.xp, skins: pack?.skins, boxes: pack?.boxes, titles: pack?.titles, badges: pack?.badges, done: true };
     }
     return { status: r.status };
   }

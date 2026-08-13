@@ -226,6 +226,52 @@ describe('API online — conteúdo, save na nuvem e ranking', () => {
     expect(delMissing.status).toBe(404);
   });
 
+  it('packs do admin: pacote MISTO (créditos/XP/skins/caixas) é validado e persistido com conteúdo completo', async () => {
+    const headers = { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret };
+
+    // sem nenhum item → 400 (nem moedas/diamantes, nem conteúdo misto)
+    const empty = await fetch(`${baseUrl}/api/packs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'vazio2', name: 'Vazio', priceBRL: 1 }),
+    });
+    expect(empty.status).toBe(400);
+
+    // conteúdo misto válido → 200 e persistido com TUDO
+    const create = await fetch(`${baseUrl}/api/packs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        id: 'combo_admin', name: 'Combo do Admin', icon: '🧺', priceBRL: 19.99,
+        gold: '25000', diamonds: 700, credits: 200, xp: 1000,
+        skins: ['plasma', 'num_gold'], boxes: [{ boxId: 'rare', qty: 2 }],
+        titles: ['combo_mythic'], badges: ['bd_combo_mythic'],
+      }),
+    });
+    expect(create.status).toBe(200);
+
+    const list = await fetch(`${baseUrl}/api/packs`, { headers });
+    const data = (await list.json()) as { packs?: { id: string; credits?: number; xp?: number; skins?: string[]; boxes?: { boxId: string; qty: number }[]; titles?: string[]; badges?: string[] }[] };
+    const saved = data.packs?.find((p) => p.id === 'combo_admin');
+    expect(saved?.credits).toBe(200);
+    expect(saved?.xp).toBe(1000);
+    expect(saved?.skins).toEqual(['plasma', 'num_gold']);
+    expect(saved?.boxes).toEqual([{ boxId: 'rare', qty: 2 }]);
+    expect(saved?.titles).toEqual(['combo_mythic']);
+    expect(saved?.badges).toEqual(['bd_combo_mythic']);
+
+    // conteúdo inválido → 400 (caixa sem qty válida)
+    const badBox = await fetch(`${baseUrl}/api/packs`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ id: 'bad_box', name: 'Caixa ruim', priceBRL: 1, boxes: [{ boxId: 'rare', qty: 0 }] }),
+    });
+    expect(badBox.status).toBe(400);
+
+    // remove o pacote criado
+    await fetch(`${baseUrl}/api/packs/combo_admin`, { method: 'DELETE', headers });
+  });
+
   it('packs do admin: o pacote de teste pix_test_1d é resolvido na cobrança (R$ 0,01)', async () => {
     const headers = { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret };
     const realFetch = globalThis.fetch;
