@@ -6,6 +6,9 @@ build/icon.png
 *.log
 .DS_Store
 
+# Android SDK local (build de APK sem Android Studio)
+.android-sdk/
+
 # servidor / Vercel
 server/.content-export.mjs
 .vercel

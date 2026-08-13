@@ -71,10 +71,12 @@ jobs:
           node-version: 22
           cache: npm
 
-      - uses: actions/setup-java@v4
+      # Capacitor 8 compila com Java 21 (source/target 21) — Java 17 falha
+      # com "invalid source release: 21".
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: 17
+          java-version: 21
 
       # Garante a platform + build-tools do compileSdk (Capacitor 8 = SDK 36) —
       # no-op quando o runner já vem com tudo instalado.
