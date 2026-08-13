@@ -61,3 +61,108 @@ export function hapticImpact(): void {
   if (!isNativeApp()) return;
   void import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {}));
 }
+
+/**
+ * Compartilha conteúdo com o share sheet NATIVO do sistema (Android/iOS).
+ * No desktop/navegador tenta navigator.share; sem suporte → copia o texto
+ * para a área de transferência e avisa (fallback silencioso).
+ */
+export async function nativeShare(opts: { title?: string; text?: string; url?: string }): Promise<{ ok: boolean; method: 'native' | 'web' | 'clipboard' }> {
+  if (isNativeApp()) {
+    try {
+      const { Share } = await import('@capacitor/share');
+      await Share.share({ title: opts.title, text: opts.text, url: opts.url });
+      return { ok: true, method: 'native' };
+    } catch {
+      return { ok: false, method: 'native' };
+    }
+  }
+  try {
+    if (navigator.share) {
+      await navigator.share({ title: opts.title, text: opts.text, url: opts.url });
+      return { ok: true, method: 'web' };
+    }
+  } catch {
+    /* usuário cancelou ou sem suporte — cai no clipboard */
+  }
+  try {
+    await navigator.clipboard?.writeText(opts.url ?? opts.text ?? '');
+    return { ok: true, method: 'clipboard' };
+  } catch {
+    return { ok: false, method: 'clipboard' };
+  }
+}
+
+/**
+ * Abre um link externo: no app Android usa o browser/custom-tab do sistema
+ * (sai do WebView — o app não é um navegador); no desktop/navegador usa
+ * window.open. Retorna false se não conseguiu (link vazio).
+ */
+export async function openExternal(url: string): Promise<boolean> {
+  if (!url) return false;
+  if (isNativeApp()) {
+    try {
+      const { Browser } = await import('@capacitor/browser');
+      await Browser.open({ url });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  window.open(url, '_blank', 'noopener');
+  return true;
+}
+
+/**
+ * Abre o seletor de arquivos (input type=file) e lê o conteúdo como texto —
+ * funciona no navegador E no WebView do app Android (import de save .ncsave).
+ * Resolve null se o usuário cancelou.
+ */
+export function pickAndReadTextFile(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.ncsave,.txt,text/plain';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) {
+        resolve(null);
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => resolve(null);
+      reader.readAsText(file);
+    };
+    input.click();
+  });
+}
+
+export async function exportTextFile(filename: string, text: string): Promise<{ ok: boolean; reason?: string }> {
+  if (isNativeApp()) {
+    try {
+      const { Filesystem, Directory, Encoding } = await import('@capacitor/filesystem');
+      // grava em Cache (privado) e compartilha — o share sheet deixa salvar onde quiser
+      const result = await Filesystem.writeFile({
+        path: filename,
+        data: text,
+        directory: Directory.Cache,
+        encoding: Encoding.UTF8,
+      });
+      await Filesystem.getUri({ path: filename, directory: Directory.Cache });
+      const { Share } = await import('@capacitor/share');
+      await Share.share({ title: filename, url: result.uri });
+      return { ok: true };
+    } catch {
+      return { ok: false, reason: 'Falha ao compartilhar o arquivo' };
+    }
+  }
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  return { ok: true };
+}

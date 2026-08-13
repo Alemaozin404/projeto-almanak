@@ -10,6 +10,7 @@
  */
 import { apiFetch, apiJson, serverUrl } from './api';
 import { getSession } from './account';
+import { isNativeApp, nativeShare } from '../core/platform';
 
 export interface FriendInfo {
   username: string;
@@ -96,10 +97,19 @@ export function profileFromUrl(): string {
   }
 }
 
-/** Copia o link do perfil para a área de transferência (retorna se funcionou). */
+/**
+ * Compartilha o link do perfil: no app Android abre o share sheet NATIVO do
+ * sistema (WhatsApp/Discord/etc.); em outras plataformas copia para a área de
+ * transferência. Retorna true se o usuário compartilhou/copiou com sucesso.
+ */
 export async function copyProfileLink(username: string): Promise<boolean> {
+  const url = buildProfileLink(username);
+  if (isNativeApp()) {
+    const res = await nativeShare({ title: 'Meu perfil no Núcleo Clicker', text: 'Veja meu perfil no jogo!', url });
+    return res.ok;
+  }
   try {
-    await navigator.clipboard.writeText(buildProfileLink(username));
+    await navigator.clipboard.writeText(url);
     return true;
   } catch {
     return false;

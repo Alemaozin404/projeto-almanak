@@ -40,6 +40,9 @@ body {
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   overflow: hidden;
   user-select: none;
+  overscroll-behavior: none; /* sem bounce/pull-to-refresh no WebView do app */
+  -webkit-tap-highlight-color: transparent; /* sem flash cinza ao tocar (app nativo) */
+  touch-action: manipulation; /* sem delay de 300ms em toques (app nativo) */
 }
 
 .app {

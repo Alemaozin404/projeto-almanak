@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.5.0';
+export const GAME_VERSION = '1.6.0';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,19 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.6.0',
+    title: 'APP ANDROID DE VERDADE — SHELL NATIVO PREMIUM',
+    date: '2026-08-13',
+    description: 'O app Android deixou de ser um espelho da web: agora é um app nativo de verdade — splash com a marca, sem bounce nem delay de toque, teclado que não esconde o jogo, compartilhar perfil e save pelo share sheet do sistema, links abrindo no browser do aparelho e sensação de toque em tudo (haptics).',
+    sections: [
+      { tag: 'DESTAQUE', icon: '📱', items: ['App Android com cara de app nativo: splash animada com a marca, WebView sem scrollbars/bounce e tema escuro do jogo', 'Compartilhar perfil e exportar save pelo share sheet do Android (WhatsApp, Drive, arquivos…)', 'Links externos (QR do APK etc.) abrem no browser do sistema, não dentro do jogo'] },
+      { tag: 'NOVO', icon: '✨', items: ['Teclado não cobre mais o jogo no Android (adjustResize)', 'Vibração (haptics) na navegação e nos toques — sensação de app de verdade', 'Exportar/importar save por arquivo .ncsave no celular'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Sem flash cinza ao tocar e sem delay de 300 ms nos toques (comportamento nativo)', 'Sem bounce/pull-to-refresh no app — scroll travado como em app nativo'] },
+      { tag: 'CORRIGIDO', icon: '🛠', items: ['Push FCM documentado no README — faltam só o google-services.json e a env var FCM_SERVICE_ACCOUNT para ativar'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.5.0',
     title: 'COMBOS NA LOJA + QR CODE DO APP ANDROID',

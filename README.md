@@ -179,11 +179,27 @@ base64 -w0 release.jks   # saída = valor do secret ANDROID_KEYSTORE_BASE64
 
 ### Shell de app real (Android)
 
-- **Splash screen** com a marca do jogo (orbe + fundo escuro, `npm run android:splash`).
-- **Status bar** escura com ícones claros; **orientação travada em portrait**.
+- **Splash screen** com a marca do jogo (orbe + fundo escuro, `npm run android:splash`) + splash Android 12+ animada com o orbe.
+- **Status bar** escura com ícones claros; **orientação travada em portrait**; teclado não cobre o jogo (`adjustResize`).
 - **Haptics**: vibração leve em toques em botões e impacto médio no clique do Núcleo.
 - **Botão voltar** do Android: fecha modal aberto → volta ao Núcleo (Início) → sai do app.
+- **Sem bounce/pull-to-refresh** no WebView (`overscroll-behavior: none`) e sem delay de toque (`touch-action: manipulation`).
+- **WebView enxuto**: sem scrollbars, sem seleção de texto, fundo do tema — comportamento de app, não de navegador.
+- **Ações nativas de verdade**: compartilhar perfil/save com o share sheet do Android, links externos abrem no browser do sistema (custom tab), exportar/importar save por arquivo.
 - **UI mobile-first**: header próprio (nível + título da tela + strip de recursos), barra de navegação inferior, modais como *bottom sheets*, alvos de toque grandes e safe-areas para notch.
+
+### Push FCM (notificações de presentes/eventos)
+
+O código do push já está pronto (plugin `@capacitor/push-notifications` + endpoint `/api/push/token` + envio no servidor). Para ativar de verdade faltam **2 arquivos de configuração do Firebase** (não estão no repo por serem segredos):
+
+1. **`google-services.json`** do seu projeto Firebase → coloque em `android/app/google-services.json`. O `build.gradle` já detecta o arquivo e aplica o plugin automaticamente (sem ele, push não compila e o app funciona normalmente).
+2. **`FCM_SERVICE_ACCOUNT`** (env var no Vercel) → JSON da service account do Firebase (Console → Project settings → Service accounts → Generate new private key) copiado inteiro como valor. Sem ele o servidor roda em modo dev (só loga).
+
+```bash
+# depois de adicionar o google-services.json, regenere o projeto e recompile:
+npx cap sync android
+# npm run android:build  (ou build pelo Android Studio)
+```
 
 ## 🧪 Desenvolvimento
 

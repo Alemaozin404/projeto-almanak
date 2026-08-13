@@ -3,7 +3,7 @@
  * Não espalhar constantes pelo projeto: economia, passe, offline, admin e debug vivem aqui.
  */
 export const GameConfig = {
-  version: '1.5.0',
+  version: '1.6.0',
 
   // ── Passe Premium global ──
   pass: {

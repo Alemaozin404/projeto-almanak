@@ -15,8 +15,16 @@
         <item name="android:background">@null</item>
     </style>
 
-
+    <!--
+      Splash do app:
+      - Android 12+: usa a SplashScreen API (windowSplashScreen*) — fundo da marca
+        + orbe do Núcleo, com a animação nativa de saída para o tema do jogo.
+      - Android < 12: usa o splash.png (legado, gerado por scripts/gen-splash.mjs).
+    -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="android:background">@drawable/splash</item>
+        <item name="windowSplashScreenBackground">@color/splashBackground</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_orb</item>
+        <item name="postSplashScreenTheme">@style/AppTheme.NoActionBar</item>
     </style>
 </resources>

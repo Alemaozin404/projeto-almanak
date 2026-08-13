@@ -33,6 +33,9 @@
     "dist:release": "npm run build && electron-builder --win nsis --publish always"
   },
   "dependencies": {
+    "@capacitor/browser": "^8.0.4",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
     "@noble/ed25519": "^3.1.0",
     "@noble/hashes": "^2.3.0",
     "cors": "^2.8.5",

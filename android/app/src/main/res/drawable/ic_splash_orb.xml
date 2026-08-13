@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Orbe do Núcleo — ícone da splash (Android 12+). O sistema mascara em um
+     círculo, então usamos círculos concêntricos: halo azul + núcleo ciano. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- halo -->
+    <path
+        android:fillColor="#0b6bff"
+        android:pathData="M54,54m-34,0a34,34 0,1 1,68 0a34,34 0,1 1,-68 0" />
+    <!-- núcleo -->
+    <path
+        android:fillColor="#37f5ff"
+        android:pathData="M54,54m-22,0a22,22 0,1 1,44 0a22,22 0,1 1,-44 0" />
+    <!-- brilho interno -->
+    <path
+        android:fillColor="#ffffff"
+        android:fillAlpha="0.85"
+        android:pathData="M43,42m-6,0a6,6 0,1 1,12 0a6,6 0,1 1,-12 0" />
+</vector>

@@ -3,6 +3,7 @@ import { SAVE_VERSION, type GameState, type RunRecord } from '../game/types';
 import { migrateSave } from './migrations';
 import { validateState } from './validation';
 import { hashStr, sanitizeString } from '../core/utils';
+import { exportTextFile, pickAndReadTextFile } from '../core/platform';
 
 export const SAVE_SLOTS = ['slot1', 'slot2', 'slot3'] as const;
 export type SaveSlot = (typeof SAVE_SLOTS)[number];
@@ -258,15 +259,10 @@ export class SaveManager {
 
   async exportToFile(engine: GameEngine): Promise<{ ok: boolean; reason?: string }> {
     if (!window.api) {
-      // navegador: download
-      const blob = new Blob([this.exportText(engine)], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `nucleo-save-${this.slot}.ncsave`;
-      a.click();
-      URL.revokeObjectURL(url);
-      return { ok: true };
+      // celular (app Android) e navegador: usa o helper de plataforma — no
+      // Android escreve o arquivo e abre o share sheet nativo (salvar/WhatsApp);
+      // no navegador faz o download normal.
+      return exportTextFile(`nucleo-save-${this.slot}.ncsave`, this.exportText(engine));
     }
     const path = await window.api.dialogSave(`nucleo-save-${this.slot}.ncsave`);
     if (!path) return { ok: false, reason: 'Cancelado' };
@@ -276,7 +272,10 @@ export class SaveManager {
 
   async importFromFile(slot: SaveSlot): Promise<{ ok: boolean; reason?: string; fixed?: string[] }> {
     if (!window.api) {
-      return { ok: false, reason: 'Disponível apenas no app desktop' };
+      // navegador e app Android: seletor de arquivos via input (funciona no WebView)
+      const text = await pickAndReadTextFile();
+      if (text === null) return { ok: false, reason: 'Cancelado' };
+      return this.importText(slot, text);
     }
     const path = await window.api.dialogOpen();
     if (!path) return { ok: false, reason: 'Cancelado' };

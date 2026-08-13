@@ -13,7 +13,7 @@ import { pushCloudSave, pullCloudSave, cloudPlayerId } from '../../online/cloudS
 import { lastSyncAt, remoteGameVersion } from '../../liveops/RemoteContent';
 import { debugEnabled } from '../../debug/debug';
 import { setScreenAwake } from '../../core/wakeLock';
-import { isNativeApp } from '../../core/platform';
+import { isNativeApp, openExternal } from '../../core/platform';
 import { startPushRegistration, unregisterPushToken } from '../../core/push';
 import { GameConfig } from '../../config/GameConfig';
 import { toDataURL as qrToDataURL } from 'qrcode';
@@ -625,6 +625,11 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
                       Aponte a câmera do celular para baixar. Se o celular pedir, permita instalar de fontes desconhecidas.
                     </p>
                     <code className="pix-code" style={{ fontSize: 11 }}>{GameConfig.android.apkUrl}</code>
+                    <div className="settings-actions" style={{ justifyContent: 'center' }}>
+                      <button className="btn btn-sm ghost" onClick={() => void openExternal(GameConfig.android.apkUrl)}>
+                        🔗 Abrir link de download
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

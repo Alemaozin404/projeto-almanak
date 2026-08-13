@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Paleta do jogo (tema ciano cósmico) -->
+    <color name="colorPrimary">#37f5ff</color>
+    <color name="colorPrimaryDark">#070b16</color>
+    <color name="colorAccent">#0b6bff</color>
+    <color name="splashBackground">#070b16</color>
+    <color name="statusBarBackground">#070b16</color>
+    <color name="navBarBackground">#060a14</color>
+</resources>

@@ -3,6 +3,7 @@ import { NAV, type Screen } from './sidebar';
 import { Modal } from './kit';
 import { useGame } from './context';
 import { debugEnabled } from '../debug/debug';
+import { hapticLight } from '../core/platform';
 
 /** Telas principais na barra inferior do celular — o resto fica no modal "Mais". */
 const PRIMARY: Screen[] = ['home', 'shop', 'boxes', 'quests', 'profile'];
@@ -21,7 +22,7 @@ export function MobileNav({ screen, onNavigate }: { screen: Screen; onNavigate: 
           <button
             key={n.id}
             className={`mnav-btn ${screen === n.id ? 'active' : ''}`}
-            onClick={() => onNavigate(n.id)}
+            onClick={() => { hapticLight(); onNavigate(n.id); }}
             title={n.hint}
           >
             <span className="mnav-icon">{n.icon}</span>
@@ -40,7 +41,7 @@ export function MobileNav({ screen, onNavigate }: { screen: Screen; onNavigate: 
             <button
               key={n.id}
               className={`nav-item ${screen === n.id ? 'active' : ''}`}
-              onClick={() => { onNavigate(n.id); setMore(false); }}
+              onClick={() => { hapticLight(); onNavigate(n.id); setMore(false); }}
               title={n.hint}
             >
               <span className="nav-icon">{n.icon}</span>
