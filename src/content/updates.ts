@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.9.0';
+export const GAME_VERSION = '1.10.1';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,18 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.10.1',
+    title: 'DIFICULDADE MÁXIMA',
+    date: '2026-08-13',
+    description: 'Um passe de dificuldade pesado em TODAS as frentes: evoluir de nível, ganhar energia, juntar ouro, subir no ranking — tudo ficou mais lento e mais desafiador. Cada conquista agora vale muito mais.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '🔥', items: ['Curvas de XP endurecidas: nível do jogador ~2,6× mais XP e pets com curva exponencial mais íngreme', 'Ouro 🪙 ~12× mais difícil: todas as fontes grátis pagam 1/12 do valor (era 1/4)', 'Prestígio exige 1 BILHÃO de energia no ciclo (era 1 milhão); ascensão exige 60 fragmentos e transcendência 12 moedas'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Bônus permanentes reduzidos: prestígio +10%/ciclo (era 25%), novo mundo +75% (era +100%), essência +3% por gasto (era 5%)', 'Energia escassa: geradores ~3× mais caros, upgrades de clique/energia ~2,5× mais caros e desbloqueios mais altos', 'Offline com eficiência de 25% (era 50%) e teto padrão de 8h (era 12h)', 'Login diário com créditos/ouro pela metade; XP do Passe reduzida (clique 0,5→0,25, minuto 8→4, teto 33k→20k)', 'Drops de ouro no clique 2% (era 5%); combo +0,5% por acerto (era 1%)', 'Pets e equipamentos com metade do bônus por nível; habilidades com efeitos ~40% menores', 'Caixas e consumíveis premium ~2,5× mais caros em Créditos 💳', 'Missões com alvos ~2× maiores'] },
+      { tag: 'NOVO', icon: '✨', items: ['Essência mais cara: bônus eternos custam 2,5× (crítico 2×) e concedem o mesmo poder'] },
+    ],
+    reward: { gold: '2500000', boxes: [{ boxId: 'rare', qty: 1 }] },
+  },
   {
     version: '1.9.0',
     title: 'MUNDOS POR CONTA',

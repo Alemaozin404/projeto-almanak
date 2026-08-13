@@ -9,8 +9,8 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Versão espelhada do jogo (package.json). O workflow de release passa
         // -PversionName / -PversionCode a partir da tag v* (ex.: v1.4.3 → 143).
-        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toString().toInteger() : 142
-        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : '1.4.2'
+        versionCode project.hasProperty('versionCode') ? project.property('versionCode').toString().toInteger() : 1101
+        versionName project.hasProperty('versionName') ? project.property('versionName').toString() : '1.10.1'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
