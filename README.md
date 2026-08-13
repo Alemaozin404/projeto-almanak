@@ -173,9 +173,13 @@ base64 -w0 release.jks   # saída = valor do secret ANDROID_KEYSTORE_BASE64
 
 > ⚠️ O keystore é a identidade do app: **nunca** commite o arquivo (`.gitignore` já bloqueia `*.jks`). Se perder, não dá para atualizar uma instalação antiga.
 
-### Botão voltar do Android
+### Shell de app real (Android)
 
-O botão físico/navegação do Android fecha modal aberto → volta ao Núcleo (Início) → sai do app.
+- **Splash screen** com a marca do jogo (orbe + fundo escuro, `npm run android:splash`).
+- **Status bar** escura com ícones claros; **orientação travada em portrait**.
+- **Haptics**: vibração leve em toques em botões e impacto médio no clique do Núcleo.
+- **Botão voltar** do Android: fecha modal aberto → volta ao Núcleo (Início) → sai do app.
+- **UI mobile-first**: header próprio (nível + título da tela + strip de recursos), barra de navegação inferior, modais como *bottom sheets*, alvos de toque grandes e safe-areas para notch.
 
 ## 🧪 Desenvolvimento
 

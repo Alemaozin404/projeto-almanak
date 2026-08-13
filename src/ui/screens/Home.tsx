@@ -8,6 +8,7 @@ import { D } from '../../core/bignum';
 import { CRIT_LABELS, type CritTier } from '../../game/engine';
 import { audio } from '../../audio/audio';
 import { RESOURCES, type ResourceId } from '../../economy/resources';
+import { hapticImpact } from '../../core/platform';
 import { equippedSkin, SKINS } from '../../content/skins';
 import { NEWS, NEWS_TYPE_META } from '../../content/news';
 import type { Screen } from '../sidebar';
@@ -46,6 +47,7 @@ export function Home({ onNavigate }: { onNavigate: (s: Screen) => void }) {
     const t = performance.now();
     if (t - lastClickRef.current < 30) return;
     lastClickRef.current = t;
+    hapticImpact(); // vibração no toque do Núcleo (app Android)
     const res = engine.click('manual');
     const rect = areaRef.current?.getBoundingClientRect();
     const x = e.clientX - (rect?.left ?? 0);

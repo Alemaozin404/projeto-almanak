@@ -16,3 +16,31 @@ export function quitApp(): void {
     window.close();
   }
 }
+
+/**
+ * Inicialização do "shell" nativo do app (roda uma vez, no boot):
+ * - status bar escura com ícones claros (combina com o tema do jogo);
+ * - orientação travada em portrait no Android (jogo de toque).
+ */
+export function initNativeShell(): void {
+  if (!isNativeApp()) return;
+  void import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+    void StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
+    void StatusBar.setBackgroundColor({ color: '#070b16' }).catch(() => {});
+  });
+  void import('@capacitor/screen-orientation').then(({ ScreenOrientation }) => {
+    void ScreenOrientation.lock({ orientation: 'portrait-primary' }).catch(() => {});
+  });
+}
+
+/** Vibração leve — toques em botões/navegação (nativo; no-op no desktop). */
+export function hapticLight(): void {
+  if (!isNativeApp()) return;
+  void import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Light }).catch(() => {}));
+}
+
+/** Vibração média — ações principais (clique no Núcleo). */
+export function hapticImpact(): void {
+  if (!isNativeApp()) return;
+  void import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) => Haptics.impact({ style: ImpactStyle.Medium }).catch(() => {}));
+}

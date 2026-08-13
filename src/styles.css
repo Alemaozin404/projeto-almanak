@@ -3275,8 +3275,8 @@ body.theme-neon .app-fx::before {
 
 /* ═══════════ MOBILE (app Android / celular) ═══════════ */
 
-/* barra de navegação inferior — visível apenas no celular */
-.mobile-nav { display: none; }
+/* barra de navegação inferior + header mobile — visíveis apenas no celular */
+.mobile-nav, .mtopbar { display: none; }
 
 /* toque: sem delay, sem double-tap-zoom e sem flash ao tocar */
 button, a, .nav-item, .mnav-btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
@@ -3284,8 +3284,49 @@ button, a, .nav-item, .mnav-btn { touch-action: manipulation; -webkit-tap-highli
 @media (max-width: 760px) {
   .app { height: 100dvh; }
 
-  /* sidebar desktop some — a navegação vira barra inferior */
+  /* shell desktop some — o app vira: header mobile + conteúdo + barra inferior */
   .sidebar { display: none; }
+  .topbar { display: none; }
+  .mtopbar { display: block; }
+
+  /* ── header mobile ── */
+  .mtopbar {
+    background: rgba(6, 10, 20, 0.97);
+    border-bottom: 1px solid var(--border-strong);
+    padding: calc(6px + env(safe-area-inset-top)) 10px 6px;
+    flex-shrink: 0;
+  }
+
+  .mtopbar-row { display: flex; align-items: center; gap: 10px; }
+
+  .mtop-level {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink: 0;
+    display: grid; place-items: center;
+    background: radial-gradient(circle at 32% 30%, var(--accent), var(--accent2));
+    color: #04101f; font-weight: 800; font-size: 15px;
+  }
+
+  .mtop-title {
+    flex: 1; text-align: center; font-size: 14px; letter-spacing: 0.5px;
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  }
+  .mtop-title b { color: var(--text); }
+  .mtop-menu { width: 36px; height: 36px; flex-shrink: 0; }
+
+  .mtop-resources {
+    display: flex; gap: 6px; margin-top: 6px;
+    overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  }
+  .mtop-resources::-webkit-scrollbar { display: none; }
+  .mtop-resources .resource { flex-shrink: 0; padding: 3px 10px; }
+  .mtop-resources .res-value { font-size: 12px; }
+
+  .cloud-mini {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    margin: auto 6px auto auto; background: var(--muted);
+  }
+  .cloud-mini.cloud-online { background: var(--success); box-shadow: 0 0 8px rgba(61, 220, 132, 0.7); }
+  .cloud-mini.cloud-offline { background: var(--rose); box-shadow: 0 0 8px rgba(255, 77, 109, 0.7); }
 
   .mobile-nav {
     display: flex;
@@ -3306,48 +3347,70 @@ button, a, .nav-item, .mnav-btn { touch-action: manipulation; -webkit-tap-highli
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 2px;
-    padding: 7px 2px;
+    gap: 3px;
+    padding: 8px 2px;
     background: transparent;
     border: none;
+    border-top: 2px solid transparent;
     color: var(--muted);
     font-size: 10px;
     font-family: inherit;
     cursor: pointer;
-    transition: color 0.13s ease;
+    transition: color 0.13s ease, border-color 0.13s ease;
   }
 
-  .mnav-btn.active { color: var(--accent); }
-  .mnav-icon { font-size: 19px; line-height: 1; }
+  .mnav-btn.active { color: var(--accent); border-top-color: var(--accent); }
+  .mnav-icon { font-size: 21px; line-height: 1; }
 
   .mnav-more { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-  .mnav-more .nav-item { font-size: 12.5px; padding: 8px 10px; }
-
-  /* topbar: respira com a notch/status bar */
-  .topbar {
-    padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .resources { gap: 5px; }
-  .resource { padding: 4px 9px; }
-  .res-value { font-size: 12px; }
+  .mnav-more .nav-item { font-size: 13px; padding: 10px 10px; min-height: 46px; }
 
   /* conteúdo não fica escondido atrás da barra inferior */
-  .content { padding: 12px 12px calc(74px + env(safe-area-inset-bottom)); }
+  .content { padding: 10px 10px calc(80px + env(safe-area-inset-bottom)); }
 
   /* telas empilhadas no lugar de colunas largas */
   .home-top { grid-template-columns: 1fr; }
   .home { gap: 10px; }
-  .core-area { height: 300px; }
+  .panel { padding: 12px; }
+  .core-area { height: 320px; }
+  .core-orb { width: 200px; height: 200px; }
+  .home-side { grid-template-columns: 1fr; }
+  .skin-preview { width: 70px; height: 70px; font-size: 28px; }
 
   /* menu principal cabe na tela */
   .menu-content { min-width: 0; width: calc(100vw - 24px); max-width: 460px; padding: 20px 16px; }
   .menu-title { font-size: 30px; letter-spacing: 4px; }
 
-  /* modais ocupam quase toda a tela */
-  .modal { margin: 8px; max-height: 90vh; }
+  /* modais = bottom sheets (slide do fundo, canto arredondado no topo) */
+  .modal-backdrop { align-items: flex-end; }
+  .modal {
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 92dvh;
+    border-radius: 18px 18px 0 0;
+    border-bottom: none;
+    animation: sheetUp 0.22s ease;
+  }
+  .modal::before {
+    content: '';
+    display: block;
+    width: 40px; height: 4px; border-radius: 999px;
+    background: rgba(139, 155, 196, 0.35);
+    margin: 8px auto 0;
+  }
+  @keyframes sheetUp {
+    from { transform: translateY(24px); opacity: 0.6; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  /* alvos de toque grandes */
+  .btn { min-height: 40px; }
+  .btn-sm { min-height: 34px; }
+  .icon-btn { min-width: 40px; min-height: 40px; }
+  .daily-dot { min-width: 30px; height: 30px; }
+  .slot-card { flex-wrap: wrap; }
+  .slot-actions { flex-basis: 100%; justify-content: flex-end; }
 
   /* toasts de ponta a ponta */
   .toast-stack { top: calc(10px + env(safe-area-inset-top)); right: 8px; left: 8px; align-items: stretch; }

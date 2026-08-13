@@ -4,6 +4,7 @@ import { SaveManager, type SaveSlot } from './save/saveManager';
 import { GameContext } from './ui/context';
 import { Sidebar, type Screen } from './ui/sidebar';
 import { MobileNav } from './ui/MobileNav';
+import { MobileTopBar } from './ui/MobileTopBar';
 import { TopBar } from './ui/topbar';
 import { Toasts } from './ui/toasts';
 import { Modal, ConfirmModal } from './ui/kit';
@@ -46,7 +47,7 @@ import { autoPublishBestRuns } from './online/autoRank';
 import { audio } from './audio/audio';
 import { applyTheme } from './ui/theme';
 import { bus } from './core/events';
-import { isNativeApp, quitApp } from './core/platform';
+import { isNativeApp, quitApp, initNativeShell, hapticLight } from './core/platform';
 import { formatNumber, formatFull, formatDuration } from './core/notation';
 import type { Num } from './core/bignum';
 import type { CSSProperties } from 'react';
@@ -221,6 +222,20 @@ export default function App() {
     setEngine(null);
     setOffline(null);
     audio.startMenu();
+  }, []);
+
+  // ── shell nativo do app Android (status bar + portrait) ──
+  useEffect(() => { initNativeShell(); }, []);
+
+  // vibração leve em qualquer toque em botão (só no app nativo)
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    const h = (ev: MouseEvent) => {
+      const t = ev.target as HTMLElement | null;
+      if (t?.closest?.('button, .nav-item, .mnav-btn, .tab')) hapticLight();
+    };
+    document.addEventListener('click', h);
+    return () => document.removeEventListener('click', h);
   }, []);
 
   // ── Android: botão voltar físico ──
@@ -469,6 +484,7 @@ export default function App() {
         <Sidebar screen={screen} onNavigate={setScreen} />
         <MobileNav screen={screen} onNavigate={setScreen} />
         <div className="main">
+          <MobileTopBar screen={screen} onMenu={() => setMenuOpen(true)} />
           <TopBar onMenu={() => setMenuOpen(true)} worldName={engine.worldName()} onAccountClick={() => setScreen('account')} />
           <main className="content">
             {screen === 'home' && <Home onNavigate={setScreen} />}
