@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useGame } from '../context';
 import { Panel, StatRow, TabBar } from '../kit';
 import { TITLES, TITLE_MAP } from '../../progression/titles';
@@ -9,6 +9,9 @@ import { equippedSkin } from '../../content/skins';
 import { AVATAR_CATALOG, type AvatarItem } from '../../profile/avatars';
 import { statusOf, STATUS_PRESETS } from '../../profile/status';
 import { GameConfig } from '../../config/GameConfig';
+import { getSessionSnapshot, subscribeAccountSession } from '../../online/account';
+import { copyProfileLink } from '../../online/friends';
+import { bus } from '../../core/events';
 
 function AvatarPicker({ items, value, onPick, disabled, onBuy }: { items: AvatarItem[]; value: string; onPick: (id: string) => void; disabled: (id: string) => boolean; onBuy?: (id: string, currency: 'credits' | 'diamonds') => void }) {
   return (
@@ -55,6 +58,8 @@ export function Profile() {
   const st = statusOf(prof.status as Parameters<typeof statusOf>[0]);
   const equippedTitle = s.equippedTitle ? TITLE_MAP[s.equippedTitle] : undefined;
   const icon = AVATAR_CATALOG.icons.find((i) => i.id === prof.avatarIcon)?.value ?? '⚡';
+  // link público do perfil: só existe para quem tem conta (o snapshot vai ao servidor com o save)
+  const account = useSyncExternalStore(subscribeAccountSession, getSessionSnapshot);
 
   return (
     <div className="screen">
@@ -85,6 +90,23 @@ export function Profile() {
               {prof.statusMessage && <em className="muted small">“{prof.statusMessage}”</em>}
             </div>
           </div>
+          {account && (
+            <button
+              className="btn btn-sm share-profile-btn"
+              title="Copia o link do seu perfil público — amigos abrem direto no jogo"
+              onClick={() => {
+                void copyProfileLink(account.username).then((ok) => {
+                  bus.emit('notify', {
+                    kind: 'default',
+                    title: ok ? '🔗 Link do perfil copiado!' : '⚠️ Não foi possível copiar',
+                    desc: ok ? 'Compartilhe com amigos — eles abrem o seu perfil no jogo.' : `Copie a URL do jogo com ?profile=${account.username}`,
+                  });
+                });
+              }}
+            >
+              🔗 Compartilhar perfil
+            </button>
+          )}
         </div>
       </div>
 

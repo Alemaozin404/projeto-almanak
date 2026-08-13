@@ -3,6 +3,7 @@ import { useGame } from '../context';
 import { useFloatingNumbers, useParticles } from '../effects';
 import { NumText, Panel, Tooltip } from '../kit';
 import { BannerCarousel } from '../BannerCarousel';
+import { SyncStatus } from '../SyncStatus';
 import { GENERATOR_DEFS } from '../../automation/generators';
 import { D } from '../../core/bignum';
 import { CRIT_LABELS, type CritTier } from '../../game/engine';
@@ -62,6 +63,8 @@ export function Home({ onNavigate }: { onNavigate: (s: Screen) => void }) {
   return (
     <div className="home">
       <BannerCarousel onNavigate={onNavigate} />
+
+      <SyncStatus />
 
       <div className="home-top">
         <Panel title="Núcleo de Energia" icon="⚡" className="home-main" right={<span className="muted small">Clique · Espaço · Enter</span>}>

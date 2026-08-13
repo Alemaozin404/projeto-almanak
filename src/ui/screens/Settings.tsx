@@ -12,6 +12,7 @@ import { onlineEnabled, serverUrl } from '../../online/api';
 import { pushCloudSave, pullCloudSave, cloudPlayerId } from '../../online/cloudSave';
 import { lastSyncAt, remoteGameVersion } from '../../liveops/RemoteContent';
 import { debugEnabled } from '../../debug/debug';
+import { setScreenAwake } from '../../core/wakeLock';
 
 interface Props {
   saveMgr: import('../../save/saveManager').SaveManager;
@@ -253,6 +254,7 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
               <h4>🎮 Automação</h4>
               <label className="setting-row"><span>Abrir caixas automaticamente</span><input type="checkbox" checked={g.autoOpenBoxes} onChange={(e) => block('gameplay', { autoOpenBoxes: e.target.checked })} /></label>
               <label className="setting-row"><span>Pausar produção idle em segundo plano</span><input type="checkbox" checked={g.pauseIdle} onChange={(e) => block('gameplay', { pauseIdle: e.target.checked })} /></label>
+              <label className="setting-row"><span>Manter tela acesa (celular)</span><input type="checkbox" checked={g.keepAwake !== false} onChange={(e) => { block('gameplay', { keepAwake: e.target.checked }); void setScreenAwake(e.target.checked); }} title="Não apaga a tela enquanto o jogo está aberto (Android e PWA)" /></label>
               <p className="muted small">A produção passiva é sempre automática. Essas opções ligam/desligam automações reais que você já possui.</p>
             </div>
             <div className="settings-col">

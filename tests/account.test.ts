@@ -204,6 +204,43 @@ describe('Sistema de contas — registro, verificação, login, recuperação e 
     expect(denied.status).toBe(401);
   });
 
+  it('perfil público por link: GET /api/profile/:username devolve o snapshot (deep link, sem sessão)', async () => {
+    const login = await post('/api/account/login', { login: 'jogador_test', password: 'senha-segura-123' });
+    const token = ((await login.json()) as LoginBody).token!;
+    const headers = { 'x-account-token': token };
+
+    // o save sobe junto com o snapshot público do perfil
+    await put('/api/account/save', {
+      saveText: 'NC1.PERFIL_PUBLICO_123',
+      name: 'Jogador Test',
+      savedAt: 1700000000000,
+      slot: 'slot1',
+      playerId: 12345,
+      profile: { name: 'Jogador Test', avatarIcon: 'av_default', status: 'online', statusMessage: 'focado', level: 42, prestige: 7 },
+    }, headers);
+
+    // público — sem token
+    const res = await fetch(`${baseUrl}/api/profile/jogador_test`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { ok?: boolean; profile?: { name?: string; level?: number; prestige?: number; statusMessage?: string; username?: string; online?: boolean; playerId?: number } };
+    expect(body.ok).toBe(true);
+    expect(body.profile?.username).toBe('jogador_test');
+    expect(body.profile?.name).toBe('Jogador Test');
+    expect(body.profile?.level).toBe(42);
+    expect(body.profile?.prestige).toBe(7);
+    expect(body.profile?.statusMessage).toBe('focado');
+    expect(body.profile?.playerId).toBe(12345);
+    // NUNCA expõe o save
+    expect((body as Record<string, unknown>).saveText).toBeUndefined();
+
+    // usuário inexistente / sem perfil sincronizado → 404
+    const missing = await fetch(`${baseUrl}/api/profile/ninguem_aqui`);
+    expect(missing.status).toBe(404);
+    // usuário inválido → 400
+    const bad = await fetch(`${baseUrl}/api/profile/a%20b`);
+    expect(bad.status).toBe(400);
+  });
+
   it('link-slot: exige token, valida slot e re-vincula o save guardado sem reenviar', async () => {
     const login = await post('/api/account/login', { login: 'jogador_test', password: 'senha-segura-123' });
     const token = ((await login.json()) as LoginBody).token!;

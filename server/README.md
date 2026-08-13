@@ -106,6 +106,7 @@ Depois commite o `server/content.json` e faça push — o Vercel redeploya e o j
 | GET | `/api/account/me` | Dados da sessão atual (exige header `x-account-token`) |
 | GET | `/api/account/save` | Baixa o save da conta (exige `x-account-token`) |
 | GET | `/api/account/save?meta=1` | Só o cabeçalho do save (`savedAt`, `slot`, `name`) — poll leve do sync AO VIVO entre dispositivos |
+| GET | `/api/profile/:username` | Perfil público por deep link (`/?profile=<usuario>`) — sem sessão, só o snapshot (404 se nunca sincronizou) |
 | PUT | `/api/account/save` | Guarda o save da conta — o app envia após cada save local (~1 min) e ao sair (exige `x-account-token`) |
 | POST | `/api/account/link-slot` | Re-vincula o save da conta a outro slot (`slot1|slot2|slot3`) sem reenviar (exige `x-account-token`) |
 

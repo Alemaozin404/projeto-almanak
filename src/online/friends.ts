@@ -8,7 +8,7 @@
  * depois de fechar o jogo) e o perfil (nome/avatar/status/nível) do snapshot
  * que o app envia junto do save da conta.
  */
-import { apiFetch, apiJson } from './api';
+import { apiFetch, apiJson, serverUrl } from './api';
 import { getSession } from './account';
 
 export interface FriendInfo {
@@ -42,6 +42,48 @@ export type FriendsResult<T = Record<string, unknown>> =
 function sessionHeaders(): Record<string, string> {
   const s = getSession();
   return s ? { 'x-account-token': s.token } : {};
+}
+
+/**
+ * Perfil público de qualquer jogador via deep link (/?profile=<usuario>) —
+ * mesma forma do perfil que os amigos veem, sem exigir amizade/sessão.
+ */
+export async function fetchPublicProfile(username: string): Promise<FriendsResult<{ profile: FriendInfo }>> {
+  try {
+    const res = await apiFetch(`/api/profile/${encodeURIComponent(username.trim().toLowerCase())}`);
+    const data = await apiJson<{ ok?: boolean; reason?: string; profile?: FriendInfo }>(res);
+    if (!res.ok || data?.ok !== true || !data.profile) {
+      return { ok: false, reason: data?.reason ?? `Servidor recusou (${res.status})`, status: res.status };
+    }
+    return { ok: true, profile: data.profile };
+  } catch {
+    return { ok: false, reason: 'Sem conexão com o servidor' };
+  }
+}
+
+/** Link público do seu perfil (para compartilhar: ?profile=<usuario>). */
+export function buildProfileLink(username: string): string {
+  const base = serverUrl().replace(/\/$/, '');
+  return `${base}/?profile=${encodeURIComponent(username.trim().toLowerCase())}`;
+}
+
+/** Lê o parâmetro ?profile= da URL atual ('' se não houver). */
+export function profileFromUrl(): string {
+  try {
+    return new URLSearchParams(window.location.search).get('profile')?.trim().toLowerCase() ?? '';
+  } catch {
+    return '';
+  }
+}
+
+/** Copia o link do perfil para a área de transferência (retorna se funcionou). */
+export async function copyProfileLink(username: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(buildProfileLink(username));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Lista amigos + solicitações, com presença e perfil de cada amigo. */

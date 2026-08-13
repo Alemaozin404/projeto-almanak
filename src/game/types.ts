@@ -53,6 +53,8 @@ export interface GameplayPrefs {
   confirmAscension: boolean;
   showTutorials: boolean;
   showTips: boolean;
+  /** Mantém a tela acesa durante o jogo (Android + PWA). */
+  keepAwake: boolean;
 }
 
 export interface InterfacePrefs {
@@ -149,6 +151,7 @@ export function defaultSettings(): Settings {
       confirmAscension: true,
       showTutorials: true,
       showTips: true,
+      keepAwake: true,
     },
     notifications: defaultNotificationPrefs(),
     privacy: defaultPrivacyPrefs(),

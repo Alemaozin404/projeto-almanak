@@ -5,6 +5,8 @@ import { GameContext } from './ui/context';
 import { Sidebar, type Screen } from './ui/sidebar';
 import { MobileNav } from './ui/MobileNav';
 import { MobileTopBar } from './ui/MobileTopBar';
+import { PublicProfileModal } from './ui/PublicProfileModal';
+import { profileFromUrl } from './online/friends';
 import { TopBar } from './ui/topbar';
 import { Toasts } from './ui/toasts';
 import { Modal, ConfirmModal } from './ui/kit';
@@ -48,6 +50,7 @@ import { audio } from './audio/audio';
 import { applyTheme } from './ui/theme';
 import { bus } from './core/events';
 import { isNativeApp, quitApp, initNativeShell, hapticLight } from './core/platform';
+import { setScreenAwake } from './core/wakeLock';
 import { formatNumber, formatFull, formatDuration } from './core/notation';
 import type { Num } from './core/bignum';
 import type { CSSProperties } from 'react';
@@ -75,6 +78,14 @@ export default function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   // restauração automática do save da conta no boot aguardando confirmação
   const [pendingAccountRestore, setPendingAccountRestore] = useState<AccountRestoreInfo | null>(null);
+  // deep link de perfil (/?profile=<usuario>) — abre o perfil público no boot
+  const [profileUsername, setProfileUsername] = useState<string | null>(() => profileFromUrl() || null);
+
+  // ── deep link de perfil aberto no boot (limpa o parâmetro da URL) ──
+  useEffect(() => {
+    if (!profileUsername) return;
+    try { window.history.replaceState({}, '', window.location.pathname); } catch { /* sem URL */ }
+  }, [profileUsername]);
 
   // ── conteúdo online (LiveOps): sincroniza no boot e revalida periodicamente ──
   // Notícias, eventos, banners, códigos, changelog e manutenção vêm do servidor
@@ -107,6 +118,8 @@ export default function App() {
     applyTheme(e.state.settings.theme);
 
     const unsub = e.subscribe(() => force());
+    // tela sempre acesa enquanto joga (preferência em Configurações → Gameplay)
+    void setScreenAwake(e.state.settings.gameplay.keepAwake !== false);
     const offs = [
       bus.on('achievement', () => audio.achievement()),
       bus.on('levelUp', () => audio.levelUp()),
@@ -197,6 +210,7 @@ export default function App() {
       saveMgrRef.current!.stopAutoSave();
       stopAccountAutoSave();
       stopAccountLiveSync();
+      void setScreenAwake(false);
     };
   }, []);
 
@@ -443,11 +457,13 @@ export default function App() {
           <button className="btn btn-sm" onClick={() => setAccountOpen(false)}>← Voltar ao menu</button>
         </div>
         <Toasts />
+        {profileUsername && <PublicProfileModal username={profileUsername} onClose={() => setProfileUsername(null)} />}
       </>
     ) : (
       <>
         <MainMenu saveMgr={saveMgrRef.current!} onNewGame={onNewGame} onContinue={onContinue} onImport={onImport} onAccount={() => setAccountOpen(true)} />
         <Toasts />
+        {profileUsername && <PublicProfileModal username={profileUsername} onClose={() => setProfileUsername(null)} />}
       </>
     );
   }
@@ -531,6 +547,7 @@ export default function App() {
           </main>
         </div>
         <Toasts />
+        {profileUsername && <PublicProfileModal username={profileUsername} onClose={() => setProfileUsername(null)} />}
 
         <Modal open={showUpdatePopup} onClose={() => { UpdateManager.markSeen(engine.state); setShowUpdatePopup(false); engine.notify('update'); }} title="🚀 Nova atualização" width={460}>
           {(() => {

@@ -563,6 +563,26 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
     return res.json({ ok: true, friends, incoming: state.incoming, outgoing: state.outgoing });
   });
 
+  // ── perfil público por link (deep link: /?profile=<usuario>) ──
+  // Público (sem sessão) — compartilha o resumo do perfil de um jogador, igual
+  // ao que um amigo vê na lista. Só o snapshot enviado com o save (sem dados
+  // do save em si). 404 se o usuário não existe ou nunca sincronizou o perfil.
+  app.get('/api/profile/:username', async (req, res) => {
+    if (rateLimited(`profile:view:${String(req.params.username || '').toLowerCase()}`, 60)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const target = String(req.params.username || '').trim().toLowerCase();
+    if (!FRIEND_RE.test(target)) {
+      return res.status(400).json({ ok: false, reason: 'Usuário inválido' });
+    }
+    const info = await friendInfo(target);
+    // sem perfil sincronizado → não existe link público
+    if (!(await kvGetJson(publicProfileKey(target)))) {
+      return res.status(404).json({ ok: false, reason: 'Perfil não encontrado' });
+    }
+    return res.json({ ok: true, profile: info });
+  });
+
   // ── adicionar amigo (cria solicitação; confirma na hora se já havia solicitação contrária) ──
   app.post('/api/friends/add', async (req, res) => {
     const username = await requireSessionUser(req, res);

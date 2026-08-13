@@ -1,8 +1,9 @@
-// Gera os ícones do launcher Android a partir do MESMO visual do jogo (orbe + raio),
-// sem dependências externas:
+// Gera os ícones do launcher Android + PWA a partir do MESMO visual do jogo
+// (orbe + raio), sem dependências externas:
 //   - ic_launcher.png / ic_launcher_round.png nas 5 densidades (legado)
 //   - ic_launcher_foreground.png (adaptativo API 26+ — arte na zona segura)
-// Escreve direto em android/app/src/main/res/mipmap-*/ (arquivos commitados).
+//   - public/icons/icon-{192,512}.png (manifest do PWA instalável)
+// Escreve direto em android/app/src/main/res/mipmap-*/ e public/icons/.
 import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -157,4 +158,10 @@ for (const { name, size } of DENSITIES) {
   writePng(path.join(mipmap, 'ic_launcher_foreground.png'), renderForeground(size));
 }
 
+// ── ícones do PWA instalável (manifest) ──
+const pwaDir = path.join(process.cwd(), 'public', 'icons');
+writePng(path.join(pwaDir, 'icon-192.png'), renderLegacy(192, false));
+writePng(path.join(pwaDir, 'icon-512.png'), renderLegacy(512, false));
+
 console.log('Ícones Android gerados em android/app/src/main/res/mipmap-*/');
+console.log('Ícones PWA gerados em public/icons/');

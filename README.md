@@ -140,7 +140,9 @@ O jogo roda no celular com o **mesmo código web** — o app Android é um WebVi
 2. Baixe `app-debug.apk` (ou `app-release.apk` se houver assinatura configurada).
 3. No celular, toque no arquivo e permita instalar de fontes desconhecidas (é sideload — não é Play Store).
 
-> Sem APK? O site no celular (`https://projeto-almanak-alemaozin404s-projects.vercel.app`) já é jogável e sincroniza o mesmo save da conta — o app é a mesma coisa, em um ícone próprio.
+> Sem APK? O site no celular (`https://projeto-almanak-alemaozin404s-projects.vercel.app`) já é jogável, **instalável como PWA** (menu do navegador → *Adicionar à tela inicial* — manifest + service worker com cache do app shell) e sincroniza o mesmo save da conta.
+
+**Deep link de perfil**: a tela Perfil tem *🔗 Compartilhar perfil* — o link `/?profile=<usuario>` abre o perfil público do jogador no jogo (sem exigir amizade/sessão; o snapshot é enviado junto do save).
 
 ### Build local (precisa de Android SDK/Studio)
 
