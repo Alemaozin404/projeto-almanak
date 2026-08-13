@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useGame } from '../context';
 import { Panel, ConfirmModal, Modal } from '../kit';
-import { GAME_PASS_LEVELS, PASS_EXCLUSIVE } from '../../pass/GamePass';
+import { GAME_PASS_LEVELS, PASS_EXCLUSIVE, summarizePass } from '../../pass/GamePass';
 import { GameConfig } from '../../config/GameConfig';
 import { pixOnlineEnabled, testPixBackend } from '../../wallet/mp';
 import { PixOrderModal, type ActivePixOrder } from '../PixOrderModal';
@@ -10,16 +10,87 @@ import { audio } from '../../audio/audio';
 import { formatNumber } from '../../core/notation';
 import { premiumLockLabel } from '../../content/skins';
 
-function rewardSummary(spec: { gold?: string; crystals?: number; boxes?: { boxId: string; qty: number }[]; skins?: string[]; pets?: string[]; titles?: string[]; consumables?: { id: string; qty: number }[] }): string {
+function rewardSummary(spec: { gold?: string; energy?: string; credits?: number; crystals?: number; fragments?: number; essence?: number; prestigeCoins?: number; ascensionCoins?: number; eventTokens?: number; xp?: string; skillPoints?: number; boxes?: { boxId: string; qty: number }[]; skins?: string[]; pets?: string[]; titles?: string[]; avatarItems?: string[]; consumables?: { id: string; qty: number }[] }): string {
   const parts: string[] = [];
   if (spec.gold) parts.push(`🪙 ${formatNumber(spec.gold, 'short')}`);
+  if (spec.credits) parts.push(`💳 ${spec.credits}`);
   if (spec.crystals) parts.push(`💎 ${spec.crystals}`);
-  if (spec.boxes) parts.push(`📦 ${spec.boxes.map((b) => `${b.qty}×`).join(' ')}`);
+  if (spec.fragments) parts.push(`🧩 ${spec.fragments}`);
+  if (spec.essence) parts.push(`✨ ${spec.essence}`);
+  if (spec.prestigeCoins) parts.push(`👑 ${spec.prestigeCoins}`);
+  if (spec.eventTokens) parts.push(`🎟️ ${spec.eventTokens}`);
+  if (spec.xp) parts.push(`⚡ ${formatNumber(spec.xp, 'short')} XP`);
+  if (spec.skillPoints) parts.push(`🧠 +${spec.skillPoints} SP`);
+  if (spec.boxes) parts.push(`📦 ${spec.boxes.map((b) => `${b.qty}×${boxLabel(b.boxId)}`).join(' ')}`);
   if (spec.skins) parts.push('🎨 Skin');
   if (spec.pets) parts.push('🐾 Pet');
   if (spec.titles) parts.push('🎖️ Título');
-  if (spec.consumables) parts.push('🍖 Consumível');
+  if (spec.avatarItems) parts.push(`🖼️ ${spec.avatarItems.map(avatarLabel).join(', ')}`);
+  if (spec.consumables) parts.push(`🍖 ${spec.consumables.map((c) => `${c.qty}×`).join(' ')}`);
   return parts.join(' · ') || '—';
+}
+
+/** Rótulo curto por id de caixa (para o resumo). */
+function boxLabel(id: string): string {
+  return { basic: 'Básica', rare: 'Rara', event: 'Evento', legendary: 'Lendária', celestial: 'Celestial' }[id] ?? id;
+}
+
+/** Nome do item de avatar (para o resumo). */
+function avatarLabel(id: string): string {
+  return {
+    av_cyber: 'Avatar Netrunner',
+    fr_premium: 'Moldura Premium',
+    fx_premium: 'Aura Premium',
+    bd_premium: 'Badge Premium',
+  }[id] ?? id;
+}
+
+/** Nome da skin do passe (para o resumo). */
+function passSkinName(id: string): string {
+  return {
+    pass_echo: 'Eco Prisma 🔷',
+    pass_core: 'Núcleo Imperial 👑',
+    pass_glitch: 'Glitch Temporal 🕹️',
+    pass_divine: 'Aura Divina 😇',
+    pass_omega: 'Omega Supremo ⏳',
+    pass_omega_alt: 'Omega Eterno 🌌',
+  }[id] ?? id;
+}
+
+/** Resumo visual do passe: o que você ganha em cada trilha (topo da tela). */
+function PassSummaryGrid({ owned }: { owned: boolean }) {
+  const sum = summarizePass();
+  return (
+    <div className="pass-summary">
+      <div className="pass-summary-head">
+        <strong>🎁 O que você ganha nesta temporada</strong>
+        <span className="muted small">{sum.freeRewards} recompensas grátis · {sum.premiumRewards} premium</span>
+      </div>
+      <div className="pass-summary-grid">
+        <div className="pass-summary-card free">
+          <h4>🆓 Trilha Grátis</h4>
+          <ul>
+            <li>💎 <b>+{sum.totalCrystals.toLocaleString('pt-BR')}</b> diamantes</li>
+            <li>📦 <b>+{sum.totalBoxes}</b> caixas (básicas, raras e de evento)</li>
+            <li>🪙 Ouro progressivo em todos os 100 níveis</li>
+            <li>🧩 Fragmentos e consumíveis ao longo da trilha</li>
+          </ul>
+        </div>
+        <div className="pass-summary-card premium">
+          <h4>💎 Trilha Premium {!owned && '🔒'}</h4>
+          <ul>
+            <li>💳 <b>+{sum.totalCredits.toLocaleString('pt-BR')}</b> créditos (moeda da loja)</li>
+            <li>💎 <b>+{sum.totalCrystals.toLocaleString('pt-BR')}</b> diamantes extras</li>
+            <li>🎨 <b>{sum.skins.length} skins exclusivas</b>: {sum.skins.map((s) => passSkinName(s.skin)).join(', ')}</li>
+            {sum.hasPet && <li>🐾 Pet exclusivo <b>Cronos</b> (nível 100)</li>}
+            {sum.hasTitles && <li>🎖️ Títulos exclusivos (Premium + Omega)</li>}
+            {sum.hasAvatarItems && <li>🖼️ Avatar, moldura, aura e badge premium</li>}
+            <li>📦 Caixas de evento nos marcos</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function Pass() {
@@ -164,6 +235,8 @@ export function Pass() {
           </div>
         </div>
 
+        <PassSummaryGrid owned={p.owned} />
+
         <div className="pass-tracks">
           <div className="pass-track-head">
             <span>Nível</span>
@@ -177,8 +250,15 @@ export function Pass() {
             const reachable = lvl >= l.level;
             const premiumSpec = p.owned && l.premium;
             const isExclusive = PASS_EXCLUSIVE.some((e) => e.atLevel === l.level);
+            const isSkinLevel = isExclusive;
+            const isBigMilestone = l.level % 10 === 0;
+            const cls = [
+              'pass-row',
+              isSkinLevel ? 'milestone-skin' : '',
+              isBigMilestone ? 'milestone' : '',
+            ].filter(Boolean).join(' ');
             return (
-              <div key={l.level} className={`pass-row ${l.level === 5 || l.level === 10 || l.level === 20 || l.level === 50 || l.level === 100 ? 'milestone' : ''}`}>
+              <div key={l.level} className={cls}>
                 <strong className="pass-lvl">{l.level}</strong>
                 <span className="pass-reward">{l.free ? rewardSummary(l.free) : '—'}</span>
                 <span className={`pass-reward ${premiumSpec ? '' : 'muted'}`}>

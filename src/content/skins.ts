@@ -305,6 +305,13 @@ export const SKINS: SkinDef[] = [
     bonus: pct({ luck: 10, goldGain: 10 }),
     check: (s) => ownedSet(s).has('pass_omega') || s.flags.skin_pass_omega === 1,
   },
+  {
+    id: 'pass_omega_alt', name: 'Omega Eterno', icon: '🌌', desc: 'O auge absoluto — concedido apenas no nível 100 do Passe Premium.', rarity: 'exclusive', category: 'efeitos',
+    obtain: 'pass', tags: ['passe', 'premium', 'lendário'],
+    visual: { core: { color: '#c9b6ff', color2: '#ff6bd6', glow: 'rgba(201,182,255,0.9)' }, accent: '#c9b6ff', particle: '#ff6bd6', numbers: 'num-neon' },
+    bonus: pct({ critChance: 3, luck: 15, goldGain: 15 }),
+    check: (s) => ownedSet(s).has('pass_omega_alt') || s.flags.skin_pass_omega_alt === 1,
+  },
 ];
 
 export const SKIN_MAP: Record<string, SkinDef> = Object.fromEntries(SKINS.map((s) => [s.id, s]));

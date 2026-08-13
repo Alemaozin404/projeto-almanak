@@ -13,7 +13,7 @@ import { validateContent, type AdminContent } from '../src/admin/content';
 import { STATUS_PRESETS, statusOf } from '../src/profile/status';
 import { AVATAR_CATALOG } from '../src/profile/avatars';
 import { SKINS, mysteryLabel, isSkinRevealed, hiddenSkins, collectionSkinProgress, premiumLockLabel } from '../src/content/skins';
-import { GAME_PASS_LEVELS, passLevelFromXp, passNextLevel } from '../src/pass/GamePass';
+import { GAME_PASS_LEVELS, PASS_EXCLUSIVE, passLevelFromXp, passNextLevel, summarizePass } from '../src/pass/GamePass';
 import { setupAdminPin, loginAdmin, logoutAdmin, isAdminLoggedIn, hasAdminPin } from '../src/admin/auth';
 import { audit, auditLog, securityLogEntries, clearAuditLogs } from '../src/admin/audit';
 import { saveDraft, publishContent, autoBackup, backupList, restoreBackup, loadContent } from '../src/admin/content';
@@ -190,18 +190,17 @@ describe('Passe Premium global (Update 3.0)', () => {
     expect(e.state.premiumPass.xp).toBe(GameConfig.pass.dailyXpCap + 100);
   });
 
-  it('trilha grátis libera recompensa a cada 5 níveis; premium em todos os níveis', () => {
+  it('trilha grátis e premium liberam recompensa em TODOS os níveis', () => {
     for (let lvl = 1; lvl <= 100; lvl++) {
       const def = GAME_PASS_LEVELS[lvl - 1];
       expect(def.premium).toBeDefined();
-      if (lvl % 5 === 0) expect(def.free).toBeDefined();
-      else expect(def.free).toBeUndefined();
+      expect(def.free).toBeDefined(); // free agora recompensa em todos os níveis
     }
     const e = new GameEngine();
     e.addPassXp(GAME_PASS_LEVELS[4].xp); // nível 5
-    expect(e.claimPassFree(3).ok).toBe(false); // sem recompensa free no nível 3
+    expect(e.claimPassFree(3).ok).toBe(true); // recompensa free no nível 3
     expect(e.claimPassFree(5).ok).toBe(true);
-    expect(e.claimPassFree(4).ok).toBe(false); // nível sem recompensa free
+    expect(e.claimPassFree(3).ok).toBe(false); // duplicado
   });
 
   it('recompensas grátis disponíveis sem premium; premium exige compra', () => {
@@ -256,6 +255,30 @@ describe('Passe Premium global (Update 3.0)', () => {
     const r = e.claimPassPremium(100);
     expect(r.ok).toBe(true);
     expect(e.state.pets['pet_chrono']).toBeDefined();
+  });
+
+  it('skins exclusivas aparecem UMA única vez na trilha premium', () => {
+    const seen = new Map<string, number>();
+    for (const l of GAME_PASS_LEVELS) {
+      const skins = l.premium?.skins ?? [];
+      for (const sk of skins) seen.set(sk, (seen.get(sk) ?? 0) + 1);
+    }
+    for (const [skin, count] of seen) expect(count).toBe(1);
+    // todas as 6 skins do passe estão na trilha
+    for (const ex of PASS_EXCLUSIVE) expect(seen.has(ex.skin)).toBe(true);
+  });
+
+  it('summarizePass resume o passe com números coerentes', () => {
+    const s = summarizePass();
+    expect(s.freeRewards).toBe(100); // recompensa free em todos os níveis
+    expect(s.premiumRewards).toBe(100);
+    expect(s.skins.length).toBe(6);
+    expect(s.totalCredits).toBeGreaterThan(0);
+    expect(s.totalCrystals).toBeGreaterThan(0);
+    expect(s.totalBoxes).toBeGreaterThan(0);
+    expect(s.hasPet).toBe(true);
+    expect(s.hasTitles).toBe(true);
+    expect(s.hasAvatarItems).toBe(true);
   });
 });
 

@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.7.0';
+export const GAME_VERSION = '1.8.0';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,19 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.8.0',
+    title: 'PASSE PREMIUM DE VERDADE',
+    date: '2026-08-13',
+    description: 'O Passe Premium foi completamente redesenhado: agora as duas trilhas recompensam em TODOS os 100 níveis. A trilha grátis ganhou diamantes, fragmentos e caixas crescendo; a trilha premium ganhou créditos, diamantes extras, caixas de evento e novos exclusivos — incluindo a skin nova Omega Eterno 🌌 no nível 100, com resumo visual de tudo que você ganha no topo da tela.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '🎟️', items: ['Trilha grátis recompensa em TODOS os 100 níveis (antes: só a cada 5) — ouro, diamantes 💎, fragmentos 🧩, caixas e consumíveis', 'Trilha premium com créditos 💳 (20+ níveis), diamantes, caixas de evento e exclusivos nos marcos', 'Bloco “O que você ganha nesta temporada” no topo — compara as duas trilhas com os totais'] },
+      { tag: 'NOVO', icon: '✨', items: ['Skin exclusiva nova: Omega Eterno 🌌 (nível 100 — crit +15%, sorte +15%, ouro +15%)', '6 skins exclusivas sem duplicar (Eco Prisma, Núcleo Imperial, Glitch, Aura Divina, Omega, Omega Eterno)', 'Avatar, moldura, aura e badge premium agora em marcos separados (35, 40, 55 e 65)', 'Níveis de skin em destaque roxo + marcos dourados a cada 10'] },
+      { tag: 'ALTERADO', icon: '⚙', items: ['Nível 100 muito mais valioso: skin + pet Cronos + título Omega + todos os avatar items + 300 créditos + 3.000 diamantes', 'Resumo de recompensa mostra tudo: créditos, diamantes, fragmentos, XP, avatar items e caixas nomeadas'] },
+      { tag: 'CORRIGIDO', icon: '🛠', items: ['Skins duplicadas na trilha premium (Eco Prisma e Núcleo Imperial apareciam 2×)'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.7.0',
     title: 'TELEMETRIA + SONS EM TODAS AS AÇÕES',

@@ -2027,12 +2027,46 @@ body {
 .pass-track-head { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .pass-row { background: rgba(255,255,255,0.02); border: 1px solid var(--border); }
 .pass-row.milestone { border-color: rgba(255,225,77,0.45); background: rgba(255,225,77,0.05); }
+.pass-row.milestone-skin { border-color: rgba(255,107,255,0.55); background: linear-gradient(90deg, rgba(255,107,255,0.12), rgba(var(--acc-rgb),0.04)); box-shadow: 0 0 0 1px rgba(255,107,255,0.15); }
+.pass-row.milestone-skin .pass-lvl { color: #ff6bff; }
 .pass-lvl { font-weight: 700; color: var(--accent); }
 .pass-reward { font-size: 13px; }
 .pass-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
 .pass-checked { color: var(--accent); font-weight: 700; }
 .pass-checked.gold { color: var(--gold, #ffd94d); }
 .pass-exclusive { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; color: #ff6bff; border: 1px solid rgba(255,107,255,0.5); padding: 2px 6px; border-radius: 999px; }
+
+/* ── Passe: resumo do que você ganha ── */
+.pass-summary {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: linear-gradient(140deg, rgba(var(--acc-rgb), 0.05), rgba(255,107,255, 0.06));
+}
+.pass-summary-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.pass-summary-head strong { letter-spacing: 0.04em; }
+.pass-summary-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.pass-summary-card {
+  border-radius: 12px; padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+.pass-summary-card.free { border-color: rgba(var(--acc-rgb), 0.35); }
+.pass-summary-card.premium { border-color: rgba(255, 217, 77, 0.4); background: linear-gradient(160deg, rgba(255, 217, 77, 0.06), rgba(255, 107, 255, 0.05)); }
+.pass-summary-card h4 { margin: 0 0 6px; font-size: 13px; }
+.pass-summary-card ul { margin: 0; padding-left: 16px; }
+.pass-summary-card li { font-size: 12px; margin: 3px 0; color: var(--text); }
+.pass-summary-card li b { color: var(--accent); }
+.pass-summary-card.premium li b { color: var(--gold, #ffd94d); }
+@media (max-width: 640px) {
+  .pass-summary-grid { grid-template-columns: 1fr; }
+}
 .premium-reward-box { text-align: center; padding: 20px; background: rgba(255,107,255,0.06); border: 1px dashed rgba(255,107,255,0.4); border-radius: 14px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; align-items: center; }
 
 /* ── Skins ocultas (mistério) ── */
