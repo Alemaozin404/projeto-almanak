@@ -106,6 +106,12 @@ wallet: {
 
 Pronto! A Carteira cobra de verdade, o conteúdo sincroniza e o save pode ir para a nuvem.
 
+### Card de compartilhamento (WhatsApp/Telegram)
+
+O `index.html` tem OG tags + `public/og-banner.png` (banner 1200×630 gerado por `npm run og:banner` com a marca do jogo) — links compartilhados mostram preview com imagem, título e descrição.
+
+> ⚠️ Se mudar o **domínio** do Vercel (ex.: adicionar um domínio próprio), atualize as URLs absolutas do `og:image`/`twitter:image` no `index.html` — crawlers não resolvem caminhos relativos.
+
 ---
 
 ## 📦 Publicando conteúdo novo (sem reinstalar o app)

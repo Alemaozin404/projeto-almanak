@@ -19,6 +19,7 @@
     "android:sync": "vite build && cap sync android",
     "android:icons": "node scripts/gen-android-icons.mjs",
     "android:splash": "node scripts/gen-splash.mjs",
+    "og:banner": "node scripts/gen-og-banner.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"electron/**/*.ts\" \"scripts/**/*.mjs\"",
     "test": "vitest run",
