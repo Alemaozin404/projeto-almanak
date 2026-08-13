@@ -13,6 +13,7 @@ import type { EventRewardSpec } from '../../content/rewards';
 function RewardLine({ spec }: { spec: EventRewardSpec }) {
   const { fmt } = useGame();
   const parts: string[] = [];
+  if (spec.credits) parts.push(`💳 ${spec.credits} créditos`);
   if (spec.gold) parts.push(`🪙 ${fmt(D(spec.gold), 0)} ouro`);
   if (spec.crystals) parts.push(`💎 ${spec.crystals} cristais`);
   if (spec.fragments) parts.push(`🌀 ${spec.fragments} fragmentos`);
@@ -105,10 +106,12 @@ export function Updates() {
           {Array.from({ length: 7 }, (_, i) => i).map((i) => {
             const claimed = daily.count > i;
             const isNext = daily.count === i;
+            const r = engine.dailyLoginReward(i);
+            const extra = r.boxes ? ` · ${r.boxes.map((b) => `${b.qty}📦`).join(' ')}` : r.gold ? ' · 🪙' : '';
             return (
               <div key={i} className={`daily-cell ${claimed ? 'claimed' : ''} ${isNext ? 'next' : ''}`}>
                 <span className="muted small">Dia {i + 1}</span>
-                <span>{['🪙', '💎', '📦', '🪙', '💎', '📦', '📦'][i]}</span>
+                <span>💳 {r.credits ?? 0}{extra}</span>
                 {claimed ? <span className="claimed-tag">✓</span> : isNext && dailyOk ? <span className="muted small">disponível</span> : <span className="muted small">—</span>}
               </div>
             );

@@ -6,6 +6,8 @@
 export interface EventRewardSpec {
   gold?: string;
   energy?: string;
+  /** Créditos 💳 — moeda principal (passe, avatares, caixas premium, eventos). */
+  credits?: number;
   crystals?: number;
   fragments?: number;
   essence?: number;

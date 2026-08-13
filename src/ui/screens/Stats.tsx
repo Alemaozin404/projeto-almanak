@@ -8,7 +8,7 @@ export function Stats() {
   const s = engine.state;
   const order = [
     'clicks', 'clicksAuto', 'crits', 'superCrits', 'megaCrits', 'ultraCrits',
-    'energyProduced', 'goldEarned', 'crystalsEarned', 'xpEarned', 'goldDrops',
+    'energyProduced', 'goldEarned', 'crystalsEarned', 'creditsEarned', 'xpEarned', 'goldDrops',
     'biggestClick', 'biggestCrit', 'energyPerSecMax',
     'upgradesBought', 'generatorsBought', 'boxesOpened', 'petsFound', 'equipmentFound',
     'questsCompleted', 'achievementsUnlocked', 'prestigeCount', 'ascensionCount', 'transcendenceCount',

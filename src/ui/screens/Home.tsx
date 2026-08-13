@@ -130,10 +130,18 @@ export function Home({ onNavigate }: { onNavigate: (s: Screen) => void }) {
 
           <Panel title="Login diário" icon="📆" className="home-daily">
             <div className="daily-inline">
-              {Array.from({ length: 7 }, (_, i) => i).map((i) => (
-                <span key={i} className={`daily-dot ${s.dailyLogin.count > i ? 'claimed' : ''} ${s.dailyLogin.count === i ? 'next' : ''}`}>{i + 1}</span>
-              ))}
+              {Array.from({ length: 7 }, (_, i) => i).map((i) => {
+                const r = engine.dailyLoginReward(i);
+                return (
+                  <span
+                    key={i}
+                    className={`daily-dot ${s.dailyLogin.count > i ? 'claimed' : ''} ${s.dailyLogin.count === i ? 'next' : ''}`}
+                    title={`Dia ${i + 1}: ${r.credits ? `+${r.credits} créditos 💳` : ''}${r.gold ? ` · +${fmt(D(r.gold), 0)} moedas` : ''}${r.boxes ? ` · ${r.boxes.map((b) => `${b.qty} caixa`).join(' ')}` : ''}`}
+                  >{i + 1}</span>
+                );
+              })}
             </div>
+            <p className="muted small daily-today">Hoje: +{fmt(engine.dailyLoginReward().credits ?? 0, 0)} 💳</p>
             <button className="btn btn-sm" disabled={!engine.dailyLoginAvailable()} onClick={() => engine.claimDailyLogin()}>
               {engine.dailyLoginAvailable() ? '🎁 Coletar' : 'Em breve'}
             </button>

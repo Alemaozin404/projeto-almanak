@@ -5,6 +5,7 @@ import { formatDuration } from '../core/notation';
 import { GAME_VERSION } from '../content/updates';
 import { audio } from '../audio/audio';
 import { applyTheme, storedTheme } from './theme';
+import { quitApp } from '../core/platform';
 import { getSessionSnapshot, subscribeAccountSession, fetchAccountMe, clearSession, type AccountInfo } from '../online/account';
 import { onlineEnabled } from '../online/api';
 
@@ -184,7 +185,7 @@ export function MainMenu({ saveMgr, onNewGame, onContinue, onImport, onAccount }
             {onAccount && (
               <button className="btn btn-big" onClick={() => { audio.ui(); onAccount(); }}>👤 CONTA</button>
             )}
-            <button className="btn btn-big" onClick={() => { audio.ui(); window.close(); }}>⏻ SAIR</button>
+            <button className="btn btn-big" onClick={() => { audio.ui(); quitApp(); }}>⏻ SAIR</button>
           </div>
         ) : (
           <div className="slot-list">

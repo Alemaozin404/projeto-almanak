@@ -8,6 +8,7 @@ import { activeSeason } from '../src/content/seasons';
 import { BannerManager } from '../src/liveops/BannerManager';
 import { UpdateManager } from '../src/liveops/UpdateManager';
 import { ContentManager } from '../src/liveops/ContentManager';
+import { CODES } from '../src/content/codes';
 import { GAME_VERSION } from '../src/content/updates';
 
 const T = (s: string) => new Date(s).getTime();
@@ -213,10 +214,17 @@ describe('Códigos e login diário', () => {
 
   it('código expirado é recusado', () => {
     const e = new GameEngine();
-    // CYBER2026 expira 12/08/2026 — simula data futura
-    e.redeemCode('CYBER2026');
-    expect(e.isSkinOwned('cursor_cyber')).toBe(true);
-    expect(e.hasPremiumPass('cyber')).toBe(true);
+    // CYBER2026 expira em 12/08/2026 23:59 UTC — conteúdo ao vivo com prazo.
+    // O teste NÃO depende do relógio: compara o resultado com a expiração do
+    // próprio código, então continua válido antes e depois do prazo.
+    const code = CODES.find((c) => c.id === 'CYBER2026');
+    const expired = code ? Date.now() > (code.expiresAt ?? Infinity) : true;
+    const r = e.redeemCode('CYBER2026');
+    expect(r.ok).toBe(!expired);
+    if (!expired) {
+      expect(e.isSkinOwned('cursor_cyber')).toBe(true);
+      expect(e.hasPremiumPass('cyber')).toBe(true);
+    }
   });
 
   it('login diário respeita a janela de 20h', () => {
@@ -231,6 +239,31 @@ describe('Códigos e login diário', () => {
     e.state.dailyLogin.lastClaim = Date.now() - 21 * 3600 * 1000;
     expect(e.dailyLoginAvailable()).toBe(true);
     expect(e.dailyLoginDay()).toBe(1);
+  });
+
+  it('login diário entrega CRÉDITOS 💳 progressivos (economia testável)', () => {
+    const e = new GameEngine();
+    // dia 1 entrega créditos de verdade
+    const r0 = e.claimDailyLogin();
+    expect(r0.ok).toBe(true);
+    expect(r0.reward.credits).toBeGreaterThan(0);
+    expect(e.getRes('credits').toString()).toBe(String(r0.reward.credits));
+    // ciclo completo: todos os 7 dias entregam créditos, crescendo até o jackpot do dia 7
+    let total = r0.reward.credits ?? 0;
+    let prev = r0.reward.credits ?? 0;
+    for (let i = 1; i < 7; i++) {
+      e.state.dailyLogin.lastClaim = Date.now() - 21 * 3600 * 1000;
+      const r = e.claimDailyLogin();
+      expect(r.ok).toBe(true);
+      expect(r.day).toBe(i);
+      expect(r.reward.credits ?? 0).toBeGreaterThanOrEqual(prev); // progressivo (não regride)
+      prev = r.reward.credits ?? 0;
+      total += prev;
+    }
+    // total semanal relevante para testar a economia (passe = 180 💳)
+    expect(total).toBeGreaterThan(180);
+    // getter de preview reflete o ciclo
+    expect(e.dailyLoginReward(6).credits).toBeGreaterThanOrEqual(e.dailyLoginReward(0).credits!);
   });
 
   it('compensação é única', () => {

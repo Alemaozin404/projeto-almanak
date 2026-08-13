@@ -35,6 +35,7 @@ export const STAT_DEFAULTS: Record<string, string> = {
   fichasBought: '0',
   creditsBought: '0',
   creditsConverted: '0',
+  creditsEarned: '0',
   diamondsFromCredits: '0',
 };
 

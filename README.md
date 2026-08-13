@@ -114,16 +114,68 @@ Pronto! A Carteira cobra de verdade, o conteúdo sincroniza e o save pode ir par
 
 **Manutenção online**: adicione uma janela em `maintenance.ts`, exporte e commite — o jogo exibe a tela de manutenção para todos. Para reabrir, remova a janela e repita.
 
-## 🔄 Publicando uma versão nova do app (auto-update)
+## 🔄 Publicando uma versão nova do app (auto-update + APK Android)
 
 ```bash
 npm version patch   # ou minor / major — cria a tag vX.Y.Z
 git push && git push --tags
 ```
 
-O workflow `.github/workflows/release.yml` builda o instalador Windows e publica no **GitHub Releases**. O jogo detecta, baixa e instala sozinho (Configurações → Sistema → Atualizações).
+O workflow `.github/workflows/release.yml` faz tudo em um único Release:
+
+1. **Windows** (job `release`): builda o instalador `nsis` e publica no **GitHub Releases** (auto-update do Electron).
+2. **Android** (job `android`): builda o **APK** com o mesmo código web (Capacitor) e **anexa ao mesmo Release** — celulares baixam o `.apk` direto em *Releases* → *Assets*.
 
 > Requisitos: repositório **público** (ou GH_TOKEN no app) e `build.publish.owner/repo` corretos.
+
+---
+
+## 📱 App Android (APK no GitHub)
+
+O jogo roda no celular com o **mesmo código web** — o app Android é um WebView do Capacitor servindo o build Vite (`dist/`). Nada muda no gameplay e **continua 100% online**: save na nuvem, ranking global, conteúdo ao vivo e Pix usam o mesmo backend do Vercel.
+
+### Baixar (usuários)
+
+1. Vá em **Releases** do repositório → aba **Assets** da versão mais recente.
+2. Baixe `app-debug.apk` (ou `app-release.apk` se houver assinatura configurada).
+3. No celular, toque no arquivo e permita instalar de fontes desconhecidas (é sideload — não é Play Store).
+
+> Sem APK? O site no celular (`https://projeto-almanak-alemaozin404s-projects.vercel.app`) já é jogável e sincroniza o mesmo save da conta — o app é a mesma coisa, em um ícone próprio.
+
+### Build local (precisa de Android SDK/Studio)
+
+```bash
+npm install
+npm run content:export
+npm run android:sync     # vite build + cap sync android
+cd android && ./gradlew assembleDebug    # Windows: gradlew.bat assembleDebug
+# APK em android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Instale no celular conectado via USB (depuração ativada): `cd android && ./gradlew installDebug`.
+
+### Assinatura do APK (opcional, recomendada)
+
+Sem assinatura o workflow gera um `app-debug.apk` — instala, mas o Android reclama do fabricante. Para um `app-release.apk` assinado, crie um keystore uma vez e configure 4 secrets no GitHub (Settings → Secrets and variables → Actions):
+
+```bash
+# gera o keystore (guarde as senhas!)
+keytool -genkeypair -v -keystore release.jks -alias nucleo -keyalg RSA -keysize 2048 -validity 10000
+base64 -w0 release.jks   # saída = valor do secret ANDROID_KEYSTORE_BASE64
+```
+
+| Secret | Valor |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | conteúdo do `release.jks` em base64 |
+| `ANDROID_KEYSTORE_PASSWORD` | senha do keystore (keytool pede 2x) |
+| `ANDROID_KEY_ALIAS` | alias usado no keytool (`nucleo`) |
+| `ANDROID_KEY_PASSWORD` | senha da chave (pode ser igual à do keystore) |
+
+> ⚠️ O keystore é a identidade do app: **nunca** commite o arquivo (`.gitignore` já bloqueia `*.jks`). Se perder, não dá para atualizar uma instalação antiga.
+
+### Botão voltar do Android
+
+O botão físico/navegação do Android fecha modal aberto → volta ao Núcleo (Início) → sai do app.
 
 ## 🧪 Desenvolvimento
 

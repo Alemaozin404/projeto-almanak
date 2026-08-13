@@ -2010,6 +2010,7 @@ body {
 .pass-hero-icon { font-size: 44px; }
 .pass-buy-buttons { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .pass-progress { margin-bottom: 14px; }
+.daily-today { margin: 6px 0 0; color: #7df9ff; font-weight: 600; }
 .pass-xp-buy {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px;
   padding: 8px 10px; border: 1px dashed var(--border); border-radius: 10px;
@@ -3271,3 +3272,94 @@ body.theme-neon .app-fx::before {
 
 .settings-ok { color: #5dff8a; }
 .settings-err { color: #ff8a5c; }
+
+/* ═══════════ MOBILE (app Android / celular) ═══════════ */
+
+/* barra de navegação inferior — visível apenas no celular */
+.mobile-nav { display: none; }
+
+/* toque: sem delay, sem double-tap-zoom e sem flash ao tocar */
+button, a, .nav-item, .mnav-btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+@media (max-width: 760px) {
+  .app { height: 100dvh; }
+
+  /* sidebar desktop some — a navegação vira barra inferior */
+  .sidebar { display: none; }
+
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 90;
+    background: rgba(6, 10, 20, 0.97);
+    border-top: 1px solid var(--border-strong);
+    padding-bottom: env(safe-area-inset-bottom);
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  .mnav-btn {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 7px 2px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 10px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: color 0.13s ease;
+  }
+
+  .mnav-btn.active { color: var(--accent); }
+  .mnav-icon { font-size: 19px; line-height: 1; }
+
+  .mnav-more { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .mnav-more .nav-item { font-size: 12.5px; padding: 8px 10px; }
+
+  /* topbar: respira com a notch/status bar */
+  .topbar {
+    padding: calc(8px + env(safe-area-inset-top)) 10px 8px;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .resources { gap: 5px; }
+  .resource { padding: 4px 9px; }
+  .res-value { font-size: 12px; }
+
+  /* conteúdo não fica escondido atrás da barra inferior */
+  .content { padding: 12px 12px calc(74px + env(safe-area-inset-bottom)); }
+
+  /* telas empilhadas no lugar de colunas largas */
+  .home-top { grid-template-columns: 1fr; }
+  .home { gap: 10px; }
+  .core-area { height: 300px; }
+
+  /* menu principal cabe na tela */
+  .menu-content { min-width: 0; width: calc(100vw - 24px); max-width: 460px; padding: 20px 16px; }
+  .menu-title { font-size: 30px; letter-spacing: 4px; }
+
+  /* modais ocupam quase toda a tela */
+  .modal { margin: 8px; max-height: 90vh; }
+
+  /* toasts de ponta a ponta */
+  .toast-stack { top: calc(10px + env(safe-area-inset-top)); right: 8px; left: 8px; align-items: stretch; }
+  .toast { min-width: 0; max-width: none; width: 100%; }
+
+  /* inputs não zoam ao focar (WebView Android) */
+  input, select, textarea { font-size: 16px !important; }
+
+  /* grades de cartões largos viram coluna única */
+  .upgrade-grid, .item-grid, .box-grid, .pet-grid, .skill-grid, .equip-layout,
+  .ach-grid, .title-grid, .gen-grid { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+
+  .daily-inline { gap: 4px; }
+}

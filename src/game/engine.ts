@@ -74,15 +74,15 @@ type ResourceKey = 'energy' | 'gold' | 'crystals' | 'fragments' | 'essence' | 'p
 
 const RESOURCE_KEYS: ResourceKey[] = ['energy', 'gold', 'crystals', 'fragments', 'essence', 'prestigeCoins', 'ascensionCoins', 'eventTokens', 'fichas', 'credits'];
 
-/** Recompensas do login diário (7 dias, ciclicas). */
+/** Recompensas do login diário (7 dias, ciclicas) — créditos 💳 progressivos para testar a economia. */
 const DAILY_LOGIN_REWARDS: EventRewardSpec[] = [
-  { gold: '2500' },
-  { gold: '2000' },
-  { boxes: [{ boxId: 'basic', qty: 1 }] },
-  { gold: '10000' },
-  { gold: '5000' },
-  { boxes: [{ boxId: 'basic', qty: 2 }] },
-  { boxes: [{ boxId: 'event', qty: 1 }] },
+  { credits: 20, gold: '2500' },
+  { credits: 30, gold: '5000' },
+  { credits: 40, boxes: [{ boxId: 'basic', qty: 1 }] },
+  { credits: 50, gold: '10000' },
+  { credits: 60, boxes: [{ boxId: 'basic', qty: 2 }] },
+  { credits: 80, boxes: [{ boxId: 'event', qty: 1 }] },
+  { credits: 150, boxes: [{ boxId: 'rare', qty: 1 }] },
 ];
 
 /** Compensações administrativas (conteúdo local). */
@@ -1318,6 +1318,7 @@ export class GameEngine {
       this.addRes('gold', g);
       incStat(s, 'goldEarned', g);
     }
+    if (spec.credits) { this.addRes('credits', D(spec.credits)); incStat(s, 'creditsEarned', D(spec.credits)); }
     if (spec.energy) { this.addRes('energy', D(spec.energy)); incStat(s, 'energyProduced', D(spec.energy)); }
     if (spec.crystals) { this.addRes('crystals', D(spec.crystals)); incStat(s, 'crystalsEarned', D(spec.crystals)); }
     if (spec.fragments) this.addRes('fragments', D(spec.fragments));
@@ -1391,6 +1392,11 @@ export class GameEngine {
     return this.state.dailyLogin.count % 7;
   }
 
+  /** Recompensa do dia (ciclo de 7 dias) — preview para a UI. */
+  dailyLoginReward(day = this.dailyLoginDay()): EventRewardSpec {
+    return DAILY_LOGIN_REWARDS[day % 7] ?? DAILY_LOGIN_REWARDS[0];
+  }
+
   dailyLoginAvailable(): boolean {
     return now() - this.state.dailyLogin.lastClaim >= 20 * 3600 * 1000;
   }
@@ -1405,7 +1411,8 @@ export class GameEngine {
     s.dailyLogin.lastClaim = now();
     s.dailyLogin.count += 1;
     this.notify('daily');
-    bus.emit('notify', { kind: 'level', title: `Login diário — Dia ${day + 1}!`, desc: 'Recompensa coletada' });
+    const credits = reward.credits ? ` · +${reward.credits} créditos 💳` : '';
+    bus.emit('notify', { kind: 'level', title: `Login diário — Dia ${day + 1}!`, desc: `Recompensa coletada${credits}` });
     return { ok: true, day, reward };
   }
 

@@ -3,6 +3,7 @@ import { GameEngine, type OfflineResult } from './game/engine';
 import { SaveManager, type SaveSlot } from './save/saveManager';
 import { GameContext } from './ui/context';
 import { Sidebar, type Screen } from './ui/sidebar';
+import { MobileNav } from './ui/MobileNav';
 import { TopBar } from './ui/topbar';
 import { Toasts } from './ui/toasts';
 import { Modal, ConfirmModal } from './ui/kit';
@@ -45,6 +46,7 @@ import { autoPublishBestRuns } from './online/autoRank';
 import { audio } from './audio/audio';
 import { applyTheme } from './ui/theme';
 import { bus } from './core/events';
+import { isNativeApp, quitApp } from './core/platform';
 import { formatNumber, formatFull, formatDuration } from './core/notation';
 import type { Num } from './core/bignum';
 import type { CSSProperties } from 'react';
@@ -219,6 +221,30 @@ export default function App() {
     setEngine(null);
     setOffline(null);
     audio.startMenu();
+  }, []);
+
+  // ── Android: botão voltar físico ──
+  // Fecha o modal aberto → volta ao Núcleo (home) → sai do app. O ref evita
+  // registrar/remover o listener a cada render (estado lido via ref).
+  const uiRef = useRef({ screen, menuOpen, offline, showUpdatePopup, pendingAccountRestore, accountOpen });
+  uiRef.current = { screen, menuOpen, offline, showUpdatePopup, pendingAccountRestore, accountOpen };
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let remove: (() => void) | undefined;
+    void import('@capacitor/app').then(async ({ App }) => {
+      const h = await App.addListener('backButton', () => {
+        const u = uiRef.current;
+        if (u.menuOpen) { setMenuOpen(false); return; }
+        if (u.offline) { setOffline(null); return; }
+        if (u.pendingAccountRestore) { setPendingAccountRestore(null); return; }
+        if (u.showUpdatePopup) { UpdateManager.markSeen(engineRef.current!.state); setShowUpdatePopup(false); return; }
+        if (u.accountOpen) { setAccountOpen(false); return; }
+        if (u.screen !== 'home') { setScreen('home'); return; }
+        quitApp();
+      });
+      remove = () => h.remove();
+    });
+    return () => remove?.();
   }, []);
 
   // ── teclado: Espaço / Enter clicam ───────────────────────
@@ -441,6 +467,7 @@ export default function App() {
           <div className="fx-stars" />
         </div>
         <Sidebar screen={screen} onNavigate={setScreen} />
+        <MobileNav screen={screen} onNavigate={setScreen} />
         <div className="main">
           <TopBar onMenu={() => setMenuOpen(true)} worldName={engine.worldName()} onAccountClick={() => setScreen('account')} />
           <main className="content">
@@ -523,7 +550,7 @@ export default function App() {
             <button className="btn" onClick={() => { void saveMgrRef.current!.createBackup(engine).then((b) => flashMenu(b ? `✅ Backup: ${b}` : '❌ Falha')); }}>🛡️ Criar backup</button>
             <button className="btn" onClick={() => { void saveMgrRef.current!.openDataDir(); }}>📁 Pasta de dados</button>
             <button className="btn" onClick={() => { detach(); }}>🏠 Voltar ao menu principal</button>
-            <button className="btn btn-danger" onClick={() => window.close()}>⏻ Sair do jogo</button>
+            <button className="btn btn-danger" onClick={() => quitApp()}>⏻ Sair do jogo</button>
             {menuMsg && <div className="menu-toast">{menuMsg}</div>}
           </div>
         </Modal>

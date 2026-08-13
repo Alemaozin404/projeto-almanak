@@ -16,6 +16,8 @@
     "gen:icon": "node scripts/gen-icon.mjs",
     "gen:receipt-keys": "node scripts/gen-receipt-keys.mjs",
     "content:export": "node scripts/export-content.mjs",
+    "android:sync": "vite build && cap sync android",
+    "android:icons": "node scripts/gen-android-icons.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit",
     "lint": "eslint \"src/**/*.{ts,tsx}\" \"electron/**/*.ts\" \"scripts/**/*.mjs\"",
     "test": "vitest run",
@@ -42,6 +44,10 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@eslint/js": "^9.15.0",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
