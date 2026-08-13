@@ -17,6 +17,7 @@ import { pixBackendUrl, pixOnlineEnabled } from '../wallet/mp';
 import { syncRemoteContent } from '../liveops/RemoteContent';
 import { setCloudStatus } from './status';
 import { getSession } from './account';
+import { platformName } from '../core/platform';
 
 /** Intervalo do sinal — 1 minuto. */
 export const HEARTBEAT_INTERVAL_MS = 60 * 1000;
@@ -58,7 +59,7 @@ async function sendHeartbeat(playerId: number): Promise<HeartbeatDto | null> {
         'x-app-secret': GameConfig.wallet.appSharedSecret,
         ...(session ? { 'x-account-token': session.token } : {}),
       },
-      body: JSON.stringify({ playerId, gameVersion: GameConfig.version }),
+      body: JSON.stringify({ playerId, gameVersion: GameConfig.version, platform: platformName() }),
     });
     if (res.redirected) return reportFailure(null); // servidor protegido por login — ignora
     if (!res.ok) return reportFailure(null);

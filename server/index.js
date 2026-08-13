@@ -37,7 +37,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Decimal } from 'decimal.js';
-import { kvGetJson, kvKeys, kvSet } from './store.js';
+import { kvGetJson, kvGetIncr, kvIncr, kvKeys, kvSAdd, kvSCard, kvSMembers, kvSet } from './store.js';
 import { attachAccountRoutes } from './accounts.js';
 
 // Carrega server/.env (independente do cwd). No Vercel as variáveis vêm do
@@ -298,6 +298,84 @@ function sanitizePack(raw) {
   if (titles.length > 0) pack.titles = titles;
   if (badges.length > 0) pack.badges = badges;
   return { ok: true, pack };
+}
+
+// ── telemetria (DAU, instalação, retenção, conversão) ──────────
+// Aproveita o heartbeat de 1 min (DAU + instalação) e o polling de status do
+// Pix (conversão). Nada de SDK externo — só KV (Upstash em produção, memória
+// em dev/testes). TTLs: 45 dias para os sets diários (cobre retenção D1/D7).
+const ANALYTICS_TTL = 45 * 24 * 3600;
+
+function dayKey(ts = Date.now()) {
+  return new Date(ts).toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+}
+
+function prevDay(key, daysBack) {
+  const d = new Date(`${key}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - daysBack);
+  return d.toISOString().slice(0, 10);
+}
+
+/** Registra DAU + instalação a partir de um heartbeat (playerId novo = instalação). */
+async function recordAnalyticsHeartbeat(playerId, platform) {
+  try {
+    const day = dayKey();
+    const cleanPlatform = PLATFORMS.has(String(platform)) ? String(platform) : 'web';
+    // DAU geral + por plataforma (para saber onde os jogadores estão)
+    const isNewDau = await kvSAdd(`analytics:dau:${day}`, playerId, ANALYTICS_TTL);
+    await kvSAdd(`analytics:dau:${day}:${cleanPlatform}`, playerId, ANALYTICS_TTL);
+    // instalação: primeira aparição do playerId (nunca mais repete)
+    const isNewPlayer = await kvSAdd('analytics:players', playerId, ANALYTICS_TTL);
+    if (isNewPlayer) {
+      await kvSAdd(`analytics:install:${day}`, playerId, ANALYTICS_TTL);
+    }
+    // marca presença na série do player (para retenção D1/D7) — set de dias ativos
+    await kvSAdd(`analytics:active:${playerId}`, day, ANALYTICS_TTL);
+    void isNewDau; // (reservado — o DAU diário é lido via SCARD do set)
+  } catch (err) {
+    console.error('[analytics] falha ao registrar heartbeat:', err);
+  }
+}
+
+const ANALYTICS_PLAYER_ID_RE = /^\d{1,20}$/;
+
+/**
+ * Retenção: % dos players ativos em `day` que voltaram `daysLater` dias depois.
+ * Usa os sets de dias ativos por player (analytics:active:{playerId}) — compara
+ * os sets diários (analytics:dau:{day}) com os dias ativos de cada player.
+ */
+async function retentionRate(day, daysLater) {
+  try {
+    const base = await kvSMembers(`analytics:dau:${day}`);
+    if (base.length === 0) return null;
+    const target = prevDay(day, -daysLater); // dia futuro = base + daysLater
+    const targetSet = new Set(await kvSMembers(`analytics:dau:${target}`));
+    if (targetSet.size === 0) return 0;
+    let returned = 0;
+    // ativos no dia base que também estão no dia alvo (checa por playerId)
+    for (const playerId of base) {
+      const active = new Set(await kvSMembers(`analytics:active:${playerId}`));
+      if (active.has(target)) returned += 1;
+    }
+    return Math.round((returned / base.length) * 1000) / 10; // % com 1 decimal
+  } catch (err) {
+    console.error('[analytics] falha na retenção:', err);
+    return null;
+  }
+}
+
+/** Registra uma conversão (pagamento aprovado) no dia. */
+async function recordAnalyticsPurchase(packId, playerId, amountBRL) {
+  try {
+    const day = dayKey();
+    await kvSAdd(`analytics:purchase:${day}`, String(packId), ANALYTICS_TTL);
+    await kvIncr(`analytics:revenue:${day}`, Math.round(Number(amountBRL) * 100) || 0, ANALYTICS_TTL);
+    if (ANALYTICS_PLAYER_ID_RE.test(String(playerId))) {
+      await kvSAdd(`analytics:payers:${day}`, String(playerId), ANALYTICS_TTL);
+    }
+  } catch (err) {
+    console.error('[analytics] falha ao registrar conversão:', err);
+  }
 }
 
 /**
@@ -615,15 +693,19 @@ export function createApp(env = process.env) {
   //      o app compara e, se mudou, re-sincroniza o conteúdo NA HORA.
   app.post('/api/heartbeat', async (req, res) => {
     if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
-    const { playerId, gameVersion } = req.body ?? {};
+    const { playerId, gameVersion, platform } = req.body ?? {};
     if (rateLimited(`heartbeat:${String(playerId ?? '')}`, 60)) return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
     if (PLAYER_ID_RE.test(String(playerId ?? ''))) {
       try {
         await kvSet(
           `presence:${playerId}`,
-          { at: Date.now(), gameVersion: typeof gameVersion === 'string' ? gameVersion.slice(0, 20) : '' },
+          { at: Date.now(), gameVersion: typeof gameVersion === 'string' ? gameVersion.slice(0, 20) : '', platform: PLATFORMS.has(String(platform)) ? String(platform) : 'web' },
           180, // TTL de 3 min — sem sinal, o registro de presença some sozinho
         );
+        // ── telemetria (sem custo extra — aproveita o sinal de 1 min) ──
+        // DAU: playerId único no set do dia (TTL 45 dias — dá retenção D1/D7).
+        // Instalação: primeira aparição do playerId = jogador novo do dia.
+        await recordAnalyticsHeartbeat(String(playerId), String(platform ?? ''));
         // presença POR CONTA (para a lista de amigos): se o heartbeat carrega a
         // sessão, registra o mesmo sinal sob o nome de usuário — o TTL de 3 min
         // faz o amigo sumir do online sozinho quando para de jogar
@@ -670,6 +752,37 @@ export function createApp(env = process.env) {
     return res.json({ ok: true, count: online.length, online });
   });
 
+  // ── telemetria agregada (Dashboard do Admin Control Center) ──
+  // DAU, instalações, retenção D1/D7, pagantes e receita dos últimos `days`
+  // dias (padrão 14, máx 60). Sem secrets: só leitura dos sets diários.
+  app.get('/api/analytics', async (req, res) => {
+    if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
+    if (rateLimited('analytics:read', 30)) return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    const requested = Number(req.query.days);
+    const days = Number.isInteger(requested) && requested >= 1 && requested <= 60 ? requested : 14;
+
+    const today = dayKey();
+    const series = [];
+    for (let back = days - 1; back >= 0; back--) {
+      const day = prevDay(today, back);
+      const dau = await kvSCard(`analytics:dau:${day}`);
+      const installs = await kvSCard(`analytics:install:${day}`);
+      const payers = await kvSCard(`analytics:payers:${day}`);
+      const revenueCents = await kvGetIncr(`analytics:revenue:${day}`);
+      // retenção D1/D7: dos ativos em `day`, quantos voltaram em day+1 / day+7
+      const d1 = back <= days - 2 ? await retentionRate(day, 1) : null;
+      const d7 = back <= days - 8 ? await retentionRate(day, 7) : null;
+      series.push({ day, dau, installs, payers, revenueBRL: revenueCents / 100, retentionD1: d1, retentionD7: d7 });
+    }
+    // plataformas (últimos 7 dias): onde os jogadores estão hoje
+    const platforms = {};
+    for (const p of ['android', 'pc', 'web']) {
+      const set = await kvSMembers(`analytics:dau:${today}:${p}`);
+      platforms[p] = set.length;
+    }
+    return res.json({ ok: true, days, series, platforms });
+  });
+
   /** App → polling do status de um pedido. */
   app.get('/api/pix/status/:id', async (req, res) => {
     if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
@@ -681,6 +794,12 @@ export function createApp(env = process.env) {
     let content;
     if (s.status === 'approved') {
       const meta = await kvGetJson(`pixOrder:${req.params.id}`);
+      // telemetria: conversão registrada UMA vez por pedido (flag no meta)
+      if (meta && !meta.convertedAt) {
+        const amt = Number(s.amount);
+        await recordAnalyticsPurchase(meta.packId ?? 'unknown', meta.playerId, Number.isFinite(amt) ? amt : 0);
+        await kvSet(`pixOrder:${req.params.id}`, { ...meta, convertedAt: Date.now() }, 3600);
+      }
       if (meta?.packId === 'premium_pass' && receiptKey && Number.isInteger(meta.playerId) && meta.playerId > 0) {
         receipt = signServerReceipt(req.params.id, meta.playerId);
       } else if (meta?.content && typeof meta.content === 'object') {

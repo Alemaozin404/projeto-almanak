@@ -38,7 +38,7 @@ export function Inventory() {
                     <RarityBadge rarity={s.equipment[equippedId] > 0 ? requireRarity(equippedId) : 'common'} size="sm" />
                     <strong>{requireName(equippedId)}</strong>
                     <span className="muted small">{requireStat(equippedId)}</span>
-                    <button className="btn btn-xs ghost" onClick={() => engine.unequipSlot(slot.id)}>Remover</button>
+                    <button className="btn btn-xs ghost" onClick={() => { engine.unequipSlot(slot.id); audio.equip(); }}>Remover</button>
                   </div>
                 ) : (
                   <span className="muted small">Nada equipado</span>
@@ -48,7 +48,7 @@ export function Inventory() {
                     {owned.map(([id, count]) => (
                       <div key={id} className="owned-row">
                         <span>{requireName(id)} ×{count}</span>
-                        <button className="btn btn-xs" onClick={() => engine.equipItem(id)}>Equipar</button>
+                        <button className="btn btn-xs" onClick={() => { engine.equipItem(id); audio.equip(); }}>Equipar</button>
                         <button className="btn btn-xs ghost" onClick={() => setSellTarget(id)}>Vender</button>
                       </div>
                     ))}

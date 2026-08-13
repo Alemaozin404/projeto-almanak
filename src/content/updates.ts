@@ -5,7 +5,7 @@
  */
 import type { EventRewardSpec } from './rewards';
 
-export const GAME_VERSION = '1.6.0';
+export const GAME_VERSION = '1.7.0';
 
 export type PatchTag = 'DESTAQUE' | 'NOVO' | 'ALTERADO' | 'CORRIGIDO' | 'REMOVIDO';
 export type PatchSection = { tag: PatchTag; icon: string; items: string[] };
@@ -22,6 +22,18 @@ export interface PatchNote {
 }
 
 export let UPDATES: PatchNote[] = [
+  {
+    version: '1.7.0',
+    title: 'TELEMETRIA + SONS EM TODAS AS AÇÕES',
+    date: '2026-08-13',
+    description: 'O jogo agora coleta métricas de forma invisível (instalações, usuários ativos, retenção e conversão de compras — visíveis no Admin Control Center → Telemetria) e ganhou efeitos sonoros em todas as ações: fanfarras épicas para Ascensão e Transcendência, presente de amigo, equipar itens/pets, alimentar pet, bônus de login diário e muito mais.',
+    sections: [
+      { tag: 'DESTAQUE', icon: '📈', items: ['Admin → Telemetria: DAU, novas instalações, pagantes, receita, retenção D1/D7 e conversão — por dia e por plataforma', 'Coleta automática no servidor (heartbeat de 1 min + aprovação Pix) — sem custo para o jogador'] },
+      { tag: 'NOVO', icon: '✨', items: ['Fanfarra épica de ASCENSÃO 🎺 e fanfarra suprema de TRANSCENDÊNCIA 👑', 'Som de presente de amigo 🎁, equipar itens/pets ⚙️, alimentar pet 🍖 e bônus de login diário 📅', 'Sons em 8 telas: Pets, Inventory, Shop, Wardrobe, Profile, Friends, Home e Prestige'] },
+      { tag: 'CORRIGIDO', icon: '🛠', items: ['Som duplo corrigido: prestígio/ascensão/transcendência e abertura de caixas tocavam 2× ao mesmo tempo'] },
+    ],
+    reward: { gold: '5000000', boxes: [{ boxId: 'event', qty: 1 }] },
+  },
   {
     version: '1.6.0',
     title: 'APP ANDROID DE VERDADE — SHELL NATIVO PREMIUM',

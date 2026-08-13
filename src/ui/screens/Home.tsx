@@ -6,8 +6,8 @@ import { BannerCarousel } from '../BannerCarousel';
 import { SyncStatus } from '../SyncStatus';
 import { GENERATOR_DEFS } from '../../automation/generators';
 import { D } from '../../core/bignum';
-import { CRIT_LABELS, type CritTier } from '../../game/engine';
 import { audio } from '../../audio/audio';
+import { CRIT_LABELS, type CritTier } from '../../game/engine';
 import { RESOURCES, type ResourceId } from '../../economy/resources';
 import { hapticImpact } from '../../core/platform';
 import { equippedSkin, SKINS } from '../../content/skins';
@@ -147,7 +147,7 @@ export function Home({ onNavigate }: { onNavigate: (s: Screen) => void }) {
               })}
             </div>
             <p className="muted small daily-today">Hoje: +{fmt(engine.dailyLoginReward().credits ?? 0, 0)} 💳</p>
-            <button className="btn btn-sm" disabled={!engine.dailyLoginAvailable()} onClick={() => engine.claimDailyLogin()}>
+            <button className="btn btn-sm" disabled={!engine.dailyLoginAvailable()} onClick={() => { if (engine.claimDailyLogin()) audio.daily(); }}>
               {engine.dailyLoginAvailable() ? '🎁 Coletar' : 'Em breve'}
             </button>
           </Panel>

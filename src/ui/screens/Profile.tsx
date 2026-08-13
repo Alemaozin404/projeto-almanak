@@ -144,7 +144,7 @@ export function Profile() {
             <AvatarPicker
               items={AVATAR_CATALOG.icons}
               value={prof.avatarIcon}
-              onPick={(id) => engine.setAvatarIcon(id)}
+              onPick={(id) => { engine.setAvatarIcon(id); audio.equip(); }}
               disabled={(id) => !engine.avatarItemAvailable(AVATAR_CATALOG.icons, id)}
               onBuy={(id, cur) => { const r = engine.buyAvatarItem('icons', id, cur); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
             />
@@ -152,7 +152,7 @@ export function Profile() {
             <AvatarPicker
               items={AVATAR_CATALOG.frames}
               value={prof.avatarFrame}
-              onPick={(id) => engine.setAvatarFrame(id)}
+              onPick={(id) => { engine.setAvatarFrame(id); audio.equip(); }}
               disabled={(id) => !engine.avatarItemAvailable(AVATAR_CATALOG.frames, id)}
               onBuy={(id, cur) => { const r = engine.buyAvatarItem('frames', id, cur); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
             />
@@ -160,7 +160,7 @@ export function Profile() {
             <AvatarPicker
               items={AVATAR_CATALOG.effects}
               value={prof.avatarEffect}
-              onPick={(id) => engine.setAvatarEffect(id)}
+              onPick={(id) => { engine.setAvatarEffect(id); audio.equip(); }}
               disabled={(id) => !engine.avatarItemAvailable(AVATAR_CATALOG.effects, id)}
               onBuy={(id, cur) => { const r = engine.buyAvatarItem('effects', id, cur); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
             />
@@ -168,7 +168,7 @@ export function Profile() {
             <AvatarPicker
               items={AVATAR_CATALOG.badges}
               value={prof.avatarBadge}
-              onPick={(id) => engine.setAvatarBadge(id)}
+              onPick={(id) => { engine.setAvatarBadge(id); audio.equip(); }}
               disabled={(id) => !engine.avatarItemAvailable(AVATAR_CATALOG.badges, id)}
               onBuy={(id, cur) => { const r = engine.buyAvatarItem('badges', id, cur); if (r.ok) audio.buy(); else setMsg(r.reason ?? ''); }}
             />

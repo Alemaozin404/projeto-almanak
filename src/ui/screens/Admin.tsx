@@ -18,8 +18,9 @@ import { audio } from '../../audio/audio';
 import { D } from '../../core/bignum';
 import { fmtBRL } from '../../shop/packs';
 import { GameConfig } from '../../config/GameConfig';
-import { testPixBackend } from '../../wallet/mp';
+import { pixOnlineEnabled, testPixBackend } from '../../wallet/mp';
 import { fetchOnlinePlayers, type OnlinePlayer } from '../../online/api';
+import { fetchAnalytics, summarizeAnalytics, type AnalyticsSummary } from '../../online/analytics';
 
 const STATUS_FLOW: ContentStatus[] = ['DRAFT', 'REVIEW', 'SCHEDULED', 'PUBLISHED', 'DISABLED', 'ARCHIVED'];
 
@@ -102,6 +103,7 @@ export function Admin() {
           tabs={[
             { id: 'dashboard', name: 'Dashboard', icon: '📊' },
             { id: 'online', name: 'Online', icon: '🟢' },
+            { id: 'telemetry', name: 'Telemetria', icon: '📈' },
             { id: 'content', name: 'Conteúdo', icon: '🗂️' },
             { id: 'sales', name: 'Vendas', icon: '💰' },
             { id: 'rewards', name: 'Recompensas', icon: '🎁' },
@@ -129,6 +131,8 @@ export function Admin() {
         )}
 
         {tab === 'online' && <OnlineTab flashSave={flashSave} />}
+
+        {tab === 'telemetry' && <TelemetryTab flashSave={flashSave} />}
 
         {tab === 'content' && (
           <div>
@@ -313,6 +317,92 @@ function OnlineTab({ flashSave }: { flashSave: (msg: string) => void }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function TelemetryTab({ flashSave }: { flashSave: (msg: string) => void }) {
+  const [data, setData] = useState<AnalyticsSummary | null>(null);
+  const [days, setDays] = useState(14);
+  const [conn, setConn] = useState<{ ok: boolean; label: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const online = pixOnlineEnabled();
+
+  const load = useCallback(async (d: number) => {
+    setLoading(true);
+    const a = await fetchAnalytics(d);
+    setLoading(false);
+    if (!a) {
+      setConn({ ok: false, label: 'Servidor inacessível ou sem dados — confira Configurações → Pagamentos' });
+      setData(null);
+      return;
+    }
+    setData(a);
+    setConn({ ok: true, label: `Resumo dos últimos ${a.days} dias (servidor)` });
+  }, []);
+
+  useEffect(() => {
+    if (!online) { setConn(null); setData(null); return; }
+    void load(days);
+  }, [online, days, load]);
+
+  const s = data ? summarizeAnalytics(data) : null;
+  return (
+    <div>
+      <div className="admin-actions">
+        <button className="btn btn-sm" disabled={!online || loading} onClick={() => void load(days)}>
+          {loading ? 'Carregando…' : '↻ Atualizar agora'}
+        </button>
+        <select value={days} onChange={(e) => setDays(Number(e.target.value))}>
+          {[7, 14, 30, 60].map((d) => <option key={d} value={d}>Últimos {d} dias</option>)}
+        </select>
+        <span className="muted small">
+          {online ? 'Coletado pelo servidor (heartbeat 1 min + aprovação Pix)' : 'Backend não configurado — sem dados'}
+        </span>
+      </div>
+
+      {conn && (
+        <div className={`pix-conn-banner ${conn.ok ? 'ok' : 'err'}`} style={{ marginBottom: 10 }}>
+          <strong>{conn.ok ? '📈 Telemetria conectada' : '🔴 Telemetria indisponível'}</strong>
+          <span className="muted small">{conn.label}</span>
+          <button className="btn btn-xs" onClick={() => void load(days)}>↻ Verificar</button>
+        </div>
+      )}
+
+      {!online && <p className="muted small">Configure o backend (Configurações → Pagamentos) para coletar métricas.</p>}
+
+      {data && s && (
+        <>
+          <div className="admin-grid">
+            <div className="admin-stat"><span>Usuários ativos (DAU)</span><strong>{s.totalDau}</strong></div>
+            <div className="admin-stat"><span>Novas instalações</span><strong>{s.totalInstalls}</strong></div>
+            <div className="admin-stat"><span>Pagantes no período</span><strong>{s.totalPayers}</strong></div>
+            <div className="admin-stat"><span>Receita (R$)</span><strong>{s.totalRevenueBRL.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></div>
+            <div className="admin-stat"><span>Conversão (pagantes/DAU)</span><strong>{s.conversionPct !== null ? `${s.conversionPct}%` : '—'}</strong></div>
+            <div className="admin-stat"><span>Retenção D1 (média)</span><strong>{s.avgRetentionD1 !== null ? `${s.avgRetentionD1}%` : '—'}</strong></div>
+            <div className="admin-stat"><span>Retenção D7 (média)</span><strong>{s.avgRetentionD7 !== null ? `${s.avgRetentionD7}%` : '—'}</strong></div>
+            <div className="admin-stat"><span>Plataformas (hoje)</span><strong>{data.platforms.android} 📱 · {data.platforms.pc} 🖥 · {data.platforms.web} 🌐</strong></div>
+          </div>
+
+          <h4 style={{ marginTop: 14 }}>📅 Dia a dia ({data.days} dias)</h4>
+          <div className="history-list">
+            {data.series.map((d) => (
+              <div key={d.day} className="admin-content-row">
+                <span className="content-status content-published">{d.day}</span>
+                <strong>{d.dau} ativos</strong>
+                <span className="muted small">
+                  +{d.installs} instal · {d.payers} pagantes · {d.revenueBRL.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  {d.retentionD1 !== null && <> · D1 {d.retentionD1}%</>}
+                  {d.retentionD7 !== null && <> · D7 {d.retentionD7}%</>}
+                </span>
+                <div>
+                  <button className="btn btn-xs ghost" onClick={() => { void navigator.clipboard?.writeText(d.day).catch(() => {}); flashSave(`📋 ${d.day} copiado`); }}>📋</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

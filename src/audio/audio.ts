@@ -149,6 +149,51 @@ class AudioEngine {
     [392, 523, 659, 784, 1046].forEach((f, i) => this.tone(f, 0.2, 'triangle', 0.12, i * 0.12));
   }
 
+  /** ASCENSÃO — fanfarra de subida (maior que prestígio: novo mundo). */
+  ascension(): void {
+    if (!this.sfxEnabled()) return;
+    [392, 523, 659, 784, 1046, 1318].forEach((f, i) => this.tone(f, 0.24, 'triangle', 0.14, i * 0.13));
+    this.tone(523, 0.6, 'sine', 0.08, 0.05, 1046); // sub-grave que sobe
+    this.tone(1318, 0.5, 'square', 0.05, 0.8); // brilho final
+  }
+
+  /** TRANSCENDÊNCIA — fanfarra suprema (o momento mais alto do jogo). */
+  transcendence(): void {
+    if (!this.sfxEnabled()) return;
+    [523, 659, 784, 1046, 1318, 1568, 2093].forEach((f, i) => this.tone(f, 0.3, 'triangle', 0.15, i * 0.16));
+    this.tone(262, 0.8, 'sine', 0.09, 0, 1046); // grave ascendente
+    this.tone(1046, 0.9, 'square', 0.06, 0.3, 2093); // arpejo brilhante
+    this.tone(2093, 1.1, 'sine', 0.05, 1.0); // nota final longa
+  }
+
+  /** Presente de amigo resgatado — par de notas alegres (sine, sem chiado). */
+  gift(): void {
+    if (!this.sfxEnabled()) return;
+    this.tone(880, 0.1, 'sine', 0.1, 0, 1100);
+    this.tone(1320, 0.16, 'sine', 0.09, 0.1, 1760);
+  }
+
+  /** Equipar item/pet — clique seco com subida curta (distinto do buy). */
+  equip(): void {
+    if (!this.sfxEnabled()) return;
+    this.tone(600, 0.06, 'square', 0.07, 0, 900);
+    this.tone(900, 0.09, 'sine', 0.08, 0.05, 1200);
+  }
+
+  /** Alimentar pet — nota curta e quente (sine com leve subida). */
+  feed(): void {
+    if (!this.sfxEnabled()) return;
+    this.tone(520, 0.08, 'sine', 0.09, 0, 700);
+    this.tone(700, 0.1, 'sine', 0.07, 0.07, 880);
+  }
+
+  /** Bônus de login diário — campainha curta e alegre. */
+  daily(): void {
+    if (!this.sfxEnabled()) return;
+    this.tone(784, 0.09, 'triangle', 0.1, 0, 1046);
+    this.tone(1046, 0.14, 'triangle', 0.09, 0.09, 1318);
+  }
+
   quest(): void {
     if (!this.sfxEnabled()) return;
     this.tone(700, 0.08, 'sine', 0.1, 0, 1050);

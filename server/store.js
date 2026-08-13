@@ -76,6 +76,103 @@ export async function kvGetJson(key) {
 }
 
 /**
+ * Adiciona um membro a um SET (SADD). Retorna true se o membro era NOVO
+ * (não estava no set) — útil para contagens únicas (DAU, instalação).
+ */
+export async function kvSAdd(key, member, ttlSeconds) {
+  if (configured()) {
+    try {
+      const result = await redisCommand(['SADD', key, String(member)]);
+      if (ttlSeconds) {
+        try { await redisCommand(['EXPIRE', key, String(ttlSeconds)]); } catch { /* best-effort */ }
+      }
+      return Number(result) === 1;
+    } catch (err) {
+      console.error('[kv] SADD falhou:', err);
+      return false;
+    }
+  }
+  const set = memorySet(key);
+  if (set.has(String(member))) return false;
+  set.add(String(member));
+  return true;
+}
+
+/** Lista os membros de um set (SMEMBERS). */
+export async function kvSMembers(key) {
+  if (configured()) {
+    try {
+      const result = await redisCommand(['SMEMBERS', key]);
+      return Array.isArray(result) ? result.map(String) : [];
+    } catch (err) {
+      console.error('[kv] SMEMBERS falhou:', err);
+      return [];
+    }
+  }
+  return [...memorySet(key)];
+}
+
+/** Tamanho de um set (SCARD). */
+export async function kvSCard(key) {
+  if (configured()) {
+    try {
+      const result = await redisCommand(['SCARD', key]);
+      return Number(result) || 0;
+    } catch (err) {
+      console.error('[kv] SCARD falhou:', err);
+      return 0;
+    }
+  }
+  return memorySet(key).size;
+}
+
+/**
+ * Incrementa um contador (INCRBY). Retorna o novo valor.
+ * Usa um valor distinto do namespace de strings (não conflita com kvGet/kvSet).
+ */
+export async function kvIncr(key, by = 1, ttlSeconds) {
+  if (configured()) {
+    try {
+      const result = await redisCommand(['INCRBY', key, String(by)]);
+      if (ttlSeconds) {
+        try { await redisCommand(['EXPIRE', key, String(ttlSeconds)]); } catch { /* best-effort */ }
+      }
+      return Number(result) || 0;
+    } catch (err) {
+      console.error('[kv] INCR falhou:', err);
+      return 0;
+    }
+  }
+  const n = (Number(memory.get(`incr:${key}`)) || 0) + by;
+  memory.set(`incr:${key}`, String(n));
+  return n;
+}
+
+/** Lê um contador incrementado (sem incrementar). */
+export async function kvGetIncr(key) {
+  if (configured()) {
+    try {
+      const result = await redisCommand(['GET', key]);
+      return Number(result) || 0;
+    } catch {
+      return 0;
+    }
+  }
+  return Number(memory.get(`incr:${key}`)) || 0;
+}
+
+/** Set em memória (testes/dev sem Upstash) — namespace próprio para não conflitar. */
+const memorySets = new Map();
+function memorySet(key) {
+  let s = memorySets.get(key);
+  if (!s) {
+    s = new Set();
+    memorySets.set(key, s);
+  }
+  return s;
+}
+
+/**
  * Lista as chaves com um prefixo (ex.: 'presence:').
  * - Upstash: SCAN iterativo (MATCH `${prefix}*`);
  * - memória: filtra as chaves do Map.

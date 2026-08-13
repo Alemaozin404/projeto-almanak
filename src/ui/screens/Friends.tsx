@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Panel, Modal, EmptyState } from '../kit';
 import { useGame } from '../context';
+import { audio } from '../../audio/audio';
 import { getSessionSnapshot, subscribeAccountSession } from '../../online/account';
 import { onlineEnabled } from '../../online/api';
 import {
@@ -126,6 +127,7 @@ export function Friends() {
     const r = await sendGift(giftTarget.username, giftKind, giftQty, giftKind === 'box' ? giftBox : undefined);
     setBusy(false);
     if (!r.ok) { flash('err', r.reason ?? 'Falha ao enviar presente'); return; }
+    audio.ui();
     flash('ok', giftKind === 'credits'
       ? `🎁 ${giftQty} créditos 💳 enviados para ${giftTarget.name || giftTarget.username}!`
       : `🎁 ${giftQty} caixa(s) 📦 enviadas para ${giftTarget.name || giftTarget.username}!`);
@@ -141,6 +143,7 @@ export function Friends() {
     if (r.reward && engine) {
       engine.grantRewards(r.reward as Parameters<typeof engine.grantRewards>[0]);
       flash('ok', `🎁 Presente de ${r.from} resgatado!`);
+      audio.gift();
     }
     void refresh();
   }

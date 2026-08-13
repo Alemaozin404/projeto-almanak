@@ -178,7 +178,7 @@ export function Wardrobe() {
                   <button className={`btn btn-xs ${isEquipped ? 'ghost' : 'btn-primary'}`} disabled={isEquipped} onClick={() => { engine.equipSkin(skin.id); audio.buy(); }}>
                     {isEquipped ? 'Equipada' : 'Equipar'}
                   </button>
-                  <button className="btn btn-xs ghost" onClick={() => engine.toggleSkinFavorite(skin.id)}>{isFav ? '⭐' : '☆'}</button>
+                  <button className="btn btn-xs ghost" onClick={() => { engine.toggleSkinFavorite(skin.id); audio.ui(); }}>{isFav ? '⭐' : '☆'}</button>
                 </div>
               </div>
             );
@@ -241,7 +241,7 @@ export function Wardrobe() {
                 <p className="locked-text center">⏳ Skin limitada — adquira antes do fim!</p>
               ) : null}
               <div className="modal-actions">
-                <button className="btn" onClick={() => engine.toggleSkinFavorite(preview.id)}>{s.skins.favorites.includes(preview.id) ? '⭐ Favorita' : '☆ Favoritar'}</button>
+                <button className="btn" onClick={() => { engine.toggleSkinFavorite(preview.id); audio.ui(); }}>{s.skins.favorites.includes(preview.id) ? '⭐ Favorita' : '☆ Favoritar'}</button>
                 <button className={`btn ${isEquipped ? 'ghost' : 'btn-primary'}`} disabled={isEquipped} onClick={() => { engine.equipSkin(preview.id); audio.buy(); }}>
                   {isEquipped ? 'Equipada' : 'Equipar'}
                 </button>

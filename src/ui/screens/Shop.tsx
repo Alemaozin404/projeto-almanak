@@ -222,7 +222,7 @@ export function Shop({ onOpenBoxes }: { onOpenBoxes: () => void }) {
                         🪙 {fmt(cost, 0)}
                       </button>
                       {owned > 0 && (
-                        <button className={`btn btn-sm ${equipped ? 'ghost' : 'btn-primary'}`} onClick={() => engine.equipItem(def.id)}>
+                        <button className={`btn btn-sm ${equipped ? 'ghost' : 'btn-primary'}`} onClick={() => { engine.equipItem(def.id); audio.equip(); }}>
                           {equipped ? 'Equipado' : 'Equipar'}
                         </button>
                       )}

@@ -88,12 +88,12 @@ export function Pets() {
               )}
               <div className="pet-actions">
                 {s.petSlots.includes(inst.id) ? (
-                  <button className="btn btn-sm ghost" onClick={() => engine.unequipPet(inst.id)}>Desequipar</button>
+                  <button className="btn btn-sm ghost" onClick={() => { engine.unequipPet(inst.id); audio.equip(); }}>Desequipar</button>
                 ) : (
-                  <button className="btn btn-sm btn-primary" onClick={() => engine.equipPet(inst.id)}>Equipar</button>
+                  <button className="btn btn-sm btn-primary" onClick={() => { engine.equipPet(inst.id); audio.equip(); }}>Equipar</button>
                 )}
                 <Tooltip text={`Usa 1 Ração Mágica (tem ${food})`}>
-                  <button className="btn btn-sm" disabled={food <= 0} onClick={() => engine.feedPet(inst.id)}>🍖 Alimentar</button>
+                  <button className="btn btn-sm" disabled={food <= 0} onClick={() => { engine.feedPet(inst.id); audio.feed(); }}>🍖 Alimentar</button>
                 </Tooltip>
                 <Tooltip text={`Custa ${fmt(evolveCost, 0)} ouro`}>
                   <button className="btn btn-sm" disabled={!canEvolve} onClick={() => { if (engine.evolvePet(inst.id).ok) audio.levelUp(); }}>

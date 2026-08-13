@@ -128,9 +128,12 @@ export default function App() {
     const offs = [
       bus.on('achievement', () => audio.achievement()),
       bus.on('levelUp', () => audio.levelUp()),
+      // boxOpened NÃO é escutado aqui: o som sai da tela de Caixas com lógica
+      // de raridade (achievement para itens raros, box para o resto)
       bus.on('petFound', () => audio.pet()),
-      bus.on('boxOpened', () => audio.box()),
       bus.on('prestige', () => audio.prestige()),
+      bus.on('ascension', () => audio.ascension()),
+      bus.on('transcendence', () => audio.transcendence()),
       bus.on('questDone', () => audio.quest()),
       // ranking global: publica os melhores ciclos automaticamente (online por padrão)
       bus.on('prestige', () => void autoPublishBestRuns(e.state)),

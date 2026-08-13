@@ -389,3 +389,85 @@ describe('GET /api/health — usa o env injetado (não process.env)', () => {
     expect(data.kv).toBe('memory');
   });
 });
+
+/**
+ * Telemetria — heartbeat registra DAU/instalação e GET /api/analytics agrega.
+ * Servidor próprio para estado limpo (o store em memória é por processo).
+ */
+describe('telemetria — DAU, instalação e resumo agregado', () => {
+  let teleServer: Server | null = null;
+  let teleUrl = '';
+  const secret = GameConfig.wallet.appSharedSecret;
+
+  beforeAll(async () => {
+    const app = createApp({
+      MERCADO_PAGO_ACCESS_TOKEN: 'TEST-1234567890',
+      MERCADO_PAGO_WEBHOOK_SECRET: 'test-webhook-secret',
+      APP_SHARED_SECRET: secret,
+      PORT: '0',
+    });
+    teleServer = app.listen(0, '127.0.0.1');
+    await new Promise<void>((resolve) => teleServer!.once('listening', resolve));
+    const addr = teleServer.address();
+    if (!addr || typeof addr === 'string') throw new Error('sem porta atribuída');
+    teleUrl = `http://127.0.0.1:${addr.port}`;
+  });
+
+  afterAll(async () => {
+    if (teleServer) await new Promise<void>((resolve) => teleServer!.close(() => resolve()));
+  });
+
+  it('GET /api/analytics exige o segredo do app (401 sem ele)', async () => {
+    const res = await fetch(`${teleUrl}/api/analytics`);
+    expect(res.status).toBe(401);
+  });
+
+  it('heartbeat de jogadores registra DAU e instalação; analytics reflete', async () => {
+    const beat = (playerId: number, platform: string) =>
+      fetch(`${teleUrl}/api/heartbeat`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-app-secret': secret },
+        body: JSON.stringify({ playerId, gameVersion: '1.6.0', platform }),
+      });
+    // 3 jogadores distintos (2 android, 1 web) — primeiro sinal = instalação
+    await beat(700001, 'android');
+    await beat(700002, 'android');
+    await beat(700003, 'web');
+    // repetição do mesmo jogador NÃO conta nova instalação nem infla DAU
+    await beat(700001, 'android');
+
+    const res = await fetch(`${teleUrl}/api/analytics?days=7`, {
+      headers: { 'x-app-secret': secret },
+    });
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      ok?: boolean;
+      series?: { dau?: number; installs?: number }[];
+      platforms?: { android?: number; pc?: number; web?: number };
+    };
+    expect(data.ok).toBe(true);
+    // o último dia da série é hoje — deve ter os 3 jogadores distintos
+    const today = data.series?.at(-1);
+    expect(today?.dau).toBe(3);
+    expect(today?.installs).toBe(3); // 3 primeiros sinais = 3 instalações
+    expect(data.platforms?.android).toBe(2);
+    expect(data.platforms?.web).toBe(1);
+    expect(data.platforms?.pc).toBe(0);
+  });
+
+  it('retrocede dias: série com dias anteriores não estoura', async () => {
+    const res = await fetch(`${teleUrl}/api/analytics?days=60`, {
+      headers: { 'x-app-secret': secret },
+    });
+    const data = (await res.json()) as { ok?: boolean; series?: unknown[]; days?: number };
+    expect(data.ok).toBe(true);
+    expect(data.days).toBe(60);
+    expect(Array.isArray(data.series)).toBe(true);
+    expect(data.series?.length).toBe(60);
+    // dias sem dados: DAU 0, instalações 0 — nunca null/NaN
+    const first = data.series?.[0] as { dau?: number; installs?: number; revenueBRL?: number };
+    expect(first.dau).toBe(0);
+    expect(first.installs).toBe(0);
+    expect(first.revenueBRL).toBe(0);
+  });
+});

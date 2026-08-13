@@ -169,7 +169,7 @@ export function Prestige() {
       <ConfirmModal
         open={confirm === 'prestige'}
         onClose={() => setConfirm(null)}
-        onConfirm={() => { if (engine.prestige()) audio.prestige(); }}
+        onConfirm={() => { engine.prestige(); }}
         title="Realizar Prestígio?"
         desc={<>Você perderá energia, moedas, upgrades e geradores, mas ganhará <b>+{fmt(frags, 0)} fragmentos</b> e <b>+{fmt(D(frags).div(10).floor().plus(s.prestige.count * 2 + 1), 0)} moedas de prestígio</b>. Diamantes, pets, equipamentos e habilidades são mantidos.</>}
         confirmLabel="Prestigiar"
@@ -177,7 +177,7 @@ export function Prestige() {
       <ConfirmModal
         open={confirm === 'ascension'}
         onClose={() => setConfirm(null)}
-        onConfirm={() => { if (engine.ascend()) audio.prestige(); }}
+        onConfirm={() => { engine.ascend(); }}
         title="Realizar Ascensão?"
         desc={<>Você perderá fragmentos e moedas de prestígio não gastos, mas ganhará <b>+{fmt(ascCoins, 0)} moedas de ascensão</b> e desbloqueará um <b>novo mundo</b> (×2 produção).</>}
         confirmLabel="Ascender"
@@ -185,7 +185,7 @@ export function Prestige() {
       <ConfirmModal
         open={confirm === 'transcendence'}
         onClose={() => setConfirm(null)}
-        onConfirm={() => { if (engine.transcend()) audio.prestige(); }}
+        onConfirm={() => { engine.transcend(); }}
         title="Realizar Transcendência?"
         desc={<>Você perderá moedas de ascensão não gastas, mas ganhará <b>+{fmt(ess, 0)} essência</b> para bônus permanentes.</>}
         confirmLabel="Transcender"
