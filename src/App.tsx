@@ -42,7 +42,7 @@ import { startHeartbeat } from './online/heartbeat';
 import { autoPushSave, autoSyncOnLoad } from './online/autoCloud';
 import { getSession, pullAccountSave } from './online/account';
 import { onlineEnabled } from './online/api';
-import { startAccountAutoSave, stopAccountAutoSave, checkAccountRestore, applyAccountRestore, pushAccountSaveNow, autoPushAccountSave, type AccountRestoreInfo } from './online/accountSync';
+import { startAccountAutoSave, stopAccountAutoSave, startAccountLiveSync, stopAccountLiveSync, checkAccountRestore, applyAccountRestore, pushAccountSaveNow, autoPushAccountSave, type AccountRestoreInfo } from './online/accountSync';
 import { autoPublishBestRuns } from './online/autoRank';
 import { audio } from './audio/audio';
 import { applyTheme } from './ui/theme';
@@ -135,8 +135,23 @@ export default function App() {
       void autoPushSave(eng, saveMgrRef.current!);
       void autoPushAccountSave(eng, saveMgrRef.current!);
     });
-    // save automático da CONTA no servidor a cada 1 hora (quando conectado)
+    // save automático da CONTA no servidor (quando conectado)
     startAccountAutoSave(e, saveMgrRef.current!);
+    // sync AO VIVO entre dispositivos: o celular reflete o PC (e vice-versa).
+    // O poll leve (?meta=1) roda a cada ~20s e ao voltar do segundo plano; ao
+    // detectar um save mais novo em outro dispositivo, restaura (com backup) e
+    // recarrega o jogo — progresso aparece no celular em ~1 min.
+    startAccountLiveSync(e, saveMgrRef.current!, (info) => {
+      bus.emit('notify', {
+        kind: 'default',
+        title: '☁️ Save sincronizado entre dispositivos',
+        desc: `Progresso mais recente de ${info.name} restaurado do servidor (backup local criado).`,
+      });
+      const slot = saveMgrRef.current!.getSlot();
+      void saveMgrRef.current!.load(slot).then((loaded) => {
+        if (loaded) attach(loaded.engine, loaded.fixed);
+      });
+    });
     // sinal oculto de 1 min — mantém presença no servidor e detecta conteúdo novo
     heartbeatStopRef.current = startHeartbeat(
       e.state.createdAt,
@@ -181,6 +196,7 @@ export default function App() {
       heartbeatStopRef.current = null;
       saveMgrRef.current!.stopAutoSave();
       stopAccountAutoSave();
+      stopAccountLiveSync();
     };
   }, []);
 

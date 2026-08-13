@@ -105,7 +105,8 @@ Depois commite o `server/content.json` e faça push — o Vercel redeploya e o j
 | POST | `/api/account/reset` | Redefine a senha com o código de recuperação |
 | GET | `/api/account/me` | Dados da sessão atual (exige header `x-account-token`) |
 | GET | `/api/account/save` | Baixa o save da conta (exige `x-account-token`) |
-| PUT | `/api/account/save` | Guarda o save da conta — o app envia automaticamente a cada 1 h (exige `x-account-token`) |
+| GET | `/api/account/save?meta=1` | Só o cabeçalho do save (`savedAt`, `slot`, `name`) — poll leve do sync AO VIVO entre dispositivos |
+| PUT | `/api/account/save` | Guarda o save da conta — o app envia após cada save local (~1 min) e ao sair (exige `x-account-token`) |
 | POST | `/api/account/link-slot` | Re-vincula o save da conta a outro slot (`slot1|slot2|slot3`) sem reenviar (exige `x-account-token`) |
 
 > **Pacotes de diamantes/moedas** (Admin → Vendas): o jogo publica pacotes em `/api/packs`

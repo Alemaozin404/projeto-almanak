@@ -35,6 +35,7 @@ import {
 } from '../src/online/account';
 import {
   syncAccountOnLoad, checkAccountRestore, applyAccountRestore, resetAccountSyncState,
+  pushAccountSaveNow, accountLiveSyncCheck,
 } from '../src/online/accountSync';
 import { RESTORE_MIN_NEWER_MS } from '../src/online/autoCloud';
 
@@ -237,5 +238,50 @@ describe('E2E — conta e sync do save entre SITE e APP (dois dispositivos)', ()
     const backOnSite = await saveMgrSite.load('slot1');
     expect(backOnSite).not.toBeNull();
     expect(backOnSite!.engine.state.name).toBe('Herói do App (progresso novo)');
+  });
+
+  it('CELULAR: sync AO VIVO (poll de ~20s) detecta o progresso novo do PC e restaura SEM reiniciar o app', async () => {
+    // ── PC (dispositivo 1) jogando: o save sobe para a conta (auto-save local) ──
+    useDevice(siteStore);
+    const loginPc = await loginAccount('heroi_site', 'senha-forte-123');
+    expect(loginPc.ok).toBe(true);
+    if (!loginPc.ok) return;
+    setSession({ username: loginPc.username!, email: loginPc.email!, verified: true, token: loginPc.token! });
+
+    const enginePc = new GameEngine();
+    enginePc.state.name = 'PC — progresso em tempo real';
+    enginePc.click('manual'); // o jogador interagiu
+    const saveMgrPc = new SaveManager();
+    saveMgrPc.setSlot('slot1');
+    await saveMgrPc.save(enginePc);
+    // push real (HTTP PUT no Express local) — o que o auto-save do PC faz
+    expect(await pushAccountSaveNow(enginePc, saveMgrPc)).toMatchObject({ ok: true });
+
+    // ── CELULAR (dispositivo 2): app JÁ ABERTO, save local antigo, sessão da mesma conta ──
+    // (estado de módulo próprio — igual a cada dispositivo ter o seu JS em produção)
+    resetAccountSyncState();
+    useDevice(appStore);
+    const loginCell = await loginAccount('heroi_site', 'senha-forte-123');
+    expect(loginCell.ok).toBe(true);
+    if (!loginCell.ok) return;
+    setSession({ username: loginCell.username!, email: loginCell.email!, verified: true, token: loginCell.token! });
+
+    const engineCell = new GameEngine();
+    const saveMgrCell = new SaveManager();
+    saveMgrCell.setSlot('slot1');
+    // o celular ficou fechado enquanto o PC jogava → save local antigo
+    appStore['nc_slot1'] = craftSaveFile(engineCell.state, Date.now() - 3_600_000);
+
+    // checagem do poll ao vivo (real: GET ?meta=1 + GET completo + import) — o
+    // app NÃO foi reiniciado; é o timer de 20s (ou o retorno do segundo plano)
+    const restored: string[] = [];
+    const r = await accountLiveSyncCheck(engineCell, saveMgrCell, (info) => restored.push(info.name));
+    expect(r).toBe('restored');
+    expect(restored).toEqual(['PC — progresso em tempo real']);
+
+    // o progresso do PC está no celular, sem reiniciar o app
+    const onCell = await saveMgrCell.load('slot1');
+    expect(onCell).not.toBeNull();
+    expect(onCell!.engine.state.name).toBe('PC — progresso em tempo real');
   });
 });

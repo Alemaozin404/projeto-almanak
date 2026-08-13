@@ -395,6 +395,32 @@ export async function pushAccountSave(
   }
 }
 
+/** Cabeçalho do save da conta (só savedAt/slot/nome — sem o save inteiro). */
+export interface AccountSaveMeta {
+  savedAt: number;
+  slot: string;
+  name: string;
+}
+
+/**
+ * Consulta SÓ o cabeçalho do save da conta (?meta=1) — poll leve do sync ao
+ * vivo entre dispositivos. Evita baixar o save inteiro a cada verificação.
+ */
+export async function pullAccountSaveMeta(token: string): Promise<AccountResult<{ meta: AccountSaveMeta }>> {
+  try {
+    const res = await apiFetch('/api/account/save?meta=1', {
+      headers: { 'x-account-token': token },
+    });
+    const data = await apiJson<{ ok?: boolean; savedAt?: number; slot?: string; name?: string; reason?: string }>(res);
+    if (!res.ok || data?.ok !== true) {
+      return { ok: false, reason: data?.reason ?? `Servidor recusou (${res.status})`, status: res.status };
+    }
+    return { ok: true, meta: { savedAt: data.savedAt ?? 0, slot: data.slot ?? '', name: data.name ?? '' } };
+  } catch {
+    return { ok: false, reason: 'Sem conexão com o servidor' };
+  }
+}
+
 /** Baixa o save guardado na conta (para restaurar em outro computador). */
 export async function pullAccountSave(token: string): Promise<AccountResult<{ info: AccountSaveInfo }>> {
   try {

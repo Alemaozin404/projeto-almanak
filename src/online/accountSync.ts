@@ -1,17 +1,28 @@
 /**
- * accountSync — save automático da conta no servidor.
+ * accountSync — save automático da conta no servidor + sync AO VIVO entre
+ * dispositivos (celular ↔ PC ↔ site).
  *
- * Quando o jogador está conectado a uma conta, o save é enviado ao servidor
- * a cada 1 hora (intervalo em GameConfig.account.autoSaveHours), garantindo
- * backup periódico dos dados do sistema no servidor sem ação manual.
+ * PUSH (dispositivo → servidor):
+ * - O save é enviado após cada save local (auto-save de 1 min por padrão),
+ *   ao fechar o jogo e no boot — o timer horário (GameConfig.account.autoSaveHours)
+ *   é só a rede de segurança. O jogador é identificado pela CONTA (token),
+ *   não pelo dispositivo: a mesma conta tem UM save no servidor.
+ *
+ * PULL (servidor → dispositivo) — sync ao vivo:
+ * - Enquanto o jogo está aberto e conectado, um poll leve (só o cabeçalho do
+ *   save, GET ?meta=1) roda a cada GameConfig.account.liveSyncSeconds e também
+ *   na hora que o app volta do segundo plano (visibilitychange).
+ * - Se o servidor tiver um save significativamente mais novo e o jogador não
+ *   estiver interagindo AQUI, o save é restaurado automaticamente (com backup
+ *   local antes) — o celular reflete o progresso do PC em ~1 min (poll a cada ~20s).
  *
  * Regras:
- * - Só envia com conta conectada, backend configurado e a sincronização
+ * - Só sincroniza com conta conectada, backend configurado e a sincronização
  *   automática ativa (settings.cloudSyncEnabled — mesmo interruptor da nuvem).
  * - Silencioso: falhas de rede nunca bloqueiam o jogo.
- * - O push manual (botão na tela de Conta) usa a mesma função com force.
+ * - Cooldown entre restaurações e margem de tempo evitam loop entre os dois lados.
  */
-import { getSession, pushAccountSave, pullAccountSave, getAccountSlotPref } from './account';
+import { getSession, pushAccountSave, pullAccountSave, pullAccountSaveMeta, getAccountSlotPref } from './account';
 import { cloudPlayerId } from './cloudSave';
 import { onlineEnabled } from './api';
 import { RESTORE_MIN_NEWER_MS } from './autoCloud';
@@ -27,7 +38,24 @@ let lastAutoPushAt = 0;
 export const ACCOUNT_SAVE_INTERVAL_MS = Math.max(1, Number(GameConfig.account.autoSaveHours) || 1) * 60 * 60 * 1000;
 
 /** Intervalo mínimo entre pushes automáticos da conta (evita spam na API). */
-const AUTO_PUSH_THROTTLE_MS = 60 * 1000;
+const AUTO_PUSH_THROTTLE_MS = 30 * 1000;
+
+// ── sync ao vivo entre dispositivos ──────────────────────────────────────
+
+/** Poll do cabeçalho do save no servidor (segundos — GameConfig). */
+export const ACCOUNT_LIVE_SYNC_MS = Math.max(20, Number(GameConfig.account.liveSyncSeconds) || 45) * 1000;
+/** A conta precisa estar pelo menos isto mais nova que o local para restaurar ao vivo. */
+const LIVE_RESTORE_MARGIN_MS = 20 * 1000;
+/** Espera entre restaurações ao vivo (evita loop de reload quando os dois lados sincronizam). */
+const LIVE_RESTORE_COOLDOWN_MS = 90 * 1000;
+/** Se o jogador salvou localmente há pouco, está ativo AQUI — não puxa por cima. */
+const LOCAL_ACTIVITY_GRACE_MS = 30 * 1000;
+
+let liveTimer: ReturnType<typeof setInterval> | null = null;
+let liveOnVisible: (() => void) | null = null;
+let lastLiveRestoreAt = 0;
+/** Último momento em que este dispositivo salvou/enviou o save (atividade local). */
+let lastLocalSaveAt = 0;
 
 // ── estado de sincronização (para a TopBar: enviando / sincronizado / erro) ──
 
@@ -85,11 +113,14 @@ export function getNextAccountSyncAt(): number {
 /** Zera o estado interno (testes — isolamento entre execuções). */
 export function resetAccountSyncState(): void {
   stopAccountAutoSave();
+  stopAccountLiveSync();
   inFlightSyncs = 0;
   syncSnapshot = { syncing: false, lastSyncAt: 0, lastError: null };
   syncListeners.clear();
   nextSyncAt = 0;
   lastAutoPushAt = 0;
+  lastLiveRestoreAt = 0;
+  lastLocalSaveAt = 0;
 }
 
 /** Liga o auto-save horário da conta (chamado ao anexar o jogo). */
@@ -143,7 +174,9 @@ export async function pushAccountSaveNow(
       profile,
     });
     if (r.ok) {
-      syncSnapshot = { ...syncSnapshot, lastSyncAt: Date.now(), lastError: null };
+      // este dispositivo acabou de enviar — conta para o guard de "atividade local"
+      lastLocalSaveAt = Date.now();
+      syncSnapshot = { ...syncSnapshot, lastSyncAt: lastLocalSaveAt, lastError: null };
       notifySyncChanged();
       return { ok: true };
     }
@@ -271,4 +304,96 @@ export async function syncAccountOnLoad(saveMgr: SaveManager, engine: GameEngine
   }
   const ok = await applyAccountRestore(saveMgr, engine, check.info);
   return ok ? 'restored' : 'noop';
+}
+
+// ── sync AO VIVO entre dispositivos ──────────────────────────────────────
+
+export type AccountLiveSyncResult =
+  | 'noop'
+  | 'no-session'
+  | 'offline'
+  | 'disabled'
+  | 'restored';
+
+/**
+ * Checagem do sync ao vivo: consulta SÓ o cabeçalho do save da conta (?meta=1)
+ * e, se o servidor estiver claramente mais novo (e o jogador não estiver ativo
+ * aqui), restaura com backup local. Chamada pelo timer periódico e ao voltar ao
+ * app (visibilitychange). Silenciosa — nunca lança.
+ */
+export async function accountLiveSyncCheck(
+  engine: GameEngine,
+  saveMgr: SaveManager,
+  onRestored?: (info: AccountRestoreInfo) => void,
+): Promise<AccountLiveSyncResult> {
+  const session = getSession();
+  if (!session) return 'no-session';
+  if (!onlineEnabled()) return 'offline';
+  if (engine.state.settings.cloudSyncEnabled === false) return 'disabled';
+  const now = Date.now();
+  // jogador acabou de salvar/jogar AQUI → não puxa por cima da sessão ativa
+  if (now - lastLocalSaveAt < LOCAL_ACTIVITY_GRACE_MS) return 'noop';
+  // cooldown entre restaurações (evita loop de reload entre dois dispositivos)
+  if (now - lastLiveRestoreAt < LIVE_RESTORE_COOLDOWN_MS) return 'noop';
+
+  const slot = saveMgr.getSlot();
+  const meta = await pullAccountSaveMeta(session.token);
+  // 404 = servidor sem save → nada a puxar; erro de rede → tenta no próximo poll
+  if (!meta.ok) return meta.status === 404 ? 'noop' : 'offline';
+  // save vinculado a outro slot não restaura neste (mesma regra do boot)
+  if (meta.meta.slot && meta.meta.slot !== slot) return 'noop';
+
+  const metas = await saveMgr.listSlots();
+  const local = metas.find((m) => m.slot === slot);
+  const localAt = local?.savedAt ?? 0;
+  // servidor não está significativamente mais novo → nada a fazer
+  if (meta.meta.savedAt <= localAt + LIVE_RESTORE_MARGIN_MS) return 'noop';
+
+  // conta claramente mais nova → baixa o save completo e restaura (com backup)
+  const full = await pullAccountSave(session.token);
+  if (!full.ok || !full.info) return 'offline';
+  lastLiveRestoreAt = Date.now();
+  const info: AccountRestoreInfo = {
+    slot,
+    name: full.info.name,
+    savedAt: full.info.savedAt,
+    localSavedAt: localAt,
+    saveText: full.info.saveText,
+  };
+  const ok = await applyAccountRestore(saveMgr, engine, info);
+  if (ok) onRestored?.(info);
+  return ok ? 'restored' : 'noop';
+}
+
+/**
+ * Liga o sync ao vivo: poll periódico do cabeçalho + checagem imediata quando
+ * o app volta ao primeiro plano (o celular reflete o PC na hora de reabrir).
+ */
+export function startAccountLiveSync(
+  engine: GameEngine,
+  saveMgr: SaveManager,
+  onRestored?: (info: AccountRestoreInfo) => void,
+): void {
+  stopAccountLiveSync();
+  const check = () => { void accountLiveSyncCheck(engine, saveMgr, onRestored); };
+  liveTimer = setInterval(check, ACCOUNT_LIVE_SYNC_MS);
+  liveOnVisible = () => {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') return;
+    check();
+  };
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', liveOnVisible);
+  }
+}
+
+/** Desliga o sync ao vivo (chamado ao desanexar o jogo). */
+export function stopAccountLiveSync(): void {
+  if (liveTimer) {
+    clearInterval(liveTimer);
+    liveTimer = null;
+  }
+  if (liveOnVisible && typeof document !== 'undefined') {
+    document.removeEventListener('visibilitychange', liveOnVisible);
+  }
+  liveOnVisible = null;
 }

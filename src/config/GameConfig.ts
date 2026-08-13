@@ -79,6 +79,13 @@ export const GameConfig = {
   account: {
     /** Intervalo do envio automático do save da conta ao servidor (em horas). */
     autoSaveHours: 1,
+    /**
+     * Poll do sync AO VIVO entre dispositivos (segundos): o app consulta só o
+     * cabeçalho do save da conta no servidor (?meta=1) e restaura automaticamente
+     * quando outro dispositivo salvou um progresso mais novo (PC ↔ celular).
+     * ~20s = quase instantâneo (~3 requisições leves/min por dispositivo).
+     */
+    liveSyncSeconds: 20,
     /** Chave do localStorage onde a sessão da conta é guardada. */
     sessionStorageKey: 'nc_account_session_v1',
     /** Chave do localStorage onde o slot escolhido para vincular o save da conta é guardado ('' = automático). */

@@ -419,6 +419,11 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
     if (!data || typeof data.saveText !== 'string') {
       return res.status(404).json({ ok: false, reason: 'Nenhum save na conta' });
     }
+    // ?meta=1 → só o cabeçalho (savedAt/slot/nome), sem o save inteiro: é o
+    // poll leve do sync AO VIVO entre dispositivos (celular ↔ PC ↔ site).
+    if (req.query.meta === '1') {
+      return res.json({ ok: true, savedAt: data.savedAt ?? 0, slot: data.slot ?? '', name: data.name ?? '' });
+    }
     return res.json({ ok: true, saveText: data.saveText, name: data.name ?? '', savedAt: data.savedAt ?? 0, slot: data.slot ?? '' });
   });
 

@@ -15,12 +15,14 @@ vi.mock('../src/online/account', () => ({
   getSession: vi.fn(),
   pushAccountSave: vi.fn(),
   pullAccountSave: vi.fn(),
+  pullAccountSaveMeta: vi.fn(),
   getAccountSlotPref: vi.fn(),
 }));
 
-import { getSession, pushAccountSave, pullAccountSave, getAccountSlotPref } from '../src/online/account';
+import { getSession, pushAccountSave, pullAccountSave, pullAccountSaveMeta, getAccountSlotPref } from '../src/online/account';
 import {
   ACCOUNT_SAVE_INTERVAL_MS,
+  ACCOUNT_LIVE_SYNC_MS,
   pushAccountSaveNow,
   autoPushAccountSave,
   syncAccountOnLoad,
@@ -29,6 +31,9 @@ import {
   resetAccountSyncState,
   startAccountAutoSave,
   stopAccountAutoSave,
+  startAccountLiveSync,
+  stopAccountLiveSync,
+  accountLiveSyncCheck,
   lastAccountSyncAt,
   getNextAccountSyncAt,
   getAccountSyncSnapshot,
@@ -69,6 +74,7 @@ describe('accountSync — save automático da conta (1h)', () => {
     vi.clearAllMocks();
     vi.mocked(getSession).mockReturnValue(null);
     vi.mocked(pullAccountSave).mockResolvedValue({ ok: false, reason: 'Nenhum save na conta' });
+    vi.mocked(pullAccountSaveMeta).mockResolvedValue({ ok: false, reason: 'Nenhum save na conta', status: 404 });
     vi.mocked(getAccountSlotPref).mockReturnValue(''); // default: automático
   });
 
@@ -580,5 +586,152 @@ describe('accountSync — save automático da conta (1h)', () => {
     expect(getNextAccountSyncAt()).toBeGreaterThan(0);
     resetAccountSyncState();
     expect(getNextAccountSyncAt()).toBe(0);
+  });
+});
+
+describe('accountSync — sync AO VIVO entre dispositivos (PC ↔ celular)', () => {
+  beforeEach(() => {
+    resetAccountSyncState();
+    vi.clearAllMocks();
+    vi.mocked(getSession).mockReturnValue(null);
+    vi.mocked(pullAccountSave).mockResolvedValue({ ok: false, reason: 'Nenhum save na conta' });
+    vi.mocked(pullAccountSaveMeta).mockResolvedValue({ ok: false, reason: 'Nenhum save na conta', status: 404 });
+  });
+
+  afterEach(() => {
+    stopAccountAutoSave();
+    stopAccountLiveSync();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  function setup() {
+    const engine = new GameEngine();
+    engine.state.name = 'Jogador Teste';
+    const saveMgr = new SaveManager();
+    saveMgr.setSlot('slot1');
+    return { engine, saveMgr };
+  }
+
+  it('sem conta conectada → no-session (não consulta o servidor)', async () => {
+    const { engine, saveMgr } = setup();
+    expect(await accountLiveSyncCheck(engine, saveMgr)).toBe('no-session');
+    expect(pullAccountSaveMeta).not.toHaveBeenCalled();
+  });
+
+  it('respeita o toggle de sincronização automática → disabled', async () => {
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    const { engine, saveMgr } = setup();
+    engine.state.settings.cloudSyncEnabled = false;
+    expect(await accountLiveSyncCheck(engine, saveMgr)).toBe('disabled');
+  });
+
+  it('conta mais nova + slot batendo + jogador inativo → restaura ao vivo (com backup)', async () => {
+    const store: Record<string, string> = {};
+    stubLocalStorage(store);
+    vi.mocked(getSession).mockReturnValue(SESSION);
+
+    // "PC" salvou um progresso mais novo no servidor
+    const cloud = new GameEngine();
+    cloud.state.name = 'PC — progresso novo';
+    const cloudSavedAt = Date.now();
+    vi.mocked(pullAccountSaveMeta).mockResolvedValue({ ok: true, meta: { savedAt: cloudSavedAt, slot: 'slot1', name: 'PC' } });
+    vi.mocked(pullAccountSave).mockResolvedValue({
+      ok: true,
+      info: { saveText: craftSaveFile(cloud.state, cloudSavedAt), name: 'PC', savedAt: cloudSavedAt, slot: 'slot1' },
+    });
+
+    // slot local do CELULAR com save antigo
+    const local = new GameEngine();
+    local.state.name = 'Celular — antigo';
+    store['nc_slot1'] = craftSaveFile(local.state, Date.now() - 3_600_000);
+
+    const { engine, saveMgr } = setup();
+    const restored: string[] = [];
+    const r = await accountLiveSyncCheck(engine, saveMgr, (info) => restored.push(info.name));
+    expect(r).toBe('restored');
+    expect(restored).toEqual(['PC']); // callback avisa a UI (toast + reload)
+
+    const loaded = await saveMgr.load('slot1');
+    expect(loaded!.engine.state.name).toBe('PC — progresso novo');
+  });
+
+  it('jogador ativo AQUI (push recente) → não puxa por cima (noop)', async () => {
+    stubLocalStorage({});
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pushAccountSave).mockResolvedValue({ ok: true, savedAt: Date.now() });
+    vi.mocked(pullAccountSaveMeta).mockResolvedValue({ ok: true, meta: { savedAt: Date.now() + 60_000, slot: 'slot1', name: 'X' } });
+    const { engine, saveMgr } = setup();
+
+    await pushAccountSaveNow(engine, saveMgr); // atividade local agora mesmo
+    expect(await accountLiveSyncCheck(engine, saveMgr)).toBe('noop');
+    expect(pullAccountSave).not.toHaveBeenCalled(); // nem baixou o save completo
+  });
+
+  it('servidor não significativamente mais novo (margem 20s) → noop', async () => {
+    const store: Record<string, string> = {};
+    stubLocalStorage(store);
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    const local = new GameEngine();
+    local.state.name = 'Local';
+    store['nc_slot1'] = craftSaveFile(local.state, Date.now());
+    // só 5s mais novo → abaixo da margem de restauração
+    vi.mocked(pullAccountSaveMeta).mockResolvedValue({ ok: true, meta: { savedAt: Date.now() + 5_000, slot: 'slot1', name: 'X' } });
+    const { engine, saveMgr } = setup();
+    expect(await accountLiveSyncCheck(engine, saveMgr)).toBe('noop');
+    expect(pullAccountSave).not.toHaveBeenCalled();
+  });
+
+  it('save da conta de OUTRO slot → noop (não restaura neste slot)', async () => {
+    stubLocalStorage({});
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pullAccountSaveMeta).mockResolvedValue({ ok: true, meta: { savedAt: Date.now(), slot: 'slot2', name: 'X' } });
+    const { engine, saveMgr } = setup();
+    expect(await accountLiveSyncCheck(engine, saveMgr)).toBe('noop');
+    expect(pullAccountSave).not.toHaveBeenCalled();
+  });
+
+  it('cooldown de 90s entre restaurações → segunda checagem imediata é noop', async () => {
+    const store: Record<string, string> = {};
+    stubLocalStorage(store);
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    const cloud = new GameEngine();
+    cloud.state.name = 'Novo';
+    const at = Date.now();
+    vi.mocked(pullAccountSaveMeta).mockResolvedValue({ ok: true, meta: { savedAt: at, slot: 'slot1', name: 'X' } });
+    vi.mocked(pullAccountSave).mockResolvedValue({
+      ok: true,
+      info: { saveText: craftSaveFile(cloud.state, at), name: 'X', savedAt: at, slot: 'slot1' },
+    });
+    const local = new GameEngine();
+    local.state.name = 'Antigo';
+    store['nc_slot1'] = craftSaveFile(local.state, at - 3_600_000);
+    const { engine, saveMgr } = setup();
+
+    expect(await accountLiveSyncCheck(engine, saveMgr)).toBe('restored');
+    // logo em seguida → cooldown bloqueia novo reload (evita loop entre os dois lados)
+    expect(await accountLiveSyncCheck(engine, saveMgr)).toBe('noop');
+    expect(pullAccountSave).toHaveBeenCalledTimes(1);
+  });
+
+  it('o timer do sync ao vivo consulta o cabeçalho a cada intervalo (e para ao desligar)', async () => {
+    vi.useFakeTimers();
+    stubLocalStorage({});
+    vi.mocked(getSession).mockReturnValue(SESSION);
+    vi.mocked(pullAccountSaveMeta).mockResolvedValue({ ok: true, meta: { savedAt: Date.now(), slot: 'slot1', name: 'X' } });
+    const { engine, saveMgr } = setup();
+
+    startAccountLiveSync(engine, saveMgr);
+    expect(pullAccountSaveMeta).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(ACCOUNT_LIVE_SYNC_MS);
+    expect(pullAccountSaveMeta).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(ACCOUNT_LIVE_SYNC_MS);
+    expect(pullAccountSaveMeta).toHaveBeenCalledTimes(2);
+
+    stopAccountLiveSync();
+    await vi.advanceTimersByTimeAsync(ACCOUNT_LIVE_SYNC_MS * 2);
+    expect(pullAccountSaveMeta).toHaveBeenCalledTimes(2); // parado → não consulta mais
   });
 });

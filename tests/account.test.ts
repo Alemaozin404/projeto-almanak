@@ -183,6 +183,27 @@ describe('Sistema de contas — registro, verificação, login, recuperação e 
     expect(noSave.status).toBe(401); // token inexistente
   });
 
+  it('save da conta: ?meta=1 devolve SÓ o cabeçalho (poll leve do sync ao vivo, sem o save)', async () => {
+    const login = await post('/api/account/login', { login: 'jogador_test', password: 'senha-segura-123' });
+    const token = ((await login.json()) as LoginBody).token!;
+    const headers = { 'x-account-token': token };
+
+    await put('/api/account/save', { saveText: 'NC1.SAVE_META_123', name: 'Jogador Test', savedAt: 1700000000000, slot: 'slot1' }, headers);
+
+    const meta = await fetch(`${baseUrl}/api/account/save?meta=1`, { headers });
+    expect(meta.status).toBe(200);
+    const body = (await meta.json()) as { ok?: boolean; saveText?: string; savedAt?: number; slot?: string; name?: string };
+    expect(body.ok).toBe(true);
+    expect(body.saveText).toBeUndefined(); // NÃO baixa o save inteiro
+    expect(body.savedAt).toBe(1700000000000);
+    expect(body.slot).toBe('slot1');
+    expect(body.name).toBe('Jogador Test');
+
+    // sem token → 401 mesmo no meta
+    const denied = await fetch(`${baseUrl}/api/account/save?meta=1`, { headers: { 'x-account-token': 'f'.repeat(64) } });
+    expect(denied.status).toBe(401);
+  });
+
   it('link-slot: exige token, valida slot e re-vincula o save guardado sem reenviar', async () => {
     const login = await post('/api/account/login', { login: 'jogador_test', password: 'senha-segura-123' });
     const token = ((await login.json()) as LoginBody).token!;
