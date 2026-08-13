@@ -12,11 +12,12 @@
  */
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { Panel, Modal, EmptyState } from '../kit';
+import { useGame } from '../context';
 import { getSessionSnapshot, subscribeAccountSession } from '../../online/account';
 import { onlineEnabled } from '../../online/api';
 import {
-  fetchFriends, addFriend, acceptFriend, declineFriend, removeFriend,
-  type FriendsData, type FriendInfo,
+  fetchFriends, addFriend, acceptFriend, declineFriend, removeFriend, sendGift, claimGift,
+  type FriendsData, type FriendInfo, type GiftItem,
 } from '../../online/friends';
 import { AVATAR_CATALOG } from '../../profile/avatars';
 import { STATUS_PRESETS, type StatusPreset } from '../../profile/status';
@@ -47,12 +48,19 @@ export function Friends() {
   const [selected, setSelected] = useState<FriendInfo | null>(null);
   /** Alvo da confirmação de remover/cancelar: nome de exibição + se é só solicitação. */
   const [removing, setRemoving] = useState<{ username: string; label: string; isRequest: boolean } | null>(null);
+  // ── presentes entre amigos ──
+  const { engine } = useGame();
+  const [giftTarget, setGiftTarget] = useState<FriendInfo | null>(null);
+  const [giftKind, setGiftKind] = useState<'credits' | 'box'>('credits');
+  const [giftQty, setGiftQty] = useState(10);
+  const [giftBox, setGiftBox] = useState<'basic' | 'rare' | 'event'>('basic');
+  const [claiming, setClaiming] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!session || !online) return;
     const r = await fetchFriends();
     if (r.ok) setData(r);
-    else if (r.status === 401) setData({ friends: [], incoming: [], outgoing: [] });
+    else if (r.status === 401) setData({ friends: [], incoming: [], outgoing: [], inbox: [], giftCooldownLeftMs: 0 });
   }, [session, online]);
 
   // ao trocar de conta, zera a lista ANTES do fetch novo — nunca exibe os
@@ -111,9 +119,42 @@ export function Friends() {
     void refresh();
   }
 
+  async function handleSendGift() {
+    if (!giftTarget) return;
+    setBusy(true);
+    setMsg(null);
+    const r = await sendGift(giftTarget.username, giftKind, giftQty, giftKind === 'box' ? giftBox : undefined);
+    setBusy(false);
+    if (!r.ok) { flash('err', r.reason ?? 'Falha ao enviar presente'); return; }
+    flash('ok', giftKind === 'credits'
+      ? `🎁 ${giftQty} créditos 💳 enviados para ${giftTarget.name || giftTarget.username}!`
+      : `🎁 ${giftQty} caixa(s) 📦 enviadas para ${giftTarget.name || giftTarget.username}!`);
+    setGiftTarget(null);
+    void refresh();
+  }
+
+  async function handleClaimGift(g: GiftItem) {
+    setClaiming(g.id);
+    const r = await claimGift(g.id);
+    setClaiming(null);
+    if (!r.ok) { flash('err', r.reason ?? 'Falha ao resgatar presente'); void refresh(); return; }
+    if (r.reward && engine) {
+      engine.grantRewards(r.reward as Parameters<typeof engine.grantRewards>[0]);
+      flash('ok', `🎁 Presente de ${r.from} resgatado!`);
+    }
+    void refresh();
+  }
+
   const friends = data?.friends ?? [];
   const incoming = data?.incoming ?? [];
   const outgoing = data?.outgoing ?? [];
+  const inbox = data?.inbox ?? [];
+  const cooldownMs = data?.giftCooldownLeftMs ?? 0;
+  const cooldownLabel = cooldownMs > 0
+    ? cooldownMs >= 3600000
+      ? `${Math.ceil(cooldownMs / 3600000)}h`
+      : `${Math.ceil(cooldownMs / 60000)}min`
+    : '';
 
   return (
     <div className="screen">
@@ -198,6 +239,7 @@ export function Friends() {
                         {f.statusMessage ? ` · “${f.statusMessage}”` : ''}
                       </small>
                     </span>                      <span className="friend-actions">
+                        <button className="btn btn-xs ghost" disabled={busy} title={cooldownLabel ? `Presente disponível em ${cooldownLabel}` : 'Enviar presente'} onClick={() => setGiftTarget(f)}>🎁</button>
                         <button className="btn btn-xs ghost" disabled={busy} onClick={() => setSelected(f)}>👁 Perfil</button>
                         <button className="btn btn-xs ghost" disabled={busy} onClick={() => setRemoving({ username: f.username, label: f.name || f.username, isRequest: false })}>✕</button>
                       </span>
@@ -226,9 +268,85 @@ export function Friends() {
                 </div>
               </>
             )}
+
+            {/* ── presentes recebidos (gifts entre amigos) ── */}
+            <h4>🎁 Presentes recebidos</h4>
+            {inbox.length === 0 ? (
+              <p className="muted small">
+                Nenhum presente ainda. Envie para um amigo (cooldown de 6h{cooldownLabel ? ` — próximo em ${cooldownLabel}` : ''}) e resgate os que receber!
+              </p>
+            ) : (
+              <div className="friend-list">
+                {inbox.map((g) => (
+                  <div key={g.id} className="friend-row">
+                    <span className="friend-avatar">{g.kind === 'credits' ? '💳' : '📦'}</span>
+                    <span className="friend-main">
+                      <strong>
+                        {g.kind === 'credits'
+                          ? `${g.qty} créditos 💳`
+                          : `${g.qty} caixa${g.qty > 1 ? 's' : ''} ${g.boxId ?? 'basic'} 📦`}
+                      </strong>
+                      <small className="muted">de {g.from} · {new Date(g.at).toLocaleDateString('pt-BR')}</small>
+                    </span>
+                    <span className="friend-actions">
+                      <button className="btn btn-xs btn-primary" disabled={claiming === g.id} onClick={() => void handleClaimGift(g)}>
+                        {claiming === g.id ? '…' : '🎁 Resgatar'}
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </>
         )}
       </Panel>
+
+      {/* ── enviar presente ── */}
+      <Modal open={giftTarget !== null} onClose={() => setGiftTarget(null)} title={giftTarget ? `🎁 Presente para ${giftTarget.name || giftTarget.username}` : ''}>
+        {giftTarget && (
+          <div className="gift-box">
+            <p className="muted small" style={{ marginTop: 0 }}>
+              Presentes são resgatados pelo amigo na tela de Amigos dele. Cooldown de 6h entre envios.
+            </p>
+            <div className="gift-kind-tabs">
+              <button className={`chip-btn ${giftKind === 'credits' ? 'active' : ''}`} onClick={() => setGiftKind('credits')}>💳 Créditos</button>
+              <button className={`chip-btn ${giftKind === 'box' ? 'active' : ''}`} onClick={() => setGiftKind('box')}>📦 Caixas</button>
+            </div>
+            {giftKind === 'credits' ? (
+              <div className="gift-options">
+                {[5, 10, 25, 50, 100].map((q) => (
+                  <button key={q} className={`chip-btn ${giftQty === q ? 'active' : ''}`} onClick={() => setGiftQty(q)}>{q} 💳</button>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="gift-options">
+                  {([['basic', '📦 Básica'], ['rare', '✨ Rara'], ['event', '🎉 Evento']] as const).map(([id, label]) => (
+                    <button key={id} className={`chip-btn ${giftBox === id ? 'active' : ''}`} onClick={() => setGiftBox(id)}>{label}</button>
+                  ))}
+                </div>
+                <div className="gift-options">
+                  {[1, 2, 3].map((q) => (
+                    <button key={q} className={`chip-btn ${giftQty === q ? 'active' : ''}`} onClick={() => setGiftQty(q)}>{q}×</button>
+                  ))}
+                </div>
+              </>
+            )}
+            <div className="modal-actions">
+              <button className="btn" onClick={() => setGiftTarget(null)}>Cancelar</button>
+              <button
+                className="btn btn-primary"
+                disabled={busy || cooldownMs > 0}
+                title={cooldownLabel ? `Próximo presente em ${cooldownLabel}` : ''}
+                onClick={() => void handleSendGift()}
+              >
+                {busy ? 'Enviando…' : cooldownLabel ? `Aguarde ${cooldownLabel}` : '🎁 Enviar presente'}
+              </button>
+            </div>
+            {cooldownMs > 0 && <p className="muted small">Você pode enviar outro presente em {cooldownLabel}.</p>}
+          </div>
+        )}
+      </Modal>
 
       {/* ── perfil do amigo ── */}
       <Modal open={selected !== null} onClose={() => setSelected(null)} title={selected ? `Perfil de ${selected.name || selected.username}` : ''}>

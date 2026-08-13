@@ -36,8 +36,10 @@ function inPolygon(x, y, poly) {
  * Desenha o ícone do jogo em um canvas canvasSize×canvasSize.
  * A arte (artSize×artSize) é desenhada em offsetX/offsetY (0,0 = canto superior
  * esquerdo); round=true recorta a arte em círculo; fora da arte = transparente.
+ * mono=true desenha apenas a silhueta BRANCA do raio (ícone de notificação —
+ * o Android espera branco sobre transparente).
  */
-function render(canvasSize, artSize, { offsetX = 0, offsetY = 0, round = false } = {}) {
+function render(canvasSize, artSize, { offsetX = 0, offsetY = 0, round = false, mono = false } = {}) {
   const px = new Uint8Array(canvasSize * canvasSize * 4);
   const setPx = (x, y, r, g, b, a) => {
     if (x < 0 || y < 0 || x >= canvasSize || y >= canvasSize) return;
@@ -53,6 +55,12 @@ function render(canvasSize, artSize, { offsetX = 0, offsetY = 0, round = false }
       const ay = y - offsetY;
       // fora da arte → transparente (fundo do foreground adaptativo, etc.)
       if (ax < 0 || ay < 0 || ax >= artSize || ay >= artSize) { setPx(x, y, 0, 0, 0, 0); continue; }
+
+      // silhueta de notificação: só o raio, branco puro
+      if (mono) {
+        if (inPolygon(ax, ay, boltScaled)) setPx(x, y, 255, 255, 255, 255);
+        continue;
+      }
 
       const dx = (ax - half) / half;
       const dy = (ay - half) / half;
@@ -156,6 +164,8 @@ for (const { name, size } of DENSITIES) {
   writePng(path.join(mipmap, 'ic_launcher.png'), renderLegacy(size, false));
   writePng(path.join(mipmap, 'ic_launcher_round.png'), renderLegacy(size, true));
   writePng(path.join(mipmap, 'ic_launcher_foreground.png'), renderForeground(size));
+  // ícone de notificação push (silhueta branca) — nas 5 densidades
+  writePng(path.join(mipmap, 'ic_push.png'), render(size, size, { mono: true }));
 }
 
 // ── ícones do PWA instalável (manifest) ──

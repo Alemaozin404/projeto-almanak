@@ -5,6 +5,23 @@ export function isNativeApp(): boolean {
   return Capacitor.isNativePlatform();
 }
 
+export type PlayerPlatform = 'android' | 'pc' | 'web';
+
+/**
+ * Plataforma atual do jogador — usada no ranking global (filtro por plataforma)
+ * e no registro do token de push. android = app Capacitor, pc = Electron,
+ * web = navegador (site/PWA).
+ */
+export function platformName(): PlayerPlatform {
+  if (isNativeApp()) return 'android';
+  try {
+    if (typeof navigator !== 'undefined' && /electron/i.test(navigator.userAgent)) return 'pc';
+  } catch {
+    /* sem navigator (SSR/testes) */
+  }
+  return 'web';
+}
+
 /**
  * Fecha o jogo: no app Android encerra o processo de verdade (App.exitApp);
  * no desktop/navegador (Electron/site) usa window.close().

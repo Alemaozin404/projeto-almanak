@@ -36,6 +36,17 @@ interface FriendsBody {
   incoming?: string[];
   outgoing?: string[];
   status?: string;
+  inbox?: { id: string; from: string; kind: string; qty: number; boxId?: string; at: number }[];
+  giftCooldownLeftMs?: number;
+}
+
+interface GiftBody {
+  ok?: boolean;
+  reason?: string;
+  cooldownMs?: number;
+  cooldownLeftMs?: number;
+  from?: string;
+  reward?: { credits?: number; boxes?: { boxId: string; qty: number }[] };
 }
 
 interface User {
@@ -249,5 +260,103 @@ describe('Amigos — adicionar, aceitar, presença e perfil público', () => {
     expect(u2Entry!.statusMessage).toBe('farmando forte');
     expect(u2Entry!.level).toBe(12);
     expect(u2Entry!.prestige).toBe(3);
+  });
+
+  it('presentes: enviar para amigo → cai na inbox; cooldown bloqueia segundo envio; resgate é único', async () => {
+    // garante amizade u1 ↔ u2 (pode já existir de testes anteriores — remove primeiro)
+    await post('/api/friends/remove', { username: u2.username }, tokenHeader(u1.token));
+    await add(u1, u2);
+    await post('/api/friends/accept', { username: u1.username }, tokenHeader(u2.token));
+
+    // envio válido: 20 créditos 💳 de u1 → u2
+    const send = await post('/api/gifts/send', { username: u2.username, kind: 'credits', qty: 20 }, tokenHeader(u1.token));
+    expect(send.status).toBe(200);
+    const sendBody = (await send.json()) as GiftBody;
+    expect(sendBody.cooldownMs).toBe(6 * 3600 * 1000);
+
+    // u2 vê o presente na inbox (com cooldown de u2 zerado — ele não enviou nada)
+    const u2View = await friendsOf(u2.token);
+    expect(u2View.inbox).toHaveLength(1);
+    expect(u2View.inbox![0].from).toBe(u1.username);
+    expect(u2View.inbox![0].kind).toBe('credits');
+    expect(u2View.inbox![0].qty).toBe(20);
+    expect(u2View.giftCooldownLeftMs).toBe(0);
+
+    // u1 ficou em cooldown (6h)
+    const u1View = await friendsOf(u1.token);
+    expect(u1View.giftCooldownLeftMs).toBeGreaterThan(0);
+
+    // segundo envio imediato → 429 com o tempo restante
+    const again = await post('/api/gifts/send', { username: u2.username, kind: 'credits', qty: 5 }, tokenHeader(u1.token));
+    expect(again.status).toBe(429);
+    const againBody = (await again.json()) as GiftBody;
+    expect(againBody.cooldownLeftMs).toBeGreaterThan(0);
+
+    // u2 resgata → recebe a recompensa; resgate duplo falha
+    const id = u2View.inbox![0].id;
+    const claim = await post('/api/gifts/claim', { id }, tokenHeader(u2.token));
+    expect(claim.status).toBe(200);
+    const claimBody = (await claim.json()) as GiftBody;
+    expect(claimBody.from).toBe(u1.username);
+    expect(claimBody.reward).toEqual({ credits: 20 });
+
+    const after = await friendsOf(u2.token);
+    expect(after.inbox).toHaveLength(0);
+    const claimAgain = await post('/api/gifts/claim', { id }, tokenHeader(u2.token));
+    expect(claimAgain.status).toBe(400);
+
+    // limpeza
+    await post('/api/friends/remove', { username: u2.username }, tokenHeader(u1.token));
+  });
+
+  it('presentes: caixa 📦 válida; apenas para AMIGOS; validações de quantidade', async () => {
+    // u2 → u3 caixa rara x2
+    await add(u2, u3);
+    await post('/api/friends/accept', { username: u2.username }, tokenHeader(u3.token));
+    const box = await post('/api/gifts/send', { username: u3.username, kind: 'box', qty: 2, boxId: 'rare' }, tokenHeader(u2.token));
+    expect(box.status).toBe(200);
+    const boxBody = (await box.json()) as GiftBody;
+    expect(boxBody.ok).toBe(true);
+
+    const u3View = await friendsOf(u3.token);
+    const g = u3View.inbox![0];
+    expect(g.kind).toBe('box');
+    expect(g.qty).toBe(2);
+    expect(g.boxId).toBe('rare');
+    const claim = await post('/api/gifts/claim', { id: g.id }, tokenHeader(u3.token));
+    expect(((await claim.json()) as GiftBody).reward).toEqual({ boxes: [{ boxId: 'rare', qty: 2 }] });
+
+    // não-amigo → 400 (u1 e u3 ainda não são amigos neste momento)
+    const stranger = await post('/api/gifts/send', { username: u3.username, kind: 'credits', qty: 10 }, tokenHeader(u1.token));
+    expect(stranger.status).toBe(400);
+    expect(((await stranger.json()) as GiftBody).reason).toContain('amigos');
+
+    // quantidade fora do intervalo → 400
+    const tooMuch = await post('/api/gifts/send', { username: u3.username, kind: 'credits', qty: 999 }, tokenHeader(u2.token));
+    expect(tooMuch.status).toBe(400);
+    const badBox = await post('/api/gifts/send', { username: u3.username, kind: 'box', qty: 1, boxId: 'hacker' }, tokenHeader(u2.token));
+    expect(badBox.status).toBe(400);
+
+    // limpeza
+    await post('/api/friends/remove', { username: u2.username }, tokenHeader(u2.token));
+  });
+
+  it('push token: registrar com a conta; remover com token vazio; logout limpa', async () => {
+    const reg = await post('/api/push/token', { token: 'fcm-token-teste-123', platform: 'android' }, tokenHeader(u1.token));
+    expect(reg.status).toBe(200);
+    expect(((await reg.json()) as { registered?: boolean }).registered).toBe(true);
+
+    // sem sessão → 401
+    const noSession = await post('/api/push/token', { token: 'fcm-token-teste-123' });
+    expect(noSession.status).toBe(401);
+
+    // token vazio remove
+    const remove = await post('/api/push/token', { token: '' }, tokenHeader(u1.token));
+    expect(remove.status).toBe(200);
+    expect(((await remove.json()) as { registered?: boolean }).registered).toBe(false);
+
+    // logout também limpa
+    await post('/api/push/token', { token: 'fcm-token-teste-456' }, tokenHeader(u1.token));
+    await post('/api/account/logout', { token: u1.token });
   });
 });

@@ -7,6 +7,7 @@
  */
 import { pixBackendUrl, pixOnlineEnabled } from '../wallet/mp';
 import { GameConfig } from '../config/GameConfig';
+import { platformName, type PlayerPlatform } from '../core/platform';
 
 /** O backend online está configurado? (URL definida em GameConfig/localStorage). */
 export const onlineEnabled = pixOnlineEnabled;
@@ -44,12 +45,18 @@ export interface RankEntry {
   gain: string;
   count: number;
   at: number;
+  /** Plataforma de origem do recorde (android | pc | web) — filtro do ranking. */
+  platform?: string;
 }
 
-/** Baixa o ranking global de um tipo de ciclo. */
-export async function fetchGlobalRank(kind: RankEntry['kind'], limit = 10): Promise<RankEntry[]> {
+export type RankPlatform = 'all' | PlayerPlatform;
+
+/** Baixa o ranking global de um tipo de ciclo (com filtro opcional por plataforma). */
+export async function fetchGlobalRank(kind: RankEntry['kind'], limit = 10, platform: RankPlatform = 'all'): Promise<RankEntry[]> {
   try {
-    const res = await fetch(`${serverUrl()}/api/rank?kind=${encodeURIComponent(kind)}&limit=${limit}`);
+    const q = new URLSearchParams({ kind, limit: String(limit) });
+    if (platform && platform !== 'all') q.set('platform', platform);
+    const res = await fetch(`${serverUrl()}/api/rank?${q}`);
     if (!res.ok) return [];
     const data = (await res.json()) as { ok?: boolean; list?: RankEntry[] };
     return Array.isArray(data.list) ? data.list.slice(0, limit) : [];
@@ -81,11 +88,11 @@ export async function fetchOnlinePlayers(): Promise<OnlinePlayer[] | null> {
 }
 
 /** Publica um ciclo no ranking global. Retorna a posição (ou null). */
-export async function submitGlobalRank(entry: Omit<RankEntry, 'at'> & { at?: number }): Promise<{ ok: boolean; position?: number | null; reason?: string }> {
+export async function submitGlobalRank(entry: Omit<RankEntry, 'at' | 'platform'> & { at?: number; platform?: string }): Promise<{ ok: boolean; position?: number | null; reason?: string }> {
   try {
     const res = await apiFetch('/api/rank', {
       method: 'POST',
-      body: JSON.stringify({ ...entry, at: entry.at ?? Date.now() }),
+      body: JSON.stringify({ ...entry, platform: entry.platform ?? platformName(), at: entry.at ?? Date.now() }),
     });
     const data = await apiJson<{ ok?: boolean; position?: number | null; reason?: string }>(res);
     return { ok: data?.ok === true, position: data?.position, reason: data?.reason };

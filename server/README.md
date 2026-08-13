@@ -109,6 +109,16 @@ Depois commite o `server/content.json` e faça push — o Vercel redeploya e o j
 | GET | `/api/profile/:username` | Perfil público por deep link (`/?profile=<usuario>`) — sem sessão, só o snapshot (404 se nunca sincronizou) |
 | PUT | `/api/account/save` | Guarda o save da conta — o app envia após cada save local (~1 min) e ao sair (exige `x-account-token`) |
 | POST | `/api/account/link-slot` | Re-vincula o save da conta a outro slot (`slot1|slot2|slot3`) sem reenviar (exige `x-account-token`) |
+| POST | `/api/gifts/send` | Envia presente para um amigo (`credits`/`box`, cooldown 6h) — cai na inbox dele (exige `x-account-token`) |
+| POST | `/api/gifts/claim` | Resgata um presente da inbox — devolve a recompensa autoritativa (resgate único, exige `x-account-token`) |
+| POST | `/api/push/token` | Registra/remove o token FCM da conta (exige `x-account-token`; token vazio remove) |
+
+> **Ranking por plataforma**: o `POST /api/rank` aceita `platform` (`android` | `pc` | `web`,
+> padrão `web`) e o `GET /api/rank?platform=<all|android|pc|web>` filtra a lista.
+>
+> **Push (FCM)**: para notificações reais (presentes, eventos) o servidor precisa do
+> `FCM_SERVICE_ACCOUNT` (JSON do service account do Firebase, como secret) — sem ele,
+> os envios vão apenas para o console (modo dev).
 
 > **Pacotes de diamantes/moedas** (Admin → Vendas): o jogo publica pacotes em `/api/packs`
 > e cobra por `packId` em `/api/pix/charge` — o preço em R$ é sempre revalidado aqui

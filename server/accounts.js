@@ -301,7 +301,14 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
   // ── logout ─────────────────────────────────────────────────
   app.post('/api/account/logout', async (req, res) => {
     const token = String(req.body?.token ?? '');
-    if (/^[0-9a-f]{64}$/.test(token)) await kvSet(`account:session:${token}`, null);
+    if (/^[0-9a-f]{64}$/.test(token)) {
+      // limpa o token de push da conta (não notificar mais um app deslogado)
+      const session = await kvGetJson(`account:session:${token}`);
+      if (session && typeof session.username === 'string') {
+        await kvSet(`push:token:${norm(session.username)}`, null);
+      }
+      await kvSet(`account:session:${token}`, null);
+    }
     return res.json({ ok: true });
   });
 
@@ -494,6 +501,59 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
   const MAX_FRIENDS = 100;
   const FRIEND_RE = /^[a-zA-Z0-9_]{3,20}$/;
 
+  // ── presentes entre amigos ──
+  /** Cooldown entre envios de presente (6h — anti-spam). */
+  const GIFT_COOLDOWN_MS = 6 * 3600 * 1000;
+  const GIFT_KINDS = new Set(['credits', 'box']);
+  const MIN_GIFT_CREDITS = 5;
+  const MAX_GIFT_CREDITS = 100;
+  const MAX_GIFT_BOXES = 3;
+  const GIFT_BOX_IDS = new Set(['basic', 'rare', 'event']);
+
+  /**
+   * Envia uma notificação FCM para a conta (se houver token + FCM configurado).
+   * Sem firebase-admin/FCM_SERVICE_ACCOUNT configurado → modo dev (log).
+   */
+  let fcmMessaging = null;
+  async function ensureFcm() {
+    if (fcmMessaging) return fcmMessaging;
+    const raw = env.FCM_SERVICE_ACCOUNT ?? '';
+    if (!raw) return null;
+    try {
+      const serviceAccount = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      const { initializeApp, cert, getApps } = await import('firebase-admin/app');
+      const { getMessaging } = await import('firebase-admin/messaging');
+      const app = getApps().length > 0 ? getApps()[0] : initializeApp({ credential: cert(serviceAccount) });
+      fcmMessaging = getMessaging(app);
+      return fcmMessaging;
+    } catch (err) {
+      console.error('[push] FCM não inicializado:', err.message);
+      return null;
+    }
+  }
+
+  async function sendPush(username, title, body) {
+    const u = norm(username);
+    const stored = await kvGetJson(`push:token:${u}`);
+    if (!stored || typeof stored.token !== 'string' || !stored.token) return { ok: false, reason: 'sem token' };
+    const messaging = await ensureFcm();
+    if (!messaging) {
+      console.log(`[push][dev] → ${u}\n  ${title}: ${body}`);
+      return { ok: true, dev: true };
+    }
+    try {
+      await messaging.send({
+        token: stored.token,
+        notification: { title, body },
+        android: { priority: 'high' },
+      });
+      return { ok: true };
+    } catch (err) {
+      console.error(`[push] falha ao enviar para ${u}:`, err.message);
+      return { ok: false };
+    }
+  }
+
   function publicProfileKey(username) {
     return `account:pub:${norm(username)}`;
   }
@@ -509,6 +569,10 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
       friends: Array.isArray(data?.friends) ? data.friends : [],
       incoming: Array.isArray(data?.incoming) ? data.incoming : [],
       outgoing: Array.isArray(data?.outgoing) ? data.outgoing : [],
+      // presentes recebidos ainda não resgatados
+      inbox: Array.isArray(data?.inbox) ? data.inbox : [],
+      // último envio de presente (cooldown entre envios)
+      lastGiftAt: Number.isFinite(data?.lastGiftAt) ? data.lastGiftAt : 0,
     };
   }
 
@@ -560,7 +624,16 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
     }
     const state = await getFriendState(username);
     const friends = await Promise.all(state.friends.map(friendInfo));
-    return res.json({ ok: true, friends, incoming: state.incoming, outgoing: state.outgoing });
+    // cooldown de presente do REMETENTE (quanto falta para enviar outro)
+    const cooldownLeft = (state.lastGiftAt ?? 0) + GIFT_COOLDOWN_MS - Date.now();
+    return res.json({
+      ok: true,
+      friends,
+      incoming: state.incoming,
+      outgoing: state.outgoing,
+      inbox: Array.isArray(state.inbox) ? state.inbox : [],
+      giftCooldownLeftMs: cooldownLeft > 0 ? cooldownLeft : 0,
+    });
   });
 
   // ── perfil público por link (deep link: /?profile=<usuario>) ──
@@ -719,5 +792,125 @@ export function attachAccountRoutes(app, { env, kvGetJson, kvSet, kvKeys, rateLi
     await setFriendState(me, mine);
     await setFriendState(target, theirs);
     return res.json({ ok: true });
+  });
+
+  // ── presentes entre amigos (créditos 💳 / caixas 📦) ──────
+  // Enviar: só para AMIGOS e com cooldown de 6h (anti-spam). O presente cai na
+  // inbox do amigo e o app avisa na tela de Amigos (e por push, se configurado).
+  app.post('/api/gifts/send', async (req, res) => {
+    const username = await requireSessionUser(req, res);
+    if (!username) return;
+    if (rateLimited(`gifts:send:${norm(username)}`, 10)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const target = String(req.body?.username ?? '').trim().toLowerCase();
+    const kind = String(req.body?.kind ?? '');
+    const qty = Number(req.body?.qty);
+    const boxId = String(req.body?.boxId ?? '');
+    if (!FRIEND_RE.test(target)) {
+      return res.status(400).json({ ok: false, reason: 'Usuário inválido' });
+    }
+    const me = norm(username);
+    if (target === me) {
+      return res.status(400).json({ ok: false, reason: 'Você não pode se presentear' });
+    }
+    if (!GIFT_KINDS.has(kind)) {
+      return res.status(400).json({ ok: false, reason: 'Tipo de presente inválido' });
+    }
+    if (kind === 'credits') {
+      if (!Number.isInteger(qty) || qty < MIN_GIFT_CREDITS || qty > MAX_GIFT_CREDITS) {
+        return res.status(400).json({ ok: false, reason: `Envie entre ${MIN_GIFT_CREDITS} e ${MAX_GIFT_CREDITS} créditos 💳` });
+      }
+    } else {
+      if (!Number.isInteger(qty) || qty < 1 || qty > MAX_GIFT_BOXES) {
+        return res.status(400).json({ ok: false, reason: `Envie entre 1 e ${MAX_GIFT_BOXES} caixas 📦` });
+      }
+      if (!GIFT_BOX_IDS.has(boxId)) {
+        return res.status(400).json({ ok: false, reason: 'Caixa inválida' });
+      }
+    }
+    const mine = await getFriendState(me);
+    if (!mine.friends.includes(target)) {
+      return res.status(400).json({ ok: false, reason: 'Só é possível presentear amigos' });
+    }
+    const cooldownLeft = (mine.lastGiftAt ?? 0) + GIFT_COOLDOWN_MS - Date.now();
+    if (cooldownLeft > 0) {
+      return res.status(429).json({
+        ok: false,
+        reason: `Aguarde ${Math.ceil(cooldownLeft / 3600000)}h para enviar outro presente`,
+        cooldownLeftMs: cooldownLeft,
+      });
+    }
+    const theirs = await getFriendState(target);
+    const gift = {
+      id: crypto.randomBytes(8).toString('hex'),
+      from: me,
+      kind,
+      qty,
+      ...(kind === 'box' ? { boxId } : {}),
+      at: Date.now(),
+    };
+    theirs.inbox.push(gift);
+    mine.lastGiftAt = Date.now();
+    await setFriendState(me, mine);
+    await setFriendState(target, theirs);
+    console.log(`[gifts] ${me} → ${target}: ${kind} x${qty}${boxId ? ` (${boxId})` : ''}`);
+    // notificação push do presente (best-effort — só envia com FCM configurado)
+    const label = kind === 'credits' ? `${qty} créditos 💳` : `${qty} caixa(s) 📦`;
+    void sendPush(target, '🎁 Presente recebido!', `${me} te enviou ${label} — resgate na tela de Amigos.`);
+    return res.json({ ok: true, id: gift.id, cooldownMs: GIFT_COOLDOWN_MS });
+  });
+
+  // ── resgatar presente recebido ──
+  // O presente sai da inbox ATOMICAMENTE e a recompensa é devolvida ao app
+  // (mesma especificação usada nas recompensas do jogo) — resgatar duas vezes
+  // o mesmo presente é impossível (ele já não está mais na inbox).
+  app.post('/api/gifts/claim', async (req, res) => {
+    const username = await requireSessionUser(req, res);
+    if (!username) return;
+    if (rateLimited(`gifts:claim:${norm(username)}`, 10)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const id = String(req.body?.id ?? '');
+    if (!/^[0-9a-f]{8,64}$/.test(id)) {
+      return res.status(400).json({ ok: false, reason: 'Presente inválido' });
+    }
+    const me = norm(username);
+    const mine = await getFriendState(me);
+    const idx = mine.inbox.findIndex((g) => g && g.id === id);
+    if (idx < 0) {
+      return res.status(400).json({ ok: false, reason: 'Presente não encontrado ou já resgatado' });
+    }
+    const gift = mine.inbox[idx];
+    mine.inbox.splice(idx, 1);
+    await setFriendState(me, mine);
+    // recompensa autoritativa — o app aplica no save com a MESMA especificação
+    const reward = gift.kind === 'credits'
+      ? { credits: gift.qty }
+      : { boxes: [{ boxId: gift.boxId ?? 'basic', qty: gift.qty }] };
+    console.log(`[gifts] ${me} resgatou ${gift.id} de ${gift.from}`);
+    return res.json({ ok: true, from: gift.from, reward });
+  });
+
+  // ── token de push (FCM) da conta ──
+  // O app Android registra o token aqui quando o jogador conecta a conta; o
+  // servidor usa para notificações (presentes, eventos). Token vazio remove.
+  app.post('/api/push/token', async (req, res) => {
+    const username = await requireSessionUser(req, res);
+    if (!username) return;
+    if (rateLimited(`push:token:${norm(username)}`, 20)) {
+      return res.status(429).json({ ok: false, reason: 'Muitas requisições — aguarde um minuto' });
+    }
+    const token = String(req.body?.token ?? '').trim();
+    if (!token) {
+      await kvSet(`push:token:${norm(username)}`, null);
+      return res.json({ ok: true, registered: false });
+    }
+    if (token.length > 4096) {
+      return res.status(400).json({ ok: false, reason: 'Token inválido' });
+    }
+    const platform = String(req.body?.platform ?? 'android').slice(0, 16);
+    await kvSet(`push:token:${norm(username)}`, { token, platform, at: Date.now() });
+    return res.json({ ok: true, registered: true });
   });
 }

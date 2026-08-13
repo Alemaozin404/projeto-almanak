@@ -128,6 +128,39 @@ describe('API online — conteúdo, save na nuvem e ranking', () => {
     expect(bad.status).toBe(400);
   });
 
+  it('ranking por plataforma: POST guarda a plataforma; GET filtra (all/android/pc/web)', async () => {
+    const post = (entry: Record<string, unknown>) =>
+      fetch(`${baseUrl}/api/rank`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret },
+        body: JSON.stringify(entry),
+      });
+
+    await post({ kind: 'ascension', playerId: '901', gain: '500', name: 'Celu', count: 1, platform: 'android' });
+    await post({ kind: 'ascension', playerId: '902', gain: '600', name: 'PcMan', count: 1, platform: 'pc' });
+    await post({ kind: 'ascension', playerId: '903', gain: '700', name: 'WebGuy', count: 1 }); // sem plataforma → web
+
+    // 'all' (padrão) traz todo mundo
+    const all = (await (await fetch(`${baseUrl}/api/rank?kind=ascension`)).json()) as { list?: { playerId: string; platform?: string }[] };
+    expect(all.list).toHaveLength(3);
+
+    const android = (await (await fetch(`${baseUrl}/api/rank?kind=ascension&platform=android`)).json()) as { list?: { playerId: string }[] };
+    expect(android.list).toHaveLength(1);
+    expect(android.list![0].playerId).toBe('901');
+
+    const pc = (await (await fetch(`${baseUrl}/api/rank?kind=ascension&platform=pc`)).json()) as { list?: { playerId: string }[] };
+    expect(pc.list).toHaveLength(1);
+    expect(pc.list![0].playerId).toBe('902');
+
+    const web = (await (await fetch(`${baseUrl}/api/rank?kind=ascension&platform=web`)).json()) as { list?: { playerId: string }[] };
+    expect(web.list).toHaveLength(1);
+    expect(web.list![0].playerId).toBe('903');
+
+    // plataforma inválida → 400
+    const bad = await fetch(`${baseUrl}/api/rank?kind=ascension&platform=console`);
+    expect(bad.status).toBe(400);
+  });
+
   it('packs do admin: CRUD exige segredo, valida preço e persiste', async () => {
     const headers = { 'content-type': 'application/json', 'x-app-secret': GameConfig.wallet.appSharedSecret };
 

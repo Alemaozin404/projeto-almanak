@@ -96,6 +96,8 @@ function loadContent() {
 
 // ── ranking global (KV) ──
 const RANK_KINDS = new Set(['prestige', 'ascension', 'transcendence']);
+/** Plataformas reconhecidas no ranking global (filtro por plataforma). */
+const PLATFORMS = new Set(['android', 'pc', 'web']);
 const RANK_MAX = 100;
 const RANK_CACHE_MS = 60 * 1000; // GET /api/rank: 1 min de cache no processo
 let rankCache = null;
@@ -431,19 +433,28 @@ export function createApp(env = process.env) {
   app.get('/api/rank', async (req, res) => {
     const kind = String(req.query.kind ?? 'prestige');
     if (!RANK_KINDS.has(kind)) return res.status(400).json({ ok: false, reason: 'Categoria inválida' });
-    // cache curto no processo (1 min) — ranking não precisa ser realtime
-    if (rankCache && Date.now() - rankCacheAt < RANK_CACHE_MS && rankCache.kind === kind) {
-      return res.json({ ok: true, kind, list: rankCache.list });
+    // filtro por plataforma: all | android | pc | web (default: all)
+    const platform = String(req.query.platform ?? 'all');
+    if (platform !== 'all' && !PLATFORMS.has(platform)) {
+      return res.status(400).json({ ok: false, reason: 'Plataforma inválida' });
     }
-    const list = (await kvGetJson(rankKey(kind))) ?? [];
-    rankCache = { kind, list: Array.isArray(list) ? list : [] };
+    // cache curto no processo (1 min) — ranking não precisa ser realtime
+    if (rankCache && Date.now() - rankCacheAt < RANK_CACHE_MS && rankCache.kind === kind && rankCache.platform === platform) {
+      return res.json({ ok: true, kind, platform, list: rankCache.list });
+    }
+    let list = (await kvGetJson(rankKey(kind))) ?? [];
+    if (!Array.isArray(list)) list = [];
+    if (platform !== 'all') {
+      list = list.filter((e) => String(e.platform ?? 'web') === platform);
+    }
+    rankCache = { kind, platform, list };
     rankCacheAt = Date.now();
-    return res.json({ ok: true, kind, list: rankCache.list });
+    return res.json({ ok: true, kind, platform, list });
   });
 
   app.post('/api/rank', async (req, res) => {
     if (!appSecretValid(req)) return res.status(401).json({ ok: false, reason: 'Acesso negado' });
-    const { playerId, name, kind, gain, count, at } = req.body ?? {};
+    const { playerId, name, kind, gain, count, at, platform } = req.body ?? {};
     if (!RANK_KINDS.has(kind)) return res.status(400).json({ ok: false, reason: 'Categoria inválida' });
     if (!PLAYER_ID_RE.test(String(playerId))) return res.status(400).json({ ok: false, reason: 'Jogador inválido' });
     if (typeof gain !== 'string' || !/^[0-9.eE+-]{1,100}$/.test(gain)) return res.status(400).json({ ok: false, reason: 'Ganho inválido' });
@@ -461,6 +472,7 @@ export function createApp(env = process.env) {
       gain,
       count: Number.isFinite(count) ? count : 0,
       at: Number.isFinite(at) ? at : Date.now(),
+      platform: PLATFORMS.has(String(platform)) ? String(platform) : 'web',
     });
     return res.json({ ok: true, position });
   });

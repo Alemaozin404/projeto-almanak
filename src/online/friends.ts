@@ -32,6 +32,26 @@ export interface FriendsData {
   incoming: string[];
   /** Solicitações que ENVIEI (aguardando o aceite do outro). */
   outgoing: string[];
+  /** Presentes recebidos ainda não resgatados (🎁 gifts entre amigos). */
+  inbox: GiftItem[];
+  /** Quanto falta (ms) para poder enviar outro presente (0 = pode enviar). */
+  giftCooldownLeftMs: number;
+}
+
+/** Presente recebido de um amigo (créditos 💳 ou caixas 📦). */
+export interface GiftItem {
+  id: string;
+  from: string;
+  kind: 'credits' | 'box';
+  qty: number;
+  boxId?: string;
+  at: number;
+}
+
+/** Recompensa do presente — mesma especificação das recompensas do jogo. */
+export interface GiftRewardSpec {
+  credits?: number;
+  boxes?: { boxId: string; qty: number }[];
 }
 
 export type FriendsResult<T = Record<string, unknown>> =
@@ -90,13 +110,18 @@ export async function copyProfileLink(username: string): Promise<boolean> {
 export async function fetchFriends(): Promise<FriendsResult<FriendsData>> {
   try {
     const res = await apiFetch('/api/friends', { headers: sessionHeaders() });
-    const data = await apiJson<{ ok?: boolean; reason?: string; friends?: FriendInfo[]; incoming?: string[]; outgoing?: string[] }>(res);
+    const data = await apiJson<{
+      ok?: boolean; reason?: string; friends?: FriendInfo[]; incoming?: string[]; outgoing?: string[];
+      inbox?: GiftItem[]; giftCooldownLeftMs?: number;
+    }>(res);
     if (!res.ok || data?.ok !== true) return { ok: false, reason: data?.reason ?? `Servidor recusou (${res.status})`, status: res.status };
     return {
       ok: true,
       friends: Array.isArray(data.friends) ? data.friends : [],
       incoming: Array.isArray(data.incoming) ? data.incoming : [],
       outgoing: Array.isArray(data.outgoing) ? data.outgoing : [],
+      inbox: Array.isArray(data.inbox) ? data.inbox : [],
+      giftCooldownLeftMs: typeof data.giftCooldownLeftMs === 'number' && Number.isFinite(data.giftCooldownLeftMs) ? data.giftCooldownLeftMs : 0,
     };
   } catch {
     return { ok: false, reason: 'Sem conexão com o servidor' };
@@ -146,6 +171,50 @@ export async function declineFriend(username: string): Promise<FriendsResult> {
     const data = await apiJson<{ ok?: boolean; reason?: string }>(res);
     if (!res.ok || data?.ok !== true) return { ok: false, reason: data?.reason ?? `Servidor recusou (${res.status})`, status: res.status };
     return { ok: true };
+  } catch {
+    return { ok: false, reason: 'Sem conexão com o servidor' };
+  }
+}
+
+/**
+ * Envia um presente para um amigo (créditos 💳 ou caixas 📦, com cooldown de 6h
+ * por remetente). O presente cai na inbox do amigo — ele resgata na tela dele.
+ */
+export async function sendGift(
+  username: string,
+  kind: 'credits' | 'box',
+  qty: number,
+  boxId?: string,
+): Promise<FriendsResult<{ cooldownMs?: number }>> {
+  try {
+    const res = await apiFetch('/api/gifts/send', {
+      method: 'POST',
+      headers: sessionHeaders(),
+      body: JSON.stringify({ username, kind, qty, boxId }),
+    });
+    const data = await apiJson<{ ok?: boolean; reason?: string; cooldownMs?: number }>(res);
+    if (!res.ok || data?.ok !== true) return { ok: false, reason: data?.reason ?? `Servidor recusou (${res.status})`, status: res.status };
+    return { ok: true, cooldownMs: data.cooldownMs };
+  } catch {
+    return { ok: false, reason: 'Sem conexão com o servidor' };
+  }
+}
+
+/**
+ * Resgata um presente recebido. O servidor marca o resgate ATOMICAMENTE e
+ * devolve a recompensa (a mesma especificação das recompensas do jogo) — o
+ * app aplica no save com `engine.grantRewards`. Resgate duplo é impossível.
+ */
+export async function claimGift(id: string): Promise<FriendsResult<{ from?: string; reward?: GiftRewardSpec }>> {
+  try {
+    const res = await apiFetch('/api/gifts/claim', {
+      method: 'POST',
+      headers: sessionHeaders(),
+      body: JSON.stringify({ id }),
+    });
+    const data = await apiJson<{ ok?: boolean; reason?: string; from?: string; reward?: GiftRewardSpec }>(res);
+    if (!res.ok || data?.ok !== true) return { ok: false, reason: data?.reason ?? `Servidor recusou (${res.status})`, status: res.status };
+    return { ok: true, from: data.from, reward: data.reward };
   } catch {
     return { ok: false, reason: 'Sem conexão com o servidor' };
   }

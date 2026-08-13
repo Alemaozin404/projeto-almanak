@@ -32,6 +32,10 @@ export interface NotificationPrefs {
   dailyReward: boolean;
   pass: boolean;
   offers: boolean;
+  /** Notificações push do app Android (FCM) — eventos, presentes. */
+  pushEnabled: boolean;
+  /** Aviso local quando o ganho offline atinge o teto (Android). */
+  offlineNotify: boolean;
 }
 
 export interface PrivacyPrefs {
@@ -104,6 +108,8 @@ export function defaultNotificationPrefs(): NotificationPrefs {
     dailyReward: true,
     pass: true,
     offers: false,
+    pushEnabled: true,
+    offlineNotify: true,
   };
 }
 

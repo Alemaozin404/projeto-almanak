@@ -5,7 +5,9 @@ Jogo clicker/idle para Windows (Electron + React + Vite) com **servidor online**
 - 🌐 **Conteúdo ao vivo** — notícias, eventos, banners, códigos, changelog e janelas de manutenção vêm do servidor (Vercel). Publique conteúdo sem redistribuir o jogo.
 - 💳 **Pagamentos Pix reais** — integração com o **Mercado Pago** (cobrança com QR Code, webhook validado por HMAC, fichas entregues após aprovação).
 - ☁️ **Save na nuvem + sync entre dispositivos** — **online por padrão**: o save é enviado ao servidor após cada auto-save e ao sair, e a versão mais recente é restaurada ao abrir o jogo (Upstash Redis). **Sync ao vivo**: a mesma conta no PC, no celular (app Android) e no site mantém o progresso em sincronia — o app consulta o servidor a cada ~20 s (e ao voltar do segundo plano) e restaura automaticamente o save mais novo de outro dispositivo, com backup local. Desative em Configurações → Dados → Sincronização automática.
-- 🏆 **Ranking global** — seus melhores ciclos de Prestígio/Ascensão/Transcendência são publicados **automaticamente** (sem botão manual); a tela de Ranking também tem publicação manual.
+- 🏆 **Ranking global** — seus melhores ciclos de Prestígio/Ascensão/Transcendência são publicados **automaticamente** (sem botão manual); a tela de Ranking também tem publicação manual e **filtro por plataforma** (Todos · 📱 Android · 🖥️ PC · 🌐 Web).
+- 🎁 **Presentes entre amigos** — envie créditos 💳 ou caixas 📦 para amigos (cooldown de 6h); o presente cai na inbox deles e é resgatado na tela de Amigos (resgate único no servidor).
+- 📱 **Notificações** — o app Android avisa quando seu ganho offline está pronto (notificação local agendada ao sair do jogo) e recebe push (FCM) de presentes/eventos quando o Firebase está configurado. Toggles em Configurações → Notificações.
 - 🟢 **Indicador de conexão** — o TopBar mostra online/offline em tempo real (heartbeat a cada 1 min).
 - 🔄 **Auto-update** — quando você publica uma tag `v*`, o app se atualiza sozinho via GitHub Releases.
 

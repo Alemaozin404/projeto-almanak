@@ -13,6 +13,8 @@ import { pushCloudSave, pullCloudSave, cloudPlayerId } from '../../online/cloudS
 import { lastSyncAt, remoteGameVersion } from '../../liveops/RemoteContent';
 import { debugEnabled } from '../../debug/debug';
 import { setScreenAwake } from '../../core/wakeLock';
+import { isNativeApp } from '../../core/platform';
+import { startPushRegistration, unregisterPushToken } from '../../core/push';
 
 interface Props {
   saveMgr: import('../../save/saveManager').SaveManager;
@@ -277,6 +279,34 @@ export function Settings({ saveMgr, onBackToMenu, onReload }: Props) {
                 </label>
               ))}
               <button className="btn" onClick={() => block('notifications', defaultNotificationPrefs())}>↺ Restaurar padrões</button>
+            </div>
+            <div className="settings-col">
+              <h4>📱 Push (celular)</h4>
+              <label className="setting-row" title="Notificações do servidor (presentes, eventos, manutenção) no app Android">
+                <span>Receber notificações push</span>
+                <input
+                  type="checkbox"
+                  checked={s.settings.notifications.pushEnabled !== false}
+                  onChange={(e) => {
+                    block('notifications', { pushEnabled: e.target.checked });
+                    if (e.target.checked) void startPushRegistration();
+                    else void unregisterPushToken();
+                  }}
+                />
+              </label>
+              <label className="setting-row" title="Notificação local quando seu ganho offline atingir o teto (Android)">
+                <span>Aviso de ganho offline pronto</span>
+                <input
+                  type="checkbox"
+                  checked={s.settings.notifications.offlineNotify !== false}
+                  onChange={(e) => block('notifications', { offlineNotify: e.target.checked })}
+                />
+              </label>
+              <p className="muted small">
+                {isNativeApp()
+                  ? 'As permissões de notificação também podem ser controladas pela central de notificações do celular.'
+                  : 'Push funciona no app Android — no navegador as notificações do jogo continuam apenas visuais.'}
+              </p>
             </div>
           </div>
         )}

@@ -24,6 +24,11 @@
 
         </activity>
 
+        <!-- ícone das notificações push (FCM) — silhueta branca do raio -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@mipmap/ic_push" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

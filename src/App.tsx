@@ -51,6 +51,8 @@ import { applyTheme } from './ui/theme';
 import { bus } from './core/events';
 import { isNativeApp, quitApp, initNativeShell, hapticLight } from './core/platform';
 import { setScreenAwake } from './core/wakeLock';
+import { startPushRegistration, unregisterPushToken } from './core/push';
+import { scheduleOfflineReadyNotify, cancelOfflineReadyNotify } from './core/offlineNotify';
 import { formatNumber, formatFull, formatDuration } from './core/notation';
 import type { Num } from './core/bignum';
 import type { CSSProperties } from 'react';
@@ -120,6 +122,9 @@ export default function App() {
     const unsub = e.subscribe(() => force());
     // tela sempre acesa enquanto joga (preferência em Configurações → Gameplay)
     void setScreenAwake(e.state.settings.gameplay.keepAwake !== false);
+    // notificações push (FCM) — pede permissão e registra o token quando ativado
+    if (e.state.settings.notifications.pushEnabled !== false) void startPushRegistration();
+    else void unregisterPushToken();
     const offs = [
       bus.on('achievement', () => audio.achievement()),
       bus.on('levelUp', () => audio.levelUp()),
@@ -266,6 +271,29 @@ export default function App() {
     };
     document.addEventListener('click', h);
     return () => document.removeEventListener('click', h);
+  }, []);
+
+  // ── Android: notificações locais + push ao trocar de estado do app ──
+  // Ao ir para o segundo plano, agenda o aviso local "ganho offline pronto"
+  // (quando o teto offline for atingido); ao voltar, cancela e re-registra o
+  // token FCM (o token pode ter mudado/rotacionado enquanto estava fechado).
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let removeState: (() => void) | undefined;
+    void import('@capacitor/app').then(async ({ App }) => {
+      const h = await App.addListener('appStateChange', (st) => {
+        const e = engineRef.current;
+        if (!e) return;
+        if (st.isActive) {
+          void cancelOfflineReadyNotify();
+          if (e.state.settings.notifications.pushEnabled !== false) void startPushRegistration();
+        } else {
+          void scheduleOfflineReadyNotify(e);
+        }
+      });
+      removeState = () => h.remove();
+    });
+    return () => removeState?.();
   }, []);
 
   // ── Android: botão voltar físico ──

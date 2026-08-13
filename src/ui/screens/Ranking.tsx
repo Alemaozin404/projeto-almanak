@@ -4,7 +4,7 @@ import { Panel } from '../kit';
 import { SaveManager, SAVE_SLOTS, type SaveSlot } from '../../save/saveManager';
 import type { RunRecord } from '../../game/types';
 import { D, type Num } from '../../core/bignum';
-import { onlineEnabled, fetchGlobalRank, type RankEntry } from '../../online/api';
+import { onlineEnabled, fetchGlobalRank, type RankEntry, type RankPlatform } from '../../online/api';
 import { cloudPlayerId } from '../../online/cloudSave';
 import { publishBestRuns } from '../../online/autoRank';
 
@@ -18,6 +18,14 @@ const KIND_META: Record<RunRecord['kind'], { icon: string; label: string; unit: 
 };
 
 const MEDALS = ['🥇', '🥈', '🥉'];
+
+/** Ícone curto da plataforma de origem do recorde. */
+function platformIcon(platform?: string): string {
+  if (platform === 'android') return ' · 📱';
+  if (platform === 'pc') return ' · 🖥️';
+  if (platform === 'web') return ' · 🌐';
+  return '';
+}
 
 interface BestEntry {
   slot: SaveSlot;
@@ -71,19 +79,21 @@ export function Ranking({ saveMgr }: { saveMgr: SaveManager }) {
   const [globalRanks, setGlobalRanks] = useState<Partial<Record<RankKind, RankEntry[]>>>({});
   const [globalLoading, setGlobalLoading] = useState(false);
   const [rankMsg, setRankMsg] = useState('');
+  /** Filtro do ranking global por plataforma (Todos / Android / PC / Web). */
+  const [rankPlatform, setRankPlatform] = useState<RankPlatform>('all');
 
   // ── ranking GLOBAL (online) ─────────────────────────────
   const loadGlobal = useCallback(async () => {
     if (!online) return;
     setGlobalLoading(true);
     const [p, a, t] = await Promise.all([
-      fetchGlobalRank('prestige', 15),
-      fetchGlobalRank('ascension', 15),
-      fetchGlobalRank('transcendence', 15),
+      fetchGlobalRank('prestige', 15, rankPlatform),
+      fetchGlobalRank('ascension', 15, rankPlatform),
+      fetchGlobalRank('transcendence', 15, rankPlatform),
     ]);
     setGlobalRanks({ prestige: p, ascension: a, transcendence: t });
     setGlobalLoading(false);
-  }, [online]);
+  }, [online, rankPlatform]);
 
   useEffect(() => {
     if (online) void loadGlobal();
@@ -169,6 +179,13 @@ export function Ranking({ saveMgr }: { saveMgr: SaveManager }) {
               </button>
             ))}
           </div>
+          <div className="rank-kind-tabs" style={{ marginTop: 6 }}>
+            {([['all', '🌍 Todos'], ['android', '📱 Android'], ['pc', '🖥️ PC'], ['web', '🌐 Web']] as [RankPlatform, string][]).map(([p, label]) => (
+              <button key={p} className={`chip-btn ${rankPlatform === p ? 'active' : ''}`} onClick={() => setRankPlatform(p)}>
+                {label}
+              </button>
+            ))}
+          </div>
           {rankMsg && <p className="muted small">{rankMsg}</p>}
           {globalList.length === 0 ? (
             <p className="muted small">Sem recordes globais ainda — publique seus melhores ciclos e dispute o pódio mundial! 🏆</p>
@@ -181,7 +198,7 @@ export function Ranking({ saveMgr }: { saveMgr: SaveManager }) {
                     <span className="rank-pos">{globalMedals[i] ?? `${i + 1}º`}</span>
                     <span className="rank-slot">
                       <strong>{e.name || 'Jogador'}</strong>
-                      <small>{KIND_META[e.kind].unit}{mine ? ' · você' : ''}</small>
+                      <small>{KIND_META[e.kind].unit}{mine ? ' · você' : ''}{platformIcon(e.platform)}</small>
                     </span>
                     <span className="rank-gain">
                       <strong>{fmt(D(e.gain), 2)}</strong>
